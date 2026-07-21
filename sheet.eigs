@@ -341,6 +341,15 @@ define get(sheet, addr) as:
         return sheet.vals[a]
     return 0
 
+# Format a number for display: whole values as integers, otherwise trimmed to
+# a short decimal (so =A1/A2 shows 1.6667, not a 17-digit float tail).
+define _fmt(n) as:
+    if n == (floor of n):
+        return str of (floor of n)
+    local scaled is floor of (n * 10000 + 0.5)
+    local s is str of (scaled / 10000)
+    return s
+
 # Display string for a cell: error token, number, text literal, or "".
 define display(sheet, addr) as:
     local a is _upper of addr
@@ -350,10 +359,29 @@ define display(sheet, addr) as:
         return ""
     local raw is sheet.cells[a]
     if (len of raw) > 0 and (char_at of [raw, 0]) == "=":
-        return str of sheet.vals[a]
+        return _fmt of sheet.vals[a]
     if (_is_number of raw) == 1:
-        return str of (num of raw)
+        return _fmt of (num of raw)
     return raw
+
+# Keyboard scancode name (+ shift) -> the character it types, for cell entry.
+_KEYSHIFT is {"1": "!", "2": "@", "3": "#", "4": "$", "5": "%", "6": "^", "7": "&", "8": "*", "9": "(", "0": ")", "-": "_", "=": "+", ";": ":", "'": "\"", ",": "<", ".": ">", "/": "?", "[": "{", "]": "}", "\\": "|", "`": "~"}
+
+define _key_char(key, shift) as:
+    if key == "space":
+        return " "
+    if (len of key) != 1:
+        return ""
+    local c is ord of key
+    if c >= 97 and c <= 122:
+        if shift == 1:
+            return chr of (c - 32)
+        return key
+    if shift == 1:
+        if (has_key of [_KEYSHIFT, key]) == 1:
+            return _KEYSHIFT[key]
+        return key
+    return key
 
 # ---- gfx grid view (only runs when explicitly called) --------------
 # Split out so the UI oracle (tests/ui_oracle.py) drives the SAME draw
@@ -366,32 +394,33 @@ define display(sheet, addr) as:
 # column-header row is CHH tall, data cells are CW x RH. CW is a multiple of
 # the 12px bitmap-glyph advance so right-aligned values still land on the
 # 12px grid the render oracle decodes from a cell's left edge.
-define draw_grid(sheet, ncols, nrows) as:
+define draw_grid(sheet, ncols, nrows, top) as:
     local rhw is 36
     local chh is 22
     local cw is 72
     local rh is 22
     local gx is rhw
-    local gy is chh
+    local gy is top + chh
     gfx_clear of [22, 24, 34]
     # header strips (top row + left column) in a lighter shade
-    gfx_rect of [0, 0, gx + ncols * cw, chh, 38, 42, 58]
-    gfx_rect of [0, 0, rhw, gy + nrows * rh, 38, 42, 58]
-    # column headers A, B, C, ...
+    gfx_rect of [0, top, gx + ncols * cw, chh, 38, 42, 58]
+    gfx_rect of [0, top, rhw, gy + nrows * rh - top, 38, 42, 58]
+    # column headers A, B, C, ... (centered over the column)
     local c is 0
     loop while c < ncols:
         local letter is _num_to_col of (c + 1)
-        gfx_text of [gx + c * cw + 30, 4, letter, 160, 170, 200, 2]
+        gfx_text of [gx + c * cw + (cw / 2) - (len of letter) * 6, top + 4, letter, 160, 170, 200, 2]
         c is c + 1
-    # row headers 1, 2, 3, ...
+    # row headers 1, 2, 3, ... (right-aligned in the header column)
     local r is 0
     loop while r < nrows:
-        gfx_text of [8, gy + r * rh + 4, str of (r + 1), 160, 170, 200, 2]
+        local rl is str of (r + 1)
+        gfx_text of [rhw - (len of rl) * 12 - 4, gy + r * rh + 4, rl, 160, 170, 200, 2]
         r is r + 1
     # grid lines (faint — dark enough to be excluded from the ink decode)
     local gc is 0
     loop while gc <= ncols:
-        gfx_rect of [gx + gc * cw, 0, 1, gy + nrows * rh, 52, 56, 74]
+        gfx_rect of [gx + gc * cw, top, 1, gy + nrows * rh - top, 52, 56, 74]
         gc is gc + 1
     local gr is 0
     loop while gr <= nrows:
@@ -421,95 +450,114 @@ define _demo(sheet) as:
     recalc of sheet
     return sheet
 
+# Commit an edit buffer into a cell and recompute. Empty buffer clears it.
+define _commit_cell(sheet, c, r, buf) as:
+    dict_set of [sheet.cells, _cell_addr of [c + 1, r + 1], buf]
+    recalc of sheet
+    return 0
+
 define run() as:
     local W is 720
     local H is 480
-    # must match draw_grid's geometry
+    local fbh is 26          # formula bar height
     local gx is 36
-    local gy is 22
+    local gy is fbh + 22     # data grid starts below the formula bar + col header
     local cw is 72
     local rh is 22
-    local ncols is 6
-    local nrows is 8
+    local ncols is 9
+    local nrows is 17
     gfx_open of [W, H, "eigen-sheet v" + VERSION]
     local s is _demo of (new_sheet of null)
-    local sel_c is 0 - 1
-    local sel_r is 0 - 1
-    local menu_open is 0
-    local items is ["=SUM(A1:A4)", "=A1*A2", "clear"]
-    local nitems is len of items
-    local ih is 22
-    local btnx is 8
-    local btnw is 150
-    local btnh is 24
-    local btny is H - 32
+    local sel_c is 0
+    local sel_r is 0
+    local editing is 0
+    local buf is ""
     local running is 1
     loop while running == 1:
         local ev is gfx_poll of null
         loop while ev != null:
             if ev.type == "quit":
                 running is 0
-            elif ev.type == "keydown" and ev.key == "escape":
-                running is 0
+            elif ev.type == "keydown":
+                local key is ev.key
+                local shift is 0
+                if ev.shift != null:
+                    shift is ev.shift
+                if key == "escape":
+                    if editing == 1:
+                        editing is 0
+                        buf is ""
+                    else:
+                        running is 0
+                elif key == "return":
+                    if editing == 1:
+                        _commit_cell of [s, sel_c, sel_r, buf]
+                        editing is 0
+                        buf is ""
+                    if sel_r < (nrows - 1):
+                        sel_r is sel_r + 1
+                elif key == "backspace":
+                    if editing == 1 and (len of buf) > 0:
+                        buf is substr of [buf, 0, (len of buf) - 1]
+                elif key == "left" or key == "right" or key == "up" or key == "down":
+                    if editing == 1:
+                        _commit_cell of [s, sel_c, sel_r, buf]
+                        editing is 0
+                        buf is ""
+                    if key == "left" and sel_c > 0:
+                        sel_c is sel_c - 1
+                    if key == "right" and sel_c < (ncols - 1):
+                        sel_c is sel_c + 1
+                    if key == "up" and sel_r > 0:
+                        sel_r is sel_r - 1
+                    if key == "down" and sel_r < (nrows - 1):
+                        sel_r is sel_r + 1
+                else:
+                    local ch is _key_char of [key, shift]
+                    if (len of ch) > 0:
+                        if editing == 0:
+                            editing is 1
+                            buf is ""
+                        buf is buf + ch
             elif ev.type == "mousedown":
                 local mx is ev.x
                 local my is ev.y
-                if menu_open == 1:
-                    # hit-test the OPEN menu FIRST — it is the topmost overlay,
-                    # so its items must win the click before the grid under it.
-                    local hit is 0 - 1
-                    local k is 0
-                    loop while k < nitems:
-                        local iy is btny - (nitems - k) * ih
-                        if mx >= btnx and mx < (btnx + 160) and my >= iy and my < (iy + ih):
-                            hit is k
-                        k is k + 1
-                    if hit >= 0 and sel_c >= 0:
-                        local addr is _cell_addr of [sel_c + 1, sel_r + 1]
-                        if items[hit] == "clear":
-                            dict_set of [s.cells, addr, ""]
-                        else:
-                            set_cell of [s, addr, items[hit]]
-                        recalc of s
-                    menu_open is 0
-                elif mx >= btnx and mx < (btnx + btnw) and my >= btny and my < (btny + btnh):
-                    menu_open is 1
-                elif mx >= gx and my >= gy and mx < (gx + ncols * cw) and my < (gy + nrows * rh):
+                if my >= gy and mx >= gx and mx < (gx + ncols * cw) and my < (gy + nrows * rh):
+                    if editing == 1:
+                        _commit_cell of [s, sel_c, sel_r, buf]
+                        editing is 0
+                        buf is ""
                     sel_c is floor of ((mx - gx) / cw)
                     sel_r is floor of ((my - gy) / rh)
-                else:
-                    sel_c is 0 - 1
-                    sel_r is 0 - 1
             ev is gfx_poll of null
-        draw_grid of [s, ncols, nrows]
-        # selection outline (four thin edges around the picked cell)
-        if sel_c >= 0:
-            local sx is gx + sel_c * cw
-            local sy is gy + sel_r * rh
-            gfx_rect of [sx, sy, cw, 2, 90, 170, 250]
-            gfx_rect of [sx, sy + rh, cw, 2, 90, 170, 250]
-            gfx_rect of [sx, sy, 2, rh, 90, 170, 250]
-            gfx_rect of [sx + cw, sy, 2, rh, 90, 170, 250]
-        # status: which cell is selected and its raw content
-        if sel_c >= 0:
-            local saddr is _cell_addr of [sel_c + 1, sel_r + 1]
-            local sraw is ""
-            if (has_key of [s.cells, saddr]) == 1:
-                sraw is s.cells[saddr]
-            gfx_text of [170, btny + 4, saddr + ": " + sraw, 200, 205, 220, 2]
+        draw_grid of [s, ncols, nrows, fbh]
+        # active column + row header highlight (like a real spreadsheet)
+        local hx is gx + sel_c * cw
+        local hy is gy + sel_r * rh
+        gfx_rect of [hx, fbh, cw, 22, 60, 96, 150]
+        gfx_rect of [0, hy, gx, rh, 60, 96, 150]
+        local hl is _num_to_col of (sel_c + 1)
+        gfx_text of [gx + sel_c * cw + (cw / 2) - (len of hl) * 6, fbh + 4, hl, 240, 244, 252, 2]
+        local rl is str of (sel_r + 1)
+        gfx_text of [gx - (len of rl) * 12 - 4, hy + 4, rl, 240, 244, 252, 2]
+        # active-cell outline
+        gfx_rect of [hx, hy, cw, 2, 90, 170, 250]
+        gfx_rect of [hx, hy + rh, cw, 2, 90, 170, 250]
+        gfx_rect of [hx, hy, 2, rh, 90, 170, 250]
+        gfx_rect of [hx + cw, hy, 2, rh, 90, 170, 250]
+        # formula bar: name box (the active reference) + editable content
+        gfx_rect of [0, 0, W, fbh, 30, 34, 48]
+        gfx_rect of [0, 0, 70, fbh, 44, 50, 70]
+        gfx_rect of [70, 0, 1, fbh, 60, 66, 88]
+        local addr is _cell_addr of [sel_c + 1, sel_r + 1]
+        gfx_text of [8, 4, addr, 205, 214, 236, 2]
+        local content is ""
+        if editing == 1:
+            content is buf + "_"
         else:
-            gfx_text of [170, btny + 4, "click a cell", 120, 128, 150, 2]
-        # the dropdown button
-        gfx_rect of [btnx, btny, btnw, btnh, 46, 90, 150]
-        gfx_text of [btnx + 8, btny + 4, "Insert v", 235, 238, 248, 2]
-        # the open menu, drawn LAST so it is the topmost layer
-        if menu_open == 1:
-            local m is 0
-            loop while m < nitems:
-                local iy is btny - (nitems - m) * ih
-                gfx_rect of [btnx, iy, 160, ih - 1, 40, 46, 64]
-                gfx_text of [btnx + 6, iy + 4, items[m], 220, 224, 236, 2]
-                m is m + 1
+            if (has_key of [s.cells, addr]) == 1:
+                content is s.cells[addr]
+        gfx_text of [80, 4, content, 222, 226, 240, 2]
         gfx_present of null
         gfx_delay of 16
     gfx_close of null

@@ -189,15 +189,20 @@ def build_atlas(edit_path):
     return atlas
 
 
-def decode_grid(img, atlas):
-    """Decode the rendered data grid into rows of cell strings (right-aligned)."""
+def decode_grid(img, atlas, gy=GY):
+    """Decode the rendered data grid into rows of cell strings (right-aligned).
+
+    gy is the pixel y of the first data row's top; draw_grid at top=0 has it at
+    GY, but run()'s formula-bar layout pushes it down (the mouse oracle passes
+    the shifted value).
+    """
     px = img.load(); W, H = img.size
     grid = []
     for r in range(NROWS):
         row = []
         for c in range(NCOLS):
             ox = GX + c * CW
-            oy = GY + r * RH + TPAD
+            oy = gy + r * RH + TPAD
             s = ""
             for k in range(CW // CELL_W):        # every glyph cell across the cell
                 cx = ox + k * CELL_W
@@ -213,7 +218,7 @@ def render_grid(edit_path, atlas):
     body = {"setup": ("s is sheet.new_sheet of null\n"
                       + "\n".join('sheet.set_cell of [s, "%s", "%s"]' % (a, v) for a, v in CELLS.items())
                       + "\nsheet.recalc of s"),
-            "frame": "sheet.draw_grid of [s, %d, %d]" % (NCOLS, NROWS)}
+            "frame": "sheet.draw_grid of [s, %d, %d, 0]" % (NCOLS, NROWS)}
     return decode_grid(_capture(edit_path, body, "eigen-sheet v0.1.0"), atlas)
 
 
