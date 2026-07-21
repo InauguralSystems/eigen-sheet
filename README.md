@@ -84,13 +84,14 @@ mouse oracles).
 
 ## Scope (v0.1)
 
-Numbers, `+ - * /`, parens and precedence, cell references, `SUM(range)`,
-multi-letter columns, dependency-ordered recalc, cycle detection. Interactive:
-in-cell editing with a formula bar, click-drag range selection with a live
-Sum/Average/Count status bar, copy/paste with relative-reference adjustment
-(`Ctrl+C`/`V`), undo/redo (`Ctrl+Z`/`Y`), and delete-to-clear. Not yet: menus/
-toolbar, scrollbars, sheet tabs, more functions (AVG/MIN/MAX/IF), string
-formulas.
+Numbers, `+ - * /`, parens and precedence, comparisons (`> < >= <= = <>`),
+cell references, multi-letter columns, functions `SUM` / `AVERAGE` (`AVG`) /
+`MIN` / `MAX` over a range and `IF(cond, then, else)` (nestable), dependency-
+ordered recalc, cycle detection. Interactive: in-cell editing with a formula
+bar, click-drag range selection with a live Sum/Average/Count status bar,
+copy/paste with relative-reference adjustment (`Ctrl+C`/`V`), undo/redo
+(`Ctrl+Z`/`Y`), and delete-to-clear. Not yet: menus/toolbar, scrollbars, sheet
+tabs, string formulas.
 
 ## License
 

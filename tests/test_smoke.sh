@@ -53,6 +53,13 @@ stat of ["B2:A1", $PKG_NAME.range_stats of [s, 1, 1, 0, 0]]
 cp1 is $PKG_NAME.copy_block of [s, 0, 2, 0, 2]
 $PKG_NAME.paste_block of [s, cp1, 1, 2]
 print of ("paste B3=" + ($PKG_NAME.display of [s, "B3"]) + " raw=" + s.cells["B3"])
+# functions: AVG / MIN / MAX / IF (with comparison + nesting). A1..A4 = 5,3,8,16
+$PKG_NAME.set_cell of [s, "E1", "=AVG(A1:A4)"]
+$PKG_NAME.set_cell of [s, "E2", "=MIN(A1:A4)"]
+$PKG_NAME.set_cell of [s, "E3", "=MAX(A1:A4)"]
+$PKG_NAME.set_cell of [s, "E4", "=IF(A1>A2,MAX(A1:A4),MIN(A1:A4))"]
+$PKG_NAME.recalc of s
+print of ("E1=" + ($PKG_NAME.display of [s, "E1"]) + " E2=" + ($PKG_NAME.display of [s, "E2"]) + " E3=" + ($PKG_NAME.display of [s, "E3"]) + " E4=" + ($PKG_NAME.display of [s, "E4"]))
 EOF
 
 OUT="$("$EIGS" "$TMP/app.eigs" 2>&1)"
@@ -69,6 +76,7 @@ A1:A4 sum=32 count=4
 A1:B2 sum=43 count=4
 B2:A1 sum=43 count=4
 paste B3=35 raw==B1+B2
+E1=8 E2=3 E3=16 E4=16
 EOF
 )"
 

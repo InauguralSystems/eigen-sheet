@@ -35,6 +35,13 @@ CELLS = {
     "C3": "=B1+C1",         # 22   (formula referencing formulas)
     "C4": "=-A1+A3*2",      # 11   (unary minus + precedence)
     "D1": "=SUM(A1:C1)",    # 27   (A1+B1+C1 = 5+8+14)
+    "E1": "=AVERAGE(A1:A4)",             # 3.5  (5+3+8-2)/4
+    "E2": "=MIN(A1:A4)",                 # -2
+    "E3": "=MAX(A1:A4)",                 # 8
+    "E4": "=IF(A1>A2,100,200)",          # 100  (5 > 3)
+    "F1": "=IF(A1<A2,10,20)",            # 20   (5 < 3 false)
+    "F2": "=IF(SUM(A1:A4)>10,MAX(A1:A4),MIN(A1:A4))",  # 8 (14>10 -> MAX)
+    "F3": "=IF(A2=3,A3*2,0)",            # 16   (equality)
 }
 
 
