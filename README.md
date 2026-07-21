@@ -127,7 +127,9 @@ arithmetic, tighter than comparison, coercing numbers to text so `=5&"x"` is
 `VALUE`, case-insensitive text comparison (`="a"="A"`
 is true), and number↔text coercion (non-numeric text in arithmetic is
 `#VALUE!`). Text left-aligns, numbers right-align. **I/O:** `to_csv` / `from_csv`
-(RFC-4180, with quoting and round-trip). Interactive: in-cell editing
+(RFC-4180, with quoting and round-trip). **Data:** `sort_range` (stable sort
+of a range by a key column, ascending/descending, numbers before text).
+Interactive: in-cell editing
 with a formula bar, click-drag range selection with a live Sum/Average/Count
 status bar, copy/paste with relative-reference adjustment — anchored `$` parts stay
 fixed (`Ctrl+C`/`V`),

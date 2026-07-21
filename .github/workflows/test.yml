@@ -21,6 +21,8 @@ jobs:
         run: bash tests/test_smoke.sh
       - name: CSV differential oracle (vs Python csv module)
         run: python3 tests/diff_vs_csv.py
+      - name: Sort differential oracle (vs Python sorted)
+        run: python3 tests/diff_vs_sort.py
 
   calc-oracle:
     # differential oracle: eigen-sheet recalc vs headless LibreOffice Calc.

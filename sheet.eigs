@@ -1857,6 +1857,69 @@ define display(sheet, addr) as:
         return _fmt of (num of raw)
     return raw
 
+# ---- sort a range --------------------------------------------------
+
+# Should key a sort AFTER key b? Ascending: a > b; descending: a < b. Uses
+# _compare, so numbers sort before text (like a spreadsheet). Strict, so the
+# insertion sort stays stable on equal keys.
+define _sort_after(a, b, descending) as:
+    if descending == 1:
+        return _compare of [a, b, "<"]
+    return _compare of [a, b, ">"]
+
+# Reorder the ROWS of the range [c0..c1] x [r0..r1] (0-based corners, any order)
+# by the value in key column `keycol` (0-based WITHIN the range), ascending
+# unless `descending`. Whole rows move (raw contents); a stable sort. Numbers
+# sort before text, matching Calc's ascending order.
+define sort_range(sheet, c0, r0, c1, r1, keycol, descending) as:
+    local clo is c0
+    local chi is c1
+    if c0 > c1:
+        clo is c1
+        chi is c0
+    local rlo is r0
+    local rhi is r1
+    if r0 > r1:
+        rlo is r1
+        rhi is r0
+    # gather each row's raw contents + its sort key (the key column's value)
+    local items is []
+    local r is rlo
+    loop while r <= rhi:
+        local raws is []
+        local c is clo
+        loop while c <= chi:
+            local addr is _cell_addr of [c + 1, r + 1]
+            local raw is ""
+            if (has_key of [sheet.cells, addr]) == 1:
+                raw is sheet.cells[addr]
+            append of [raws, raw]
+            c is c + 1
+        local key is get of [sheet, _cell_addr of [clo + keycol + 1, r + 1]]
+        append of [items, {"key": key, "raws": raws}]
+        r is r + 1
+    # stable insertion sort by key
+    local i is 1
+    loop while i < (len of items):
+        local cur is items[i]
+        local j is i - 1
+        loop while j >= 0 and (_sort_after of [items[j].key, cur.key, descending]) == 1:
+            items[j + 1] is items[j]
+            j is j - 1
+        items[j + 1] is cur
+        i is i + 1
+    # write the reordered rows back into the range
+    local w is 0
+    loop while w < (len of items):
+        local raws is items[w].raws
+        local c is clo
+        loop while c <= chi:
+            dict_set of [sheet.cells, _cell_addr of [c + 1, rlo + w + 1], raws[c - clo]]
+            c is c + 1
+        w is w + 1
+    recalc of sheet
+    return sheet
+
 # ---- CSV import / export (RFC 4180) --------------------------------
 
 # Quote a field only if it contains a comma, quote, or newline; double any
