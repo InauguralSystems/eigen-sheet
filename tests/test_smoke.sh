@@ -111,6 +111,15 @@ $PKG_NAME.set_cell of [s, "P2", "=P1+1"]
 $PKG_NAME.set_cell of [s, "P3", "=SUM(P1:P2)"]
 $PKG_NAME.recalc of s
 print of ("prop P2=" + ($PKG_NAME.display of [s, "P2"]) + " P3=" + ($PKG_NAME.display of [s, "P3"]))
+# per-cell number formats: set_format changes DISPLAY (not the stored value).
+# Q1 a literal, Q2 a formula result; the format logic itself is Calc-checked
+# via TEXT() in the string oracle.
+$PKG_NAME.set_cell of [s, "Q1", "1234.5"]
+$PKG_NAME.set_format of [s, "Q1", "#,##0.00"]
+$PKG_NAME.set_cell of [s, "Q2", "=1/8"]
+$PKG_NAME.set_format of [s, "Q2", "0.00%"]
+$PKG_NAME.recalc of s
+print of ("fmt Q1=" + ($PKG_NAME.display of [s, "Q1"]) + " Q2=" + ($PKG_NAME.display of [s, "Q2"]) + " val=" + (str of ($PKG_NAME.get of [s, "Q1"])))
 # structural: a formula using EVERY token type — including a string literal and
 # the & operator — copied+pasted in place (delta 0) must reconstruct
 # byte-identically, guarding _shift_formula against any dropped-token class.
@@ -152,6 +161,7 @@ cleared A3=5 A2=[]
 abs O11=44 raw==$A$1+$A3+B$1
 xlookup=200,-1 selfrc=7,11
 prop P2=#DIV/0! P3=#DIV/0!
+fmt Q1=1,234.50 Q2=12.50% val=1234.5
 roundtrip==IF(A1&"x"="5x",SUM(A1:A3)+1,MIN(A1:A2)*2)
 errs=#NAME?,#DIV/0!,#ERROR,#ERROR gapavg=15
 EOF

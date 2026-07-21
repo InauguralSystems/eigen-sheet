@@ -1088,7 +1088,7 @@ define _eval_factor(st) as:
                 return 0
             return lvec[lp - 1]
         # text functions: scalar comma-separated args (not ranges).
-        if fname == "LEN" or fname == "UPPER" or fname == "LOWER" or fname == "TRIM" or fname == "LEFT" or fname == "RIGHT" or fname == "MID" or fname == "CONCATENATE" or fname == "FIND" or fname == "SEARCH" or fname == "SUBSTITUTE" or fname == "REPLACE" or fname == "REPT" or fname == "PROPER" or fname == "EXACT" or fname == "CHAR" or fname == "CODE" or fname == "VALUE" or fname == "TEXTJOIN":
+        if fname == "LEN" or fname == "UPPER" or fname == "LOWER" or fname == "TRIM" or fname == "LEFT" or fname == "RIGHT" or fname == "MID" or fname == "CONCATENATE" or fname == "FIND" or fname == "SEARCH" or fname == "SUBSTITUTE" or fname == "REPLACE" or fname == "REPT" or fname == "PROPER" or fname == "EXACT" or fname == "CHAR" or fname == "CODE" or fname == "VALUE" or fname == "TEXTJOIN" or fname == "TEXT":
             local targs is []
             if (_peek of st) != null and (_peek of st).t != "rp":
                 append of [targs, _eval_cmp of st]
@@ -1203,6 +1203,11 @@ define _eval_factor(st) as:
                     return num of vt
                 st.err is "#VALUE!"
                 return 0
+            if fname == "TEXT":
+                if na < 2:
+                    st.err is "#ERROR"
+                    return ""
+                return _apply_format of [_to_num of [st, targs[0]], _to_text of targs[1]]
             if fname == "TEXTJOIN":
                 if na < 3:
                     st.err is "#ERROR"
@@ -1541,7 +1546,13 @@ define _eval(toks, vals, cells, selfaddr, errs) as:
 # ---- sheet + recalc -------------------------------------------------
 
 define new_sheet() as:
-    return {"cells": {}, "vals": {}, "err": {}, "order": [], "names": {}}
+    return {"cells": {}, "vals": {}, "err": {}, "order": [], "names": {}, "formats": {}}
+
+# Assign a number-format code to a cell (e.g. "#,##0.00", "0%", "YYYY-MM-DD").
+# It affects display() only; the stored value is unchanged.
+define set_format(sheet, addr, code) as:
+    dict_set of [sheet.formats, _upper of addr, code]
+    return sheet
 
 define set_cell(sheet, addr, raw) as:
     dict_set of [sheet.cells, _upper of addr, raw]
@@ -1836,6 +1847,132 @@ define _fmt(n) as:
     local s is str of (scaled / 10000)
     return s
 
+# ---- number-format codes (Calc/Excel mini-language, common subset) --
+
+define _contains(s, ch) as:
+    for i in range of (len of s):
+        if (char_at of [s, i]) == ch:
+            return 1
+    return 0
+
+define _pad2(n) as:
+    if n < 10:
+        return "0" + (str of n)
+    return str of n
+
+# Insert thousands separators into a run of integer digits ("1234" -> "1,234").
+define _group_thousands(s) as:
+    local out is ""
+    local n is len of s
+    for i in range of n:
+        if i > 0 and ((n - i) % 3) == 0:
+            out is out + ","
+        out is out + (char_at of [s, i])
+    return out
+
+# Apply a NUMBER format code: prefix + grouped/decimal number + suffix.
+# Decimals = count of '0' after '.'; grouping if the integer part has ','; a '%'
+# anywhere scales by 100. Everything outside the 0/#/,/. run is a literal.
+define _fmt_number(value, code) as:
+    local n is len of code
+    local ns is 0 - 1
+    local ne is 0 - 1
+    for i in range of n:
+        local ch is char_at of [code, i]
+        if ch == "0" or ch == "#" or ch == "," or ch == ".":
+            if ns < 0:
+                ns is i
+            ne is i
+    if ns < 0:
+        return code
+    local prefix is substr of [code, 0, ns]
+    local numtok is substr of [code, ns, ne - ns + 1]
+    local suffix is substr of [code, ne + 1, n - (ne + 1)]
+    local v is value
+    if (_contains of [code, "%"]) == 1:
+        v is v * 100
+    # decimals + grouping from the token
+    local decimals is 0
+    local grouping is 0
+    local seen_dot is 0
+    for k in range of (len of numtok):
+        local c2 is char_at of [numtok, k]
+        if c2 == ".":
+            seen_dot is 1
+        elif c2 == "," and seen_dot == 0:
+            grouping is 1
+        elif c2 == "0" and seen_dot == 1:
+            decimals is decimals + 1
+    local neg is 0
+    if v < 0:
+        neg is 1
+        v is 0 - v
+    local factor is pow of [10, decimals]
+    local scaled is floor of (v * factor + 0.5)
+    local intval is floor of (scaled / factor)
+    local ints is str of intval
+    if grouping == 1:
+        ints is _group_thousands of ints
+    local body is ints
+    if decimals > 0:
+        local fracval is scaled - intval * factor
+        local fs is str of fracval
+        loop while (len of fs) < decimals:
+            fs is "0" + fs
+        body is body + "." + fs
+    if neg == 1:
+        body is "-" + body
+    return prefix + body + suffix
+
+# Apply a DATE format code: Y/M/D token runs -> components, other chars literal.
+define _fmt_date(serial, code) as:
+    local cv is _civil_from_days of serial
+    local out is ""
+    local i is 0
+    local n is len of code
+    loop while i < n:
+        local ch is char_at of [code, i]
+        if ch == "Y" or ch == "y":
+            local run is 0
+            loop while i < n and ((char_at of [code, i]) == "Y" or (char_at of [code, i]) == "y"):
+                run is run + 1
+                i is i + 1
+            if run >= 3:
+                out is out + (str of cv.y)
+            else:
+                out is out + (_pad2 of (cv.y % 100))
+        elif ch == "M" or ch == "m":
+            local rm is 0
+            loop while i < n and ((char_at of [code, i]) == "M" or (char_at of [code, i]) == "m"):
+                rm is rm + 1
+                i is i + 1
+            if rm >= 2:
+                out is out + (_pad2 of cv.m)
+            else:
+                out is out + (str of cv.m)
+        elif ch == "D" or ch == "d":
+            local rd is 0
+            loop while i < n and ((char_at of [code, i]) == "D" or (char_at of [code, i]) == "d"):
+                rd is rd + 1
+                i is i + 1
+            if rd >= 2:
+                out is out + (_pad2 of cv.d)
+            else:
+                out is out + (str of cv.d)
+        else:
+            out is out + ch
+            i is i + 1
+    return out
+
+# Format a numeric value with a format code — the shared core of TEXT() and
+# per-cell number formats. Number codes use 0/#; date codes use Y/M/D.
+define _apply_format(value, code) as:
+    if (_contains of [code, "0"]) == 1 or (_contains of [code, "#"]) == 1:
+        return _fmt_number of [value, code]
+    if (_contains of [code, "Y"]) == 1 or (_contains of [code, "y"]) == 1 or (_contains of [code, "D"]) == 1 or (_contains of [code, "d"]) == 1:
+        return _fmt_date of [value, code]
+    return _fmt_number of [value, code]
+
 # Display string for a cell: error token, number, text literal, or "".
 define display(sheet, addr) as:
     local a is _upper of addr
@@ -1852,9 +1989,14 @@ define display(sheet, addr) as:
             if v.b == 1:
                 return "TRUE"
             return "FALSE"
+        if (has_key of [sheet.formats, a]) == 1:
+            return _apply_format of [v, sheet.formats[a]]
         return _fmt of v
     if (_is_number of raw) == 1:
-        return _fmt of (num of raw)
+        local nv is num of raw
+        if (has_key of [sheet.formats, a]) == 1:
+            return _apply_format of [nv, sheet.formats[a]]
+        return _fmt of nv
     return raw
 
 # ---- sort a range --------------------------------------------------

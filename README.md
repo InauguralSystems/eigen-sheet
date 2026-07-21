@@ -36,8 +36,9 @@ sheet.recalc of s
 print of (sheet.get of [s, "A4"])           # -> 16
 ```
 
-Importable surface: `new_sheet`, `set_cell`, `define_name`, `recalc`, `get`,
-`display`, `to_csv` / `from_csv`, and `draw_grid` (the gfx front-end; `run` opens
+Importable surface: `new_sheet`, `set_cell`, `define_name`, `set_format`,
+`recalc`, `get`, `display`, `to_csv` / `from_csv`, `sort_range`, and
+`draw_grid` (the gfx front-end; `run` opens
 a window but is never called on import, so `import sheet` is side-effect-free and
 headless-testable).
 
@@ -124,12 +125,14 @@ arithmetic, tighter than comparison, coercing numbers to text so `=5&"x"` is
 `5x`), the text functions `LEN` / `UPPER` / `LOWER` / `TRIM` / `LEFT` /
 `RIGHT` / `MID` / `CONCATENATE` / `FIND` / `SEARCH` / `SUBSTITUTE` /
 `REPLACE` / `REPT` / `PROPER` / `EXACT` / `TEXTJOIN` / `CHAR` / `CODE` /
-`VALUE`, case-insensitive text comparison (`="a"="A"`
+`VALUE` / `TEXT` (number/date formatting), case-insensitive text comparison (`="a"="A"`
 is true), and number↔text coercion (non-numeric text in arithmetic is
 `#VALUE!`). Text left-aligns, numbers right-align. **I/O:** `to_csv` / `from_csv`
 (RFC-4180, with quoting and round-trip). **Data:** `sort_range` (stable sort
 of a range by a key column, ascending/descending, numbers before text).
-Interactive: in-cell editing
+**Number formats:** `set_format` / `TEXT` — decimals, thousands grouping,
+percent, currency, and `Y`/`M`/`D` date codes (`#,##0.00`, `0%`,
+`$#,##0.00`, `YYYY-MM-DD`). Interactive: in-cell editing
 with a formula bar, click-drag range selection with a live Sum/Average/Count
 status bar, copy/paste with relative-reference adjustment — anchored `$` parts stay
 fixed (`Ctrl+C`/`V`),
