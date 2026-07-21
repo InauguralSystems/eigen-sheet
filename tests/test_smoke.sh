@@ -49,6 +49,10 @@ define stat(label, st) as:
 stat of ["A1:A4", $PKG_NAME.range_stats of [s, 0, 0, 0, 3]]
 stat of ["A1:B2", $PKG_NAME.range_stats of [s, 0, 0, 1, 1]]
 stat of ["B2:A1", $PKG_NAME.range_stats of [s, 1, 1, 0, 0]]
+# copy A3 (=A1+A2) and paste to B3: relative refs shift to =B1+B2 = 31+4
+cp1 is $PKG_NAME.copy_block of [s, 0, 2, 0, 2]
+$PKG_NAME.paste_block of [s, cp1, 1, 2]
+print of ("paste B3=" + ($PKG_NAME.display of [s, "B3"]) + " raw=" + s.cells["B3"])
 EOF
 
 OUT="$("$EIGS" "$TMP/app.eigs" 2>&1)"
@@ -64,6 +68,7 @@ order=["A3", "A4", "B1", "B2", "C1"]
 A1:A4 sum=32 count=4
 A1:B2 sum=43 count=4
 B2:A1 sum=43 count=4
+paste B3=35 raw==B1+B2
 EOF
 )"
 

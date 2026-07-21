@@ -376,6 +376,97 @@ define range_stats(sheet, c0, r0, c1, r1) as:
         c is c + 1
     return {"sum": total, "count": count}
 
+# A shallow copy of a cells dict (values are strings) — one undo snapshot.
+define _copy_cells(cells) as:
+    local out is {}
+    local ks is keys of cells
+    for i in range of (len of ks):
+        dict_set of [out, ks[i], cells[ks[i]]]
+    return out
+
+# Shift a cell address by (dcol, drow), clamped to the A1 corner.
+define _shift_addr(addr, dcol, drow) as:
+    local p is _addr_parts of addr
+    local nc is (_col_to_num of p.col) + dcol
+    local nr is p.row + drow
+    if nc < 1:
+        nc is 1
+    if nr < 1:
+        nr is 1
+    return _cell_addr of [nc, nr]
+
+# Rewrite a formula body's cell references by (dcol, drow) — relative-reference
+# adjustment, so copying =A1+A2 from A3 to B3 yields =B1+B2.
+define _shift_formula(body, dcol, drow) as:
+    local toks is _tokenize of body
+    local out is ""
+    for i in range of (len of toks):
+        local tk is toks[i]
+        if tk.t == "cell":
+            out is out + (_shift_addr of [tk.v, dcol, drow])
+        elif tk.t == "num":
+            out is out + (str of tk.v)
+        elif tk.t == "op":
+            out is out + tk.v
+        elif tk.t == "func":
+            out is out + tk.v
+        elif tk.t == "lp":
+            out is out + "("
+        elif tk.t == "rp":
+            out is out + ")"
+        elif tk.t == "colon":
+            out is out + ":"
+    return out
+
+# Copy the block spanned by two 0-based corners into a clip value
+# {rows, clo, rlo} — the raw cell contents plus the source top-left, which
+# paste_block needs for relative-reference adjustment.
+define copy_block(sheet, c0, r0, c1, r1) as:
+    local clo is c0
+    local chi is c1
+    if c0 > c1:
+        clo is c1
+        chi is c0
+    local rlo is r0
+    local rhi is r1
+    if r0 > r1:
+        rlo is r1
+        rhi is r0
+    local rows is []
+    local rr is rlo
+    loop while rr <= rhi:
+        local rowl is []
+        local cc is clo
+        loop while cc <= chi:
+            local a is _cell_addr of [cc + 1, rr + 1]
+            local raw is ""
+            if (has_key of [sheet.cells, a]) == 1:
+                raw is sheet.cells[a]
+            append of [rowl, raw]
+            cc is cc + 1
+        append of [rows, rowl]
+        rr is rr + 1
+    return {"rows": rows, "clo": clo, "rlo": rlo}
+
+# Paste a clip so its top-left lands at 0-based (tc, tr); formula references
+# shift by the paste delta, then recompute.
+define paste_block(sheet, clip, tc, tr) as:
+    local dcol is tc - clip.clo
+    local drow is tr - clip.rlo
+    local i is 0
+    loop while i < (len of clip.rows):
+        local j is 0
+        loop while j < (len of clip.rows[i]):
+            local raw is clip.rows[i][j]
+            local outr is raw
+            if (len of raw) > 0 and (char_at of [raw, 0]) == "=":
+                outr is "=" + (_shift_formula of [substr of [raw, 1, (len of raw) - 1], dcol, drow])
+            dict_set of [sheet.cells, _cell_addr of [(tc + j) + 1, (tr + i) + 1], outr]
+            j is j + 1
+        i is i + 1
+    recalc of sheet
+    return sheet
+
 # Format a number for display: whole values as integers, otherwise trimmed to
 # a short decimal (so =A1/A2 shows 1.6667, not a 17-digit float tail).
 define _fmt(n) as:
@@ -510,6 +601,9 @@ define run() as:
     local dragging is 0
     local editing is 0
     local buf is ""
+    local clip is null          # copied block: {rows, clo, rlo}
+    local undo_stack is []      # snapshots of s.cells before each mutation
+    local redo_stack is []
     local running is 1
     loop while running == 1:
         local ev is gfx_poll of null
@@ -521,7 +615,51 @@ define run() as:
                 local shift is 0
                 if ev.shift != null:
                     shift is ev.shift
-                if key == "escape":
+                local ctrl is 0
+                if ev.ctrl != null:
+                    ctrl is ev.ctrl
+                # normalized selection rectangle (used by copy / delete)
+                local clo is sel_c
+                local chi is cur_c
+                if sel_c > cur_c:
+                    clo is cur_c
+                    chi is sel_c
+                local rlo is sel_r
+                local rhi is cur_r
+                if sel_r > cur_r:
+                    rlo is cur_r
+                    rhi is sel_r
+                if ctrl == 1 and key == "c":
+                    clip is copy_block of [s, sel_c, sel_r, cur_c, cur_r]
+                elif ctrl == 1 and key == "v":
+                    if clip != null:
+                        append of [undo_stack, _copy_cells of s.cells]
+                        redo_stack is []
+                        paste_block of [s, clip, sel_c, sel_r]
+                elif ctrl == 1 and key == "z":
+                    if (len of undo_stack) > 0:
+                        append of [redo_stack, _copy_cells of s.cells]
+                        s.cells is undo_stack[(len of undo_stack) - 1]
+                        undo_stack is list_slice of [undo_stack, 0, (len of undo_stack) - 1]
+                        recalc of s
+                elif ctrl == 1 and key == "y":
+                    if (len of redo_stack) > 0:
+                        append of [undo_stack, _copy_cells of s.cells]
+                        s.cells is redo_stack[(len of redo_stack) - 1]
+                        redo_stack is list_slice of [redo_stack, 0, (len of redo_stack) - 1]
+                        recalc of s
+                elif key == "delete":
+                    append of [undo_stack, _copy_cells of s.cells]
+                    redo_stack is []
+                    local dr is rlo
+                    loop while dr <= rhi:
+                        local dc is clo
+                        loop while dc <= chi:
+                            dict_set of [s.cells, _cell_addr of [dc + 1, dr + 1], ""]
+                            dc is dc + 1
+                        dr is dr + 1
+                    recalc of s
+                elif key == "escape":
                     if editing == 1:
                         editing is 0
                         buf is ""
@@ -529,6 +667,8 @@ define run() as:
                         running is 0
                 elif key == "return":
                     if editing == 1:
+                        append of [undo_stack, _copy_cells of s.cells]
+                        redo_stack is []
                         _commit_cell of [s, sel_c, sel_r, buf]
                         editing is 0
                         buf is ""
@@ -541,6 +681,8 @@ define run() as:
                         buf is substr of [buf, 0, (len of buf) - 1]
                 elif key == "left" or key == "right" or key == "up" or key == "down":
                     if editing == 1:
+                        append of [undo_stack, _copy_cells of s.cells]
+                        redo_stack is []
                         _commit_cell of [s, sel_c, sel_r, buf]
                         editing is 0
                         buf is ""
@@ -554,7 +696,7 @@ define run() as:
                         sel_r is sel_r + 1
                     cur_c is sel_c
                     cur_r is sel_r
-                else:
+                elif ctrl == 0:
                     local ch is _key_char of [key, shift]
                     if (len of ch) > 0:
                         if editing == 0:
@@ -568,6 +710,8 @@ define run() as:
                 local my is ev.y
                 if my >= gy and mx >= gx and mx < (gx + ncols * cw) and my < (gy + nrows * rh):
                     if editing == 1:
+                        append of [undo_stack, _copy_cells of s.cells]
+                        redo_stack is []
                         _commit_cell of [s, sel_c, sel_r, buf]
                         editing is 0
                         buf is ""

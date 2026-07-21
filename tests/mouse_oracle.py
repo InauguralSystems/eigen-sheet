@@ -143,6 +143,21 @@ def main():
         if after[3][0] == "15" and after[0][1] == "29":
             print("PASS click A4 -> type '=A1*A2' -> Enter -> A4=15, B1 recalculated 31->29")
 
+        # 3) copy A1 (=5), paste into empty C1, then undo it
+        click(origin, *cell_xy(0, 0)); press("ctrl+c")
+        click(origin, *cell_xy(2, 0)); press("ctrl+v")
+        pasted = u.decode_grid(grab_img(wid, tmp), atlas, gy=GY)
+        print("after paste C1=%r" % pasted[0][2])
+        if pasted[0][2] != "5":
+            fails += 1; print("FAIL C1 should be 5 after paste: %r" % pasted[0][2])
+        press("ctrl+z")
+        undone = u.decode_grid(grab_img(wid, tmp), atlas, gy=GY)
+        print("after undo  C1=%r" % undone[0][2])
+        if undone[0][2] != "":
+            fails += 1; print("FAIL C1 should be empty after undo: %r" % undone[0][2])
+        if pasted[0][2] == "5" and undone[0][2] == "":
+            print("PASS copy A1 -> paste C1=5 -> undo -> C1 empty")
+
         if fails:
             sys.exit(1)
         print("\nmouse+keyboard oracle passed")
