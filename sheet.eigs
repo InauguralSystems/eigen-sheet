@@ -2361,6 +2361,170 @@ define from_csv(sheet, text, c0, r0) as:
     recalc of sheet
     return sheet
 
+# ---- xlsx export (stored ZIP of OOXML, no compression) -------------
+# An .xlsx is a ZIP of XML parts. EigenScript has byte I/O (write_bytes over a
+# list of 0-255) and bitwise ops (for CRC32) but no deflate — a valid ZIP may
+# use STORED (uncompressed) entries, which LibreOffice/Excel open fine. So we
+# assemble the ZIP by hand. (Reading real .xlsx needs inflate — an upstream gap.)
+
+define _crc32(bytes) as:
+    local crc is 4294967295
+    for i in range of (len of bytes):
+        crc is bit_xor of [crc, bytes[i]]
+        for k in range of 8:
+            if (bit_and of [crc, 1]) == 1:
+                crc is bit_xor of [bit_shr of [crc, 1], 3988292384]
+            else:
+                crc is bit_shr of [crc, 1]
+    return bit_xor of [crc, 4294967295]
+
+define _le16(n) as:
+    return [bit_and of [n, 255], bit_and of [bit_shr of [n, 8], 255]]
+
+define _le32(n) as:
+    return [bit_and of [n, 255], bit_and of [bit_shr of [n, 8], 255], bit_and of [bit_shr of [n, 16], 255], bit_and of [bit_shr of [n, 24], 255]]
+
+# ASCII string -> byte list (OOXML parts are ASCII after XML-escaping).
+define _sbytes(s) as:
+    local out is []
+    for i in range of (len of s):
+        append of [out, ord of (char_at of [s, i])]
+    return out
+
+# append every element of src onto dst (dst is mutated — lists are by-ref)
+define _extend(dst, src) as:
+    for i in range of (len of src):
+        append of [dst, src[i]]
+    return dst
+
+define _xml_esc(s) as:
+    local out is ""
+    for i in range of (len of s):
+        local ch is char_at of [s, i]
+        if ch == "&":
+            out is out + "&amp;"
+        elif ch == "<":
+            out is out + "&lt;"
+        elif ch == ">":
+            out is out + "&gt;"
+        else:
+            out is out + ch
+    return out
+
+# entries = list of {name, data(byte list)} -> a stored-ZIP byte list.
+define _zip_store(entries) as:
+    local zip is []
+    local ne is len of entries
+    local offsets is []
+    local crcs is []
+    for i in range of ne:
+        local nameb is _sbytes of entries[i].name
+        local data is entries[i].data
+        local crc is _crc32 of data
+        append of [offsets, len of zip]
+        append of [crcs, crc]
+        _extend of [zip, [80, 75, 3, 4]]
+        _extend of [zip, _le16 of 20]
+        _extend of [zip, _le16 of 0]
+        _extend of [zip, _le16 of 0]
+        _extend of [zip, _le16 of 0]
+        _extend of [zip, _le16 of 33]
+        _extend of [zip, _le32 of crc]
+        _extend of [zip, _le32 of (len of data)]
+        _extend of [zip, _le32 of (len of data)]
+        _extend of [zip, _le16 of (len of nameb)]
+        _extend of [zip, _le16 of 0]
+        _extend of [zip, nameb]
+        _extend of [zip, data]
+    local cd_start is len of zip
+    for i in range of ne:
+        local nameb is _sbytes of entries[i].name
+        local data is entries[i].data
+        _extend of [zip, [80, 75, 1, 2]]
+        _extend of [zip, _le16 of 20]
+        _extend of [zip, _le16 of 20]
+        _extend of [zip, _le16 of 0]
+        _extend of [zip, _le16 of 0]
+        _extend of [zip, _le16 of 0]
+        _extend of [zip, _le16 of 33]
+        _extend of [zip, _le32 of crcs[i]]
+        _extend of [zip, _le32 of (len of data)]
+        _extend of [zip, _le32 of (len of data)]
+        _extend of [zip, _le16 of (len of nameb)]
+        _extend of [zip, _le16 of 0]
+        _extend of [zip, _le16 of 0]
+        _extend of [zip, _le16 of 0]
+        _extend of [zip, _le16 of 0]
+        _extend of [zip, _le32 of 0]
+        _extend of [zip, _le32 of offsets[i]]
+        _extend of [zip, nameb]
+    local cd_size is (len of zip) - cd_start
+    _extend of [zip, [80, 75, 5, 6]]
+    _extend of [zip, _le16 of 0]
+    _extend of [zip, _le16 of 0]
+    _extend of [zip, _le16 of ne]
+    _extend of [zip, _le16 of ne]
+    _extend of [zip, _le32 of cd_size]
+    _extend of [zip, _le32 of cd_start]
+    _extend of [zip, _le16 of 0]
+    return zip
+
+# the worksheet XML for the range's cells (values, like to_csv: numbers as <v>,
+# booleans as t="b", other non-empty cells as inline strings)
+define _sheet_xml(sheet, clo, rlo, chi, rhi) as:
+    local sd is "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData>"
+    local r is rlo
+    loop while r <= rhi:
+        sd is sd + "<row r=\"" + (str of (r + 1)) + "\">"
+        local c is clo
+        loop while c <= chi:
+            local addr is _cell_addr of [c + 1, r + 1]
+            local raw is ""
+            if (has_key of [sheet.cells, addr]) == 1:
+                raw is sheet.cells[addr]
+            if (len of raw) > 0:
+                local v is get of [sheet, addr]
+                if (has_key of [sheet.err, addr]) == 1:
+                    sd is sd + "<c r=\"" + addr + "\" t=\"inlineStr\"><is><t>" + (_xml_esc of sheet.err[addr]) + "</t></is></c>"
+                elif (_is_bool of v) == 1:
+                    local bn is 0
+                    if v.b == 1:
+                        bn is 1
+                    sd is sd + "<c r=\"" + addr + "\" t=\"b\"><v>" + (str of bn) + "</v></c>"
+                elif (type of v) == "num":
+                    sd is sd + "<c r=\"" + addr + "\"><v>" + (str of v) + "</v></c>"
+                else:
+                    sd is sd + "<c r=\"" + addr + "\" t=\"inlineStr\"><is><t>" + (_xml_esc of (_to_text of v)) + "</t></is></c>"
+            c is c + 1
+        sd is sd + "</row>"
+        r is r + 1
+    return sd + "</sheetData></worksheet>"
+
+# Write the range [c0..c1]x[r0..r1] (0-based corners) as an .xlsx at `path`.
+define to_xlsx(sheet, path, c0, r0, c1, r1) as:
+    local clo is c0
+    local chi is c1
+    if c0 > c1:
+        clo is c1
+        chi is c0
+    local rlo is r0
+    local rhi is r1
+    if r0 > r1:
+        rlo is r1
+        rhi is r0
+    local ct is "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/><Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/></Types>"
+    local rels is "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>"
+    local wb is "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets><sheet name=\"Sheet1\" sheetId=\"1\" r:id=\"rId1\"/></sheets></workbook>"
+    local wbrels is "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/></Relationships>"
+    local entries is []
+    append of [entries, {"name": "[Content_Types].xml", "data": _sbytes of ct}]
+    append of [entries, {"name": "_rels/.rels", "data": _sbytes of rels}]
+    append of [entries, {"name": "xl/workbook.xml", "data": _sbytes of wb}]
+    append of [entries, {"name": "xl/_rels/workbook.xml.rels", "data": _sbytes of wbrels}]
+    append of [entries, {"name": "xl/worksheets/sheet1.xml", "data": _sbytes of (_sheet_xml of [sheet, clo, rlo, chi, rhi])}]
+    write_bytes of [path, _zip_store of entries]
+    return path
+
 # Keyboard scancode name (+ shift) -> the character it types, for cell entry.
 _KEYSHIFT is {"1": "!", "2": "@", "3": "#", "4": "$", "5": "%", "6": "^", "7": "&", "8": "*", "9": "(", "0": ")", "-": "_", "=": "+", ";": ":", "'": "\"", ",": "<", ".": ">", "/": "?", "[": "{", "]": "}", "\\": "|", "`": "~"}
 

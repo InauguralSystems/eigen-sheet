@@ -58,6 +58,12 @@ jobs:
           if [ $rc -eq 2 ]; then echo "string oracle skipped in CI — that's a gap"; exit 1; fi
           exit $rc
 
+      - name: xlsx export oracle (openpyxl + LibreOffice read eigen's .xlsx)
+        run: |
+          python3 tests/diff_vs_xlsx.py; rc=$?
+          if [ $rc -eq 2 ]; then echo "xlsx oracle skipped in CI — that's a gap"; exit 1; fi
+          exit $rc
+
   ui-oracle:
     # render oracle: draw_grid pixels decoded back to the model. gfx + xvfb.
     runs-on: ubuntu-latest

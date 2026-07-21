@@ -37,8 +37,8 @@ print of (sheet.get of [s, "A4"])           # -> 16
 ```
 
 Importable surface: `new_sheet`, `set_cell`, `define_name`, `set_format`,
-`recalc`, `get`, `display`, `to_csv` / `from_csv`, `sort_range`,
-`find_cells` / `replace_cells`, `pivot`, and `draw_grid` (the gfx front-end;
+`recalc`, `get`, `display`, `to_csv` / `from_csv`, `to_xlsx`, `sort_range`,
+`find_cells` / `replace_cells`, `pivot`, `goal_seek`, and `draw_grid` (the gfx front-end;
 `run` opens a window but is never called on import, so `import sheet` is
 side-effect-free and headless-testable).
 
@@ -137,7 +137,10 @@ arithmetic, tighter than comparison, coercing numbers to text so `=5&"x"` is
 `VALUE` / `TEXT` (number/date formatting), case-insensitive text comparison (`="a"="A"`
 is true), and number↔text coercion (non-numeric text in arithmetic is
 `#VALUE!`). Text left-aligns, numbers right-align. **I/O:** `to_csv` / `from_csv`
-(RFC-4180, with quoting and round-trip). **Data:** `sort_range` (stable sort
+(RFC-4180, with quoting and round-trip) and `to_xlsx` (writes a real
+`.xlsx` — a stored-ZIP of OOXML built by hand with a hand-rolled CRC32, since
+EigenScript has byte I/O and bitwise ops but no zip library; opens in Excel
+and LibreOffice). **Data:** `sort_range` (stable sort
 of a range by a key column, ascending/descending, numbers before text),
 `find_cells` / `replace_cells` (literal, case-sensitive or not, over raw
 cell content), `pivot` (group a source range by a row field and aggregate a
