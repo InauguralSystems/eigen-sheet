@@ -2062,6 +2062,80 @@ define sort_range(sheet, c0, r0, c1, r1, keycol, descending) as:
     recalc of sheet
     return sheet
 
+# ---- pivot table (v1: one row field + one data field) --------------
+
+# Aggregate a list of (possibly mixed-type) data values by name. Numeric
+# aggregates skip non-numbers; COUNT counts numbers, COUNTA counts all.
+define _pivot_agg(aggfn, vals) as:
+    local nums is []
+    for j in range of (len of vals):
+        if (type of vals[j]) == "num":
+            append of [nums, vals[j]]
+    if aggfn == "COUNT":
+        return len of nums
+    if aggfn == "COUNTA":
+        return len of vals
+    return _aggregate of [aggfn, nums]
+
+# Group the source range [c0..c1]x[r0..r1] (row 0 = headers) by the value in
+# `row_col`, aggregate `data_col` with `aggfn` (SUM/COUNT/AVERAGE/MIN/MAX),
+# and write the result table (header, one sorted row per group, a Total row)
+# with its top-left at 0-based (tc, tr). row_col/data_col are 0-based WITHIN
+# the range. A pivot cell is a pure function of the source rows it observes.
+define pivot(sheet, c0, r0, c1, r1, row_col, data_col, aggfn, tc, tr) as:
+    local clo is c0
+    local chi is c1
+    if c0 > c1:
+        clo is c1
+        chi is c0
+    local rlo is r0
+    local rhi is r1
+    if r0 > r1:
+        rlo is r1
+        rhi is r0
+    local row_hdr is get of [sheet, _cell_addr of [clo + row_col + 1, rlo + 1]]
+    local data_hdr is get of [sheet, _cell_addr of [clo + data_col + 1, rlo + 1]]
+    local groups is {}          # key-as-text -> list of data values
+    local keys_order is []      # distinct keys, original type
+    local all_vals is []
+    local r is rlo + 1          # skip the header row
+    loop while r <= rhi:
+        local k is get of [sheet, _cell_addr of [clo + row_col + 1, r + 1]]
+        local v is get of [sheet, _cell_addr of [clo + data_col + 1, r + 1]]
+        local kt is _to_text of k
+        if (has_key of [groups, kt]) == 0:
+            dict_set of [groups, kt, []]
+            append of [keys_order, k]
+        append of [groups[kt], v]
+        append of [all_vals, v]
+        r is r + 1
+    # sort the group keys ascending (numbers before text, like Calc labels)
+    local m is 1
+    loop while m < (len of keys_order):
+        local cur is keys_order[m]
+        local j is m - 1
+        loop while j >= 0 and (_compare of [keys_order[j], cur, ">"]) == 1:
+            keys_order[j + 1] is keys_order[j]
+            j is j - 1
+        keys_order[j + 1] is cur
+        m is m + 1
+    # write header row
+    dict_set of [sheet.cells, _cell_addr of [tc + 1, tr + 1], _to_text of row_hdr]
+    dict_set of [sheet.cells, _cell_addr of [tc + 2, tr + 1], aggfn + " of " + (_to_text of data_hdr)]
+    # write one row per group
+    local w is 0
+    loop while w < (len of keys_order):
+        local key is keys_order[w]
+        local agg is _pivot_agg of [aggfn, groups[_to_text of key]]
+        dict_set of [sheet.cells, _cell_addr of [tc + 1, tr + 2 + w], _to_text of key]
+        dict_set of [sheet.cells, _cell_addr of [tc + 2, tr + 2 + w], str of agg]
+        w is w + 1
+    # grand total
+    dict_set of [sheet.cells, _cell_addr of [tc + 1, tr + 2 + (len of keys_order)], "Total"]
+    dict_set of [sheet.cells, _cell_addr of [tc + 2, tr + 2 + (len of keys_order)], str of (_pivot_agg of [aggfn, all_vals])]
+    recalc of sheet
+    return sheet
+
 # ---- find & replace ------------------------------------------------
 
 # Replace every literal occurrence of `old` with `new` in text. cs=1 is

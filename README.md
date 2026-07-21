@@ -37,16 +37,16 @@ print of (sheet.get of [s, "A4"])           # -> 16
 ```
 
 Importable surface: `new_sheet`, `set_cell`, `define_name`, `set_format`,
-`recalc`, `get`, `display`, `to_csv` / `from_csv`, `sort_range`, and
-`draw_grid` (the gfx front-end; `run` opens
-a window but is never called on import, so `import sheet` is side-effect-free and
-headless-testable).
+`recalc`, `get`, `display`, `to_csv` / `from_csv`, `sort_range`,
+`find_cells` / `replace_cells`, `pivot`, and `draw_grid` (the gfx front-end;
+`run` opens a window but is never called on import, so `import sheet` is
+side-effect-free and headless-testable).
 
-## Five oracles
+## The oracles
 
 A byte-diff against my own expectations is a golden master — it pins
 regressions but can't say what *right* looks like. So correctness rests on
-five **independent** checks:
+several **independent** checks:
 
 1. **Model** (`tests/test_smoke.sh`) — replays cell edits, recalcs, and
    byte-diffs displayed values. *Self-consistency:* dependency chains, SUM,
@@ -77,22 +77,29 @@ five **independent** checks:
    through the dependency graph). The menu item must win the click over the
    grid cell beneath it (the popup click-trap), and a no-op drive can't pass
    (the post-click grid must differ from the untouched baseline).
-5. **CSV differential** (`tests/diff_vs_csv.py`) — exports a grid with `to_csv`
-   and byte-diffs it against **Python's `csv` module** (a canonical, independent
-   RFC-4180 implementation), then round-trips it back through `from_csv`.
-   *External truth for the format:* what's right is what the standard library's
-   writer produces (QUOTE_MINIMAL quoting, `\n` terminator), not our say-so.
+5. **Data-operation differentials vs Python** — deterministic data operations
+   each get a canonical Python reference (like vim was for eigen-edit):
+   `diff_vs_csv.py` (`to_csv`/`from_csv` vs the `csv` module + round-trip),
+   `diff_vs_sort.py` (`sort_range` vs stable `sorted()`),
+   `diff_vs_findreplace.py` (`find_cells`/`replace_cells` vs Python string ops),
+   and `diff_vs_pivot.py` (`pivot` vs a Python groupby). *External truth:* what's
+   right is what the standard library computes, not our say-so. Pure Python — no
+   LibreOffice — so they run in the lightweight `test` job.
 
 ```sh
 EIGENSCRIPT=… bash tests/test_smoke.sh                 # model
-EIGENSCRIPT=… python3 tests/diff_vs_csv.py             # CSV diff: pure Python, no LibreOffice
 EIGENSCRIPT=… python3 tests/diff_vs_calc.py            # numeric diff: needs libreoffice-calc + openpyxl
 EIGENSCRIPT=… python3 tests/diff_vs_calc_str.py        # string diff: same deps
+EIGENSCRIPT=… python3 tests/diff_vs_csv.py             # CSV / sort / findreplace / pivot: pure Python
+EIGENSCRIPT=… python3 tests/diff_vs_sort.py
+EIGENSCRIPT=… python3 tests/diff_vs_findreplace.py
+EIGENSCRIPT=… python3 tests/diff_vs_pivot.py
 xvfb-run -a python3 tests/ui_oracle.py                 # render: needs gfx build + xvfb + xdotool + PIL
 xvfb-run -a python3 tests/mouse_oracle.py              # mouse: same deps
 ```
 
-CI runs `test` (model + CSV), `calc-oracle`, and `ui-oracle` (render + mouse).
+CI runs `test` (model + the Python data-op differentials), `calc-oracle`
+(numeric + string vs LibreOffice), and `ui-oracle` (render + mouse).
 
 ## Scope
 
@@ -131,7 +138,8 @@ is true), and number↔text coercion (non-numeric text in arithmetic is
 (RFC-4180, with quoting and round-trip). **Data:** `sort_range` (stable sort
 of a range by a key column, ascending/descending, numbers before text),
 `find_cells` / `replace_cells` (literal, case-sensitive or not, over raw
-cell content).
+cell content), `pivot` (group a source range by a row field and aggregate a
+data field — SUM/COUNT/AVERAGE/MIN/MAX — with a grand total).
 **Number formats:** `set_format` / `TEXT` — decimals, thousands grouping,
 percent, currency, and `Y`/`M`/`D` date codes (`#,##0.00`, `0%`,
 `$#,##0.00`, `YYYY-MM-DD`). Interactive: in-cell editing
