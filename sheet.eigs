@@ -1573,7 +1573,55 @@ define _eval_st(st, toks, selfaddr) as:
 # ---- sheet + recalc -------------------------------------------------
 
 define new_sheet() as:
-    return {"cells": {}, "vals": {}, "err": {}, "order": [], "names": {}, "formats": {}, "udfs": {}}
+    return {"cells": {}, "vals": {}, "err": {}, "order": [], "names": {}, "formats": {}, "udfs": {}, "validations": {}}
+
+# Attach a data-validation rule to a cell. rule.type is one of:
+#   "list"    {values: [...]}            — must equal one of the values
+#   "whole"   {min, max}                 — an integer in [min, max]
+#   "decimal" {min, max}                 — a number in [min, max]
+#   "textlen" {min, max}                 — text length in [min, max]
+#   "cmp"     {op, value}                — a comparison (= <> > < >= <=)
+define set_validation(sheet, addr, rule) as:
+    dict_set of [sheet.validations, _upper of addr, rule]
+    return sheet
+
+# Would `value` be accepted in `addr`? 1 if it satisfies the cell's rule (or the
+# cell has no rule), else 0. Comparisons use _compare (numeric, or
+# case-insensitive text).
+define is_valid(sheet, addr, value) as:
+    local a is _upper of addr
+    if (has_key of [sheet.validations, a]) == 0:
+        return 1
+    local rule is sheet.validations[a]
+    local t is rule.type
+    if t == "list":
+        local vals is rule.values
+        for i in range of (len of vals):
+            if (_compare of [value, vals[i], "="]) == 1:
+                return 1
+        return 0
+    if t == "whole":
+        if (type of value) != "num":
+            return 0
+        if value != (floor of value):
+            return 0
+        if value < rule.min or value > rule.max:
+            return 0
+        return 1
+    if t == "decimal":
+        if (type of value) != "num":
+            return 0
+        if value < rule.min or value > rule.max:
+            return 0
+        return 1
+    if t == "textlen":
+        local n is len of (_to_text of value)
+        if n < rule.min or n > rule.max:
+            return 0
+        return 1
+    if t == "cmp":
+        return _compare of [value, rule.value, rule.op]
+    return 1
 
 # Register an EigenScript function as a formula function: after
 # register_udf(s, "MYFN", myfn), a formula =MYFN(A1, B1:B3) calls myfn with a

@@ -152,7 +152,9 @@ and LibreOffice). **Data:** `sort_range` (stable sort
 of a range by a key column, ascending/descending, numbers before text),
 `find_cells` / `replace_cells` (literal, case-sensitive or not, over raw
 cell content), `filter_rows` (select the data rows of a range matching
-per-column criteria — `= <> > < >= <=` or `contains`, ANDed), `pivot` (group a source range by a row field and aggregate a
+per-column criteria — `= <> > < >= <=` or `contains`, ANDed), `set_validation`
+/ `is_valid` (per-cell input rules — list, whole/decimal range, text length,
+comparison), `pivot` (group a source range by a row field and aggregate a
 data field — SUM/COUNT/AVERAGE/MIN/MAX — with a grand total). **What-if:**
 `goal_seek` (find the input that drives a formula cell to a target — the
 observer model run backward, by the secant method). **User functions:**
