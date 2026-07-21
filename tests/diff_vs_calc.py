@@ -135,6 +135,23 @@ CELLS = {
     "AI4": "=IFERROR(NA(),7)",           # 7    (#N/A is an error for IFERROR)
     "AJ1": "=IFERROR(SQRT(-1),0)",       # 0    (#NUM! caught)
     "AJ2": "=IFNA(A1+A2,-9)",            # 8    (no error -> value)
+    # ---- date & time (#6): validated via numeric-returning expressions ----
+    "AK1": "=YEAR(DATE(2020,3,15))",     # 2020
+    "AK2": "=MONTH(DATE(2020,3,15))",    # 3
+    "AK3": "=DAY(DATE(2020,3,15))",      # 15
+    "AK4": "=WEEKDAY(DATE(2020,1,1))",   # 4   (Wed; pins the epoch mod 7)
+    "AL1": "=DATE(2020,1,1)-DATE(2019,1,1)",        # 365
+    "AL2": '=DATEDIF(DATE(2020,1,1),DATE(2020,3,1),"d")',  # 60
+    "AL3": "=MONTH(EDATE(DATE(2020,1,31),1))",      # 2  (Jan31 +1mo)
+    "AL4": "=DAY(EDATE(DATE(2020,1,31),1))",        # 29 (clamped, leap year)
+    "AM1": "=DAY(EOMONTH(DATE(2020,2,10),0))",      # 29 (Feb 2020 last day)
+    "AM2": '=YEAR(DATEVALUE("2021-07-04"))',        # 2021
+    "AM3": "=HOUR(TIME(13,30,45))",      # 13
+    "AM4": "=MINUTE(TIME(13,30,45))",    # 30
+    "AN1": '=DATEDIF(DATE(2018,6,15),DATE(2020,3,1),"y")',  # 1
+    "AN2": '=DATEDIF(DATE(2020,1,1),DATE(2020,7,15),"m")',  # 6
+    "AN3": "=WEEKDAY(DATE(2020,1,1),2)", # 3   (Mon=1 convention)
+    "AN4": "=DATE(2021,13,1)-DATE(2022,1,1)",       # 0  (month overflow)
 }
 
 
@@ -152,7 +169,8 @@ def addr_parts(a):
 
 def eigs_values():
     """eigen-sheet's computed value for every formula cell: {addr: float}."""
-    body = "\n".join('sheet.set_cell of [s, "%s", "%s"]' % (a, raw)
+    esc = lambda t: t.replace("\\", "\\\\").replace('"', '\\"')
+    body = "\n".join('sheet.set_cell of [s, "%s", "%s"]' % (a, esc(raw))
                      for a, raw in CELLS.items())
     prints = "\n".join(
         'print of ("%s\\t" + (str of (sheet.get of [s, "%s"])))' % (a, a)

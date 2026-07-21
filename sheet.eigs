@@ -598,6 +598,58 @@ define _skip_arg(st) as:
         st.i is st.i + 1
     return 0
 
+# ---- date & time (serial model, LibreOffice epoch) -----------------
+# A date is a serial day number where 1899-12-30 = 0, matching LibreOffice/
+# Excel for all modern dates. Days_from_civil (Howard Hinnant's algorithm)
+# counts days from 1970-01-01; +25569 shifts to the spreadsheet epoch.
+
+define _days_from_civil(y0, m, d) as:
+    local y is y0
+    if m <= 2:
+        y is y - 1
+    local era is 0
+    if y >= 0:
+        era is floor of (y / 400)
+    else:
+        era is floor of ((y - 399) / 400)
+    local yoe is y - era * 400
+    local mp is m - 3
+    if m <= 2:
+        mp is m + 9
+    local doy is (floor of ((153 * mp + 2) / 5)) + d - 1
+    local doe is yoe * 365 + (floor of (yoe / 4)) - (floor of (yoe / 100)) + doy
+    return era * 146097 + doe - 719468
+
+# (y,m,d) -> spreadsheet serial, normalizing out-of-range months into years
+# (DATE(2020,13,1) = 2021-01-01) and letting days overflow naturally.
+define _date_serial(y, m, d) as:
+    local madj is floor of ((m - 1) / 12)
+    local ny is y + madj
+    local nm is m - madj * 12
+    return (_days_from_civil of [ny, nm, d]) + 25569
+
+# serial -> {y,m,d} (inverse of _days_from_civil, shifted by the epoch).
+define _civil_from_days(serial) as:
+    local z is (floor of serial) - 25569 + 719468
+    local era is 0
+    if z >= 0:
+        era is floor of (z / 146097)
+    else:
+        era is floor of ((z - 146096) / 146097)
+    local doe is z - era * 146097
+    local yoe is floor of ((doe - (floor of (doe / 1460)) + (floor of (doe / 36524)) - (floor of (doe / 146096))) / 365)
+    local y is yoe + era * 400
+    local doy is doe - (365 * yoe + (floor of (yoe / 4)) - (floor of (yoe / 100)))
+    local mp is floor of ((5 * doy + 2) / 153)
+    local d is doy - (floor of ((153 * mp + 2) / 5)) + 1
+    local m is mp + 3
+    if mp >= 10:
+        m is mp - 9
+    local yy is y
+    if m <= 2:
+        yy is y + 1
+    return {"y": yy, "m": m, "d": d}
+
 # Collect comma-separated scalar argument VALUES up to the closing ')'.
 define _collect_args(st) as:
     local args is []
@@ -1208,6 +1260,94 @@ define _eval_factor(st) as:
             if fname == "CEILING":
                 return (ceil of (x / sig)) * sig
             return (floor of (x / sig)) * sig
+        # date & time functions — serials are plain numbers, comma-separated args
+        if fname == "DATE" or fname == "YEAR" or fname == "MONTH" or fname == "DAY" or fname == "WEEKDAY" or fname == "EDATE" or fname == "EOMONTH" or fname == "DATEVALUE" or fname == "DATEDIF" or fname == "TIME" or fname == "HOUR" or fname == "MINUTE" or fname == "SECOND":
+            local dargs is _collect_args of st
+            local dn is len of dargs
+            if fname == "DATE":
+                if dn < 3:
+                    st.err is "#ERROR"
+                    return 0
+                return _date_serial of [floor of (_to_num of [st, dargs[0]]), floor of (_to_num of [st, dargs[1]]), floor of (_to_num of [st, dargs[2]])]
+            if fname == "TIME":
+                if dn < 3:
+                    st.err is "#ERROR"
+                    return 0
+                return ((_to_num of [st, dargs[0]]) * 3600 + (_to_num of [st, dargs[1]]) * 60 + (_to_num of [st, dargs[2]])) / 86400
+            if fname == "DATEVALUE":
+                if dn < 1:
+                    st.err is "#ERROR"
+                    return 0
+                local parts is split of [_to_text of dargs[0], "-"]
+                if (len of parts) < 3:
+                    st.err is "#VALUE!"
+                    return 0
+                return _date_serial of [num of parts[0], num of parts[1], num of parts[2]]
+            if dn < 1:
+                st.err is "#ERROR"
+                return 0
+            local serial is _to_num of [st, dargs[0]]
+            if fname == "YEAR":
+                return (_civil_from_days of serial).y
+            if fname == "MONTH":
+                return (_civil_from_days of serial).m
+            if fname == "DAY":
+                return (_civil_from_days of serial).d
+            if fname == "WEEKDAY":
+                local wt is 1
+                if dn >= 2:
+                    wt is floor of (_to_num of [st, dargs[1]])
+                local sd is floor of serial
+                if wt == 2:
+                    return ((((sd - 2) % 7) + 7) % 7) + 1
+                if wt == 3:
+                    return (((sd - 2) % 7) + 7) % 7
+                return ((((sd - 1) % 7) + 7) % 7) + 1
+            if fname == "EDATE" or fname == "EOMONTH":
+                if dn < 2:
+                    st.err is "#ERROR"
+                    return 0
+                local nmonths is floor of (_to_num of [st, dargs[1]])
+                local cv is _civil_from_days of serial
+                if fname == "EOMONTH":
+                    return _date_serial of [cv.y, cv.m + nmonths + 1, 0]
+                # EDATE: same day, clamped to the target month's last day
+                local eom is _date_serial of [cv.y, cv.m + nmonths + 1, 0]
+                local lastd is (_civil_from_days of eom).d
+                local cd is cv.d
+                if cd > lastd:
+                    cd is lastd
+                return _date_serial of [cv.y, cv.m + nmonths, cd]
+            if fname == "DATEDIF":
+                if dn < 3:
+                    st.err is "#ERROR"
+                    return 0
+                local s1 is floor of serial
+                local s2 is floor of (_to_num of [st, dargs[1]])
+                local unit is str_lower of (_to_text of dargs[2])
+                if unit == "d":
+                    return s2 - s1
+                local c1 is _civil_from_days of s1
+                local c2 is _civil_from_days of s2
+                if unit == "y":
+                    local yrs is c2.y - c1.y
+                    if c2.m < c1.m or (c2.m == c1.m and c2.d < c1.d):
+                        yrs is yrs - 1
+                    return yrs
+                if unit == "m":
+                    local mos is (c2.y - c1.y) * 12 + (c2.m - c1.m)
+                    if c2.d < c1.d:
+                        mos is mos - 1
+                    return mos
+                st.err is "#NUM!"
+                return 0
+            # HOUR / MINUTE / SECOND from the fractional part of the serial
+            local totsec is floor of ((serial - (floor of serial)) * 86400 + 0.5)
+            if fname == "HOUR":
+                return (floor of (totsec / 3600)) % 24
+            if fname == "MINUTE":
+                return (floor of (totsec / 60)) % 60
+            return totsec % 60
         # aggregate over a range: SUM / AVG / AVERAGE / MIN / MAX. Only cells
         # that actually hold a number contribute — empty and text cells are
         # skipped, so AVERAGE/MIN/MAX are not skewed by gaps.

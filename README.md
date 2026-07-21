@@ -100,7 +100,10 @@ branch is never evaluated), the logical functions `AND` / `OR` / `NOT` /
 / `MOD` / `POWER` / `CEILING` / `FLOOR`, the statistical functions `COUNT` /
 `COUNTA` / `COUNTBLANK` / `MEDIAN` / `MODE` / `STDEV` / `STDEVP` / `VAR` /
 `VARP`, the lookup & reference functions `VLOOKUP` / `HLOOKUP` / `LOOKUP` /
-`XLOOKUP` / `INDEX` / `MATCH` / `ROW` / `COLUMN` / `ROWS` / `COLUMNS`,
+`XLOOKUP` / `INDEX` / `MATCH` / `ROW` / `COLUMN` / `ROWS` / `COLUMNS`, the
+date & time functions `DATE` / `YEAR` / `MONTH` / `DAY` / `WEEKDAY` /
+`EDATE` / `EOMONTH` / `DATEVALUE` / `DATEDIF` / `TIME` / `HOUR` / `MINUTE` /
+`SECOND` (a serial-date model on LibreOffice's epoch),
 dependency-ordered recalc, cycle detection. **Errors** (`#DIV/0!`, `#VALUE!`,
 `#NAME?`, `#REF!`, `#N/A`, `#NUM!`, `#CYCLE`) propagate through cell
 references and ranges — a formula reading an errored cell yields that error,
