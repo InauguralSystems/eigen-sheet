@@ -634,11 +634,13 @@ define recalc(sheet) as:
             append of [pending, addr]
         elif (_is_number of raw) == 1:
             dict_set of [sheet.vals, addr, num of raw]
-        else:
+        elif (len of raw) > 0:
             # text literal: its value IS the string (used by & and text fns).
             # Numeric aggregates still skip it via _cell_is_num, so sums are
             # unaffected; direct arithmetic on it is #VALUE!, like a spreadsheet.
             dict_set of [sheet.vals, addr, raw]
+        # an empty cell (raw "") is left out of vals entirely: a reference to it
+        # reads 0 in arithmetic, like a spreadsheet's empty cell (NOT #VALUE!).
     # Kahn topological evaluation over formula cells.
     local guard is (len of pending) + 1
     loop while (len of pending) > 0 and guard > 0:

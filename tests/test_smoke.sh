@@ -73,6 +73,13 @@ $PKG_NAME.set_cell of [s, "S6", "=IF(F1=\"HI\",\"yes\",\"no\")"]
 $PKG_NAME.set_cell of [s, "S7", "=\"a\"+1"]
 $PKG_NAME.recalc of s
 print of ("S1=" + ($PKG_NAME.display of [s, "S1"]) + " S2=" + ($PKG_NAME.display of [s, "S2"]) + " S3=" + ($PKG_NAME.display of [s, "S3"]) + " S4=" + ($PKG_NAME.display of [s, "S4"]) + " S5=" + ($PKG_NAME.display of [s, "S5"]) + " S6=" + ($PKG_NAME.display of [s, "S6"]) + " S7=" + ($PKG_NAME.display of [s, "S7"]))
+# emptied cell reads as 0 in arithmetic (like a spreadsheet), NOT #VALUE!:
+# clear A2 (was 3) and A3 (=A1+A2) must fall to 5, not error.
+$PKG_NAME.set_cell of [s, "A2", ""]
+$PKG_NAME.recalc of s
+print of ("cleared A3=" + ($PKG_NAME.display of [s, "A3"]) + " A2=[" + ($PKG_NAME.display of [s, "A2"]) + "]")
+$PKG_NAME.set_cell of [s, "A2", "3"]
+$PKG_NAME.recalc of s
 # structural: a formula using EVERY token type — including a string literal and
 # the & operator — copied+pasted in place (delta 0) must reconstruct
 # byte-identically, guarding _shift_formula against any dropped-token class.
@@ -110,6 +117,7 @@ B2:A1 sum=43 count=4
 paste B3=35 raw==B1+B2
 E1=8 E2=3 E3=16 E4=16
 S1=hi World S2=HI! S3=5 S4=orl S5=53 S6=yes S7=#VALUE!
+cleared A3=5 A2=[]
 roundtrip==IF(A1&"x"="5x",SUM(A1:A3)+1,MIN(A1:A2)*2)
 errs=#NAME?,#DIV/0!,#ERROR,#ERROR gapavg=15
 EOF
