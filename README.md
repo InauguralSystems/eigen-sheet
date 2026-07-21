@@ -168,7 +168,11 @@ in order and updates when its inputs change.
 percent, currency, and `Y`/`M`/`D` date codes (`#,##0.00`, `0%`,
 `$#,##0.00`, `YYYY-MM-DD`). **Cell styling:** `set_style` — background fill,
 text color, alignment (left/right/center), bold; applied in `draw_grid` and
-saved with the sheet. Interactive: in-cell editing
+saved with the sheet. **Conditional formatting:** `set_conditional` — rules
+(`= <> > < >= <=`, `between`, `contains`) whose style applies when the cell's
+*value* matches; `effective_style` merges base + the first matching rule. A
+cell's appearance becomes a function of its value — the observer model applied
+to formatting. Interactive: in-cell editing
 with a formula bar, click-drag range selection with a live Sum/Average/Count
 status bar, copy/paste with relative-reference adjustment — anchored `$` parts stay
 fixed (`Ctrl+C`/`V`),

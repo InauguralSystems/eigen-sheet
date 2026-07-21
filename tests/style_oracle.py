@@ -20,18 +20,25 @@ BG = [180, 40, 40]      # saturated red: min channel 40 < 150, so not "ink"
 FG = [255, 255, 200]    # bright: min channel 200 > 150, so the glyph decodes
 
 
+CBG = [40, 160, 40]     # conditional green: min channel 40 < 150, not "ink"
+
+
 def render_styled(edit_path, atlas):
     setup = ("s is sheet.new_sheet of null\n"
              + "\n".join('sheet.set_cell of [s, "%s", "%s"]' % (a, v) for a, v in U.CELLS.items())
              + '\nsheet.set_style of [s, "A1", {"bg": [%d,%d,%d], "color": [%d,%d,%d], "align": "right"}]\n' % (BG[0], BG[1], BG[2], FG[0], FG[1], FG[2])
+             # A2 (=3) gets a value-driven conditional: >0 -> green background
+             + '\nsheet.set_conditional of [s, "A2", [{"op": ">", "value": 0, "style": {"bg": [%d,%d,%d]}}]]\n' % (CBG[0], CBG[1], CBG[2])
              + "sheet.recalc of s")
     body = {"setup": setup, "frame": "sheet.draw_grid of [s, %d, %d, 0]" % (U.NCOLS, U.NROWS)}
     img = U._capture(edit_path, body, "eigen-sheet v0.1.0")
     grid = U.decode_grid(img, atlas)
-    # sample A1's left region (right-aligned glyph is on the far right)
     px = img.load()
+    # A1 static-style bg (left region; right-aligned glyph is far right)
     samples = [px[U.GX + 4, U.GY + 6], px[U.GX + 8, U.GY + 14], px[U.GX + 6, U.GY + 10]]
-    return grid, samples
+    # A2 conditional bg (one row down)
+    cond = [px[U.GX + 4, U.GY + U.RH + 6], px[U.GX + 8, U.GY + U.RH + 14]]
+    return grid, samples, cond
 
 
 def close(a, b, tol=40):
@@ -41,8 +48,14 @@ def close(a, b, tol=40):
 def main():
     edit_path = os.path.join(U.REPO, "sheet.eigs")
     atlas = U.build_atlas(edit_path)
-    grid, samples = render_styled(edit_path, atlas)
+    grid, samples, cond = render_styled(edit_path, atlas)
     failures = 0
+
+    if sum(1 for s in cond if close(s, CBG)) >= 1:
+        print("PASS A2 conditional background painted %r (value-driven: 3 > 0)" % CBG)
+    else:
+        failures += 1
+        print("FAIL A2 conditional bg not painted; samples=%r want~%r" % (cond, CBG))
 
     if grid[0][0] == "5":
         print("PASS styled A1 still decodes to '5' (bg + custom text color don't corrupt the value)")

@@ -1573,7 +1573,60 @@ define _eval_st(st, toks, selfaddr) as:
 # ---- sheet + recalc -------------------------------------------------
 
 define new_sheet() as:
-    return {"cells": {}, "vals": {}, "err": {}, "order": [], "names": {}, "formats": {}, "udfs": {}, "validations": {}, "styles": {}}
+    return {"cells": {}, "vals": {}, "err": {}, "order": [], "names": {}, "formats": {}, "udfs": {}, "validations": {}, "styles": {}, "conditionals": {}}
+
+# Attach conditional-format rules to a cell: a list of {op, ..., style}. When
+# the cell's VALUE satisfies a rule, that rule's style applies (first match
+# wins), on top of any base style. op is a comparison (= <> > < >= <=), "between"
+# {min, max}, or "contains" {value}. A cell's appearance becomes a function of
+# its value — the observer model applied to formatting.
+define set_conditional(sheet, addr, rules) as:
+    dict_set of [sheet.conditionals, _upper of addr, rules]
+    return sheet
+
+define _cond_match(val, rule) as:
+    local op is rule.op
+    if op == "between":
+        if (_compare of [val, rule.min, ">="]) == 1 and (_compare of [val, rule.max, "<="]) == 1:
+            return 1
+        return 0
+    if op == "contains":
+        if (_find_sub of [_to_text of val, _to_text of rule.value, 0, 0]) >= 0:
+            return 1
+        return 0
+    return _compare of [val, rule.value, op]
+
+# The style from the first matching conditional rule for a cell, or null.
+define _cond_style(sheet, addr) as:
+    if (has_key of [sheet.conditionals, addr]) == 0:
+        return null
+    local val is get of [sheet, addr]
+    local rules is sheet.conditionals[addr]
+    for i in range of (len of rules):
+        if (_cond_match of [val, rules[i]]) == 1:
+            return rules[i].style
+    return null
+
+# The style actually used to draw a cell: its base style with the matching
+# conditional style overlaid (conditional keys win). null if neither applies.
+define effective_style(sheet, addr) as:
+    local a is _upper of addr
+    local base is null
+    if (has_key of [sheet.styles, a]) == 1:
+        base is sheet.styles[a]
+    local cond is _cond_style of [sheet, a]
+    if cond == null:
+        return base
+    if base == null:
+        return cond
+    local m is {}
+    local bk is keys of base
+    for i in range of (len of bk):
+        dict_set of [m, bk[i], base[bk[i]]]
+    local ck is keys of cond
+    for i in range of (len of ck):
+        dict_set of [m, ck[i], cond[ck[i]]]
+    return m
 
 # Attach a visual style to a cell. style is a dict with any of:
 #   "bg": [r,g,b]      cell background fill
@@ -2414,7 +2467,7 @@ define replace_cells(sheet, needle, replacement, cs) as:
 # them and recalc reconstructs the grid. UDFs are runtime functions, not data,
 # so they are NOT saved; re-register them before load.
 define save(sheet, path) as:
-    write_text of [path, json_encode of {"cells": sheet.cells, "names": sheet.names, "formats": sheet.formats, "styles": sheet.styles}]
+    write_text of [path, json_encode of {"cells": sheet.cells, "names": sheet.names, "formats": sheet.formats, "styles": sheet.styles, "conditionals": sheet.conditionals}]
     return path
 
 # Load a saved sheet into `sheet` (its registered UDFs are preserved), then
@@ -2426,6 +2479,8 @@ define load(sheet, path) as:
     sheet.formats is data.formats
     if (has_key of [data, "styles"]) == 1:
         sheet.styles is data.styles
+    if (has_key of [data, "conditionals"]) == 1:
+        sheet.conditionals is data.conditionals
     recalc of sheet
     return sheet
 
@@ -2770,9 +2825,7 @@ define draw_grid(sheet, ncols, nrows, top) as:
         c is 0
         loop while c < ncols:
             local addr is _cell_addr of [c + 1, r + 1]
-            local sty is null
-            if (has_key of [sheet.styles, addr]) == 1:
-                sty is sheet.styles[addr]
+            local sty is effective_style of [sheet, addr]
             # background fill (even for an empty cell), inside the gridlines
             if sty != null and (has_key of [sty, "bg"]) == 1:
                 gfx_rect of [gx + c * cw + 1, gy + r * rh + 1, cw - 1, rh - 1, sty.bg[0], sty.bg[1], sty.bg[2]]
