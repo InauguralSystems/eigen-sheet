@@ -89,6 +89,21 @@ $PKG_NAME.recalc of s
 ab is $PKG_NAME.copy_block of [s, 13, 9, 13, 9]
 $PKG_NAME.paste_block of [s, ab, 14, 10]
 print of ("abs O11=" + ($PKG_NAME.display of [s, "O11"]) + " raw=" + s.cells["O11"])
+# lookup: XLOOKUP is pinned HERE (LibreOffice 24.2 predates it, so the Calc
+# oracle can't check it); VLOOKUP/HLOOKUP/MATCH/INDEX/LOOKUP go to the Calc
+# oracle. Also no-arg ROW()/COLUMN() (current cell).
+$PKG_NAME.set_cell of [s, "L1", "10"]
+$PKG_NAME.set_cell of [s, "L2", "20"]
+$PKG_NAME.set_cell of [s, "L3", "30"]
+$PKG_NAME.set_cell of [s, "M1", "100"]
+$PKG_NAME.set_cell of [s, "M2", "200"]
+$PKG_NAME.set_cell of [s, "M3", "300"]
+$PKG_NAME.set_cell of [s, "K5", "=XLOOKUP(20,L1:L3,M1:M3)"]
+$PKG_NAME.set_cell of [s, "K6", "=XLOOKUP(99,L1:L3,M1:M3,-1)"]
+$PKG_NAME.set_cell of [s, "K7", "=ROW()"]
+$PKG_NAME.set_cell of [s, "K8", "=COLUMN()"]
+$PKG_NAME.recalc of s
+print of ("xlookup=" + ($PKG_NAME.display of [s, "K5"]) + "," + ($PKG_NAME.display of [s, "K6"]) + " selfrc=" + ($PKG_NAME.display of [s, "K7"]) + "," + ($PKG_NAME.display of [s, "K8"]))
 # structural: a formula using EVERY token type — including a string literal and
 # the & operator — copied+pasted in place (delta 0) must reconstruct
 # byte-identically, guarding _shift_formula against any dropped-token class.
@@ -128,6 +143,7 @@ E1=8 E2=3 E3=16 E4=16
 S1=hi World S2=HI! S3=5 S4=orl S5=53 S6=yes S7=#VALUE!
 cleared A3=5 A2=[]
 abs O11=44 raw==$A$1+$A3+B$1
+xlookup=200,-1 selfrc=7,11
 roundtrip==IF(A1&"x"="5x",SUM(A1:A3)+1,MIN(A1:A2)*2)
 errs=#NAME?,#DIV/0!,#ERROR,#ERROR gapavg=15
 EOF

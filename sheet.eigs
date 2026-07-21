@@ -523,6 +523,95 @@ define _collect_args(st) as:
         st.i is st.i + 1
     return args
 
+# ---- lookup & reference helpers ------------------------------------
+
+# A range descriptor {c1,r1,c2,r2} (1-based, normalized) from two endpoints.
+define _mk_range(a, b) as:
+    local pa is _addr_parts of a
+    local pb is _addr_parts of b
+    local c1 is _col_to_num of pa.col
+    local c2 is _col_to_num of pb.col
+    local r1 is pa.row
+    local r2 is pb.row
+    if c1 > c2:
+        local t is c1
+        c1 is c2
+        c2 is t
+    if r1 > r2:
+        local t2 is r1
+        r1 is r2
+        r2 is t2
+    return {"r": 1, "c1": c1, "r1": r1, "c2": c2, "r2": r2}
+
+# Value at a 1-based (col,row) cell.
+define _ref_val(st, col, row) as:
+    return _cellval of [st, _cell_addr of [col, row]]
+
+# Flatten a range's values in row-major reading order.
+define _range_values(st, rg) as:
+    local out is []
+    local r is rg.r1
+    loop while r <= rg.r2:
+        local c is rg.c1
+        loop while c <= rg.c2:
+            append of [out, _ref_val of [st, c, r]]
+            c is c + 1
+        r is r + 1
+    return out
+
+# Parse a lookup function's argument list. Each arg is EITHER a range
+# ({r:1,c1,r1,c2,r2} — any cell or cell:cell, single cells become 1x1) OR a
+# scalar value ({r:0,v}). This is the scalar-or-range parsing the plain
+# aggregate branch lacks.
+define _parse_args2(st) as:
+    local args is []
+    loop while (_peek of st) != null and (_peek of st).t != "rp":
+        local tk is _peek of st
+        if tk.t == "cell":
+            local aa is tk.v
+            st.i is st.i + 1
+            local bb is aa
+            if (_peek of st) != null and (_peek of st).t == "colon" and (st.i + 1) < (len of st.toks) and st.toks[st.i + 1].t == "cell":
+                st.i is st.i + 1
+                bb is (_peek of st).v
+                st.i is st.i + 1
+            append of [args, _mk_range of [aa, bb]]
+        else:
+            append of [args, {"r": 0, "v": _eval_cmp of st}]
+        if (_peek of st) != null and (_peek of st).t == "comma":
+            st.i is st.i + 1
+    if (_peek of st) != null and (_peek of st).t == "rp":
+        st.i is st.i + 1
+    return args
+
+# A scalar from an arg descriptor — a 1x1 (or any) range yields its top-left.
+define _arg_scalar(st, arg) as:
+    if arg.r == 0:
+        return arg.v
+    return _ref_val of [st, arg.c1, arg.r1]
+
+# Position (1-based) of lookup in a flat vector. mtype 0 = exact (first equal);
+# 1 = largest value <= lookup (ascending data); -1 = smallest >= lookup
+# (descending). Returns 0 when not found (caller raises #N/A).
+define _match(st, lookup, vals, mtype) as:
+    local n is len of vals
+    if mtype == 0:
+        for i in range of n:
+            if (_compare of [lookup, vals[i], "="]) == 1:
+                return i + 1
+        return 0
+    if mtype == 1:
+        local best is 0
+        for i in range of n:
+            if (_compare of [vals[i], lookup, "<="]) == 1:
+                best is i + 1
+        return best
+    local best2 is 0
+    for i in range of n:
+        if (_compare of [vals[i], lookup, ">="]) == 1:
+            best2 is i + 1
+    return best2
+
 define _eval_factor(st) as:
     local tk is _peek of st
     if tk == null:
@@ -668,6 +757,129 @@ define _eval_factor(st) as:
                 st.err is "#N/A"
                 return 0
             return sw_result
+        # lookup & reference functions — args parsed as scalar-or-range.
+        if fname == "MATCH" or fname == "INDEX" or fname == "VLOOKUP" or fname == "HLOOKUP" or fname == "LOOKUP" or fname == "XLOOKUP" or fname == "ROW" or fname == "COLUMN" or fname == "ROWS" or fname == "COLUMNS":
+            local la is _parse_args2 of st
+            local ln is len of la
+            if fname == "ROWS":
+                if ln < 1:
+                    st.err is "#ERROR"
+                    return 0
+                return (la[0].r2 - la[0].r1) + 1
+            if fname == "COLUMNS":
+                if ln < 1:
+                    st.err is "#ERROR"
+                    return 0
+                return (la[0].c2 - la[0].c1) + 1
+            if fname == "ROW":
+                if ln < 1:
+                    return st.self_row
+                return la[0].r1
+            if fname == "COLUMN":
+                if ln < 1:
+                    return st.self_col
+                return la[0].c1
+            if fname == "MATCH":
+                if ln < 2:
+                    st.err is "#ERROR"
+                    return 0
+                local mtype is 1
+                if ln >= 3:
+                    mtype is _to_num of [st, _arg_scalar of [st, la[2]]]
+                local mpos is _match of [st, _arg_scalar of [st, la[0]], _range_values of [st, la[1]], mtype]
+                if mpos == 0:
+                    st.err is "#N/A"
+                    return 0
+                return mpos
+            if fname == "INDEX":
+                if ln < 2:
+                    st.err is "#ERROR"
+                    return 0
+                local rg is la[0]
+                local nrows is (rg.r2 - rg.r1) + 1
+                local ncols is (rg.c2 - rg.c1) + 1
+                local a1 is floor of (_to_num of [st, _arg_scalar of [st, la[1]]])
+                local rr is rg.r1
+                local cc is rg.c1
+                if ln >= 3:
+                    local a2 is floor of (_to_num of [st, _arg_scalar of [st, la[2]]])
+                    rr is rg.r1 + (a1 - 1)
+                    cc is rg.c1 + (a2 - 1)
+                elif ncols == 1:
+                    rr is rg.r1 + (a1 - 1)
+                elif nrows == 1:
+                    cc is rg.c1 + (a1 - 1)
+                else:
+                    rr is rg.r1 + (a1 - 1)
+                if rr < rg.r1 or rr > rg.r2 or cc < rg.c1 or cc > rg.c2:
+                    st.err is "#REF!"
+                    return 0
+                return _ref_val of [st, cc, rr]
+            if fname == "VLOOKUP" or fname == "HLOOKUP":
+                if ln < 3:
+                    st.err is "#ERROR"
+                    return 0
+                local key is _arg_scalar of [st, la[0]]
+                local tbl is la[1]
+                local idx is floor of (_to_num of [st, _arg_scalar of [st, la[2]]])
+                local mt is 1                    # default: approximate (sorted)
+                if ln >= 4 and (_to_num of [st, _arg_scalar of [st, la[3]]]) == 0:
+                    mt is 0
+                local vec is []
+                if fname == "VLOOKUP":
+                    local vr is tbl.r1
+                    loop while vr <= tbl.r2:
+                        append of [vec, _ref_val of [st, tbl.c1, vr]]
+                        vr is vr + 1
+                else:
+                    local vc is tbl.c1
+                    loop while vc <= tbl.c2:
+                        append of [vec, _ref_val of [st, vc, tbl.r1]]
+                        vc is vc + 1
+                local hp is _match of [st, key, vec, mt]
+                if hp == 0:
+                    st.err is "#N/A"
+                    return 0
+                if fname == "VLOOKUP":
+                    local hitcol is tbl.c1 + (idx - 1)
+                    if hitcol > tbl.c2:
+                        st.err is "#REF!"
+                        return 0
+                    return _ref_val of [st, hitcol, tbl.r1 + (hp - 1)]
+                local hitrow is tbl.r1 + (idx - 1)
+                if hitrow > tbl.r2:
+                    st.err is "#REF!"
+                    return 0
+                return _ref_val of [st, tbl.c1 + (hp - 1), hitrow]
+            if fname == "XLOOKUP":
+                if ln < 3:
+                    st.err is "#ERROR"
+                    return 0
+                local xp is _match of [st, _arg_scalar of [st, la[0]], _range_values of [st, la[1]], 0]
+                if xp == 0:
+                    if ln >= 4:
+                        return _arg_scalar of [st, la[3]]
+                    st.err is "#N/A"
+                    return 0
+                local xret is _range_values of [st, la[2]]
+                return xret[xp - 1]
+            # LOOKUP (vector form): approximate search, return the matching cell
+            # of the result vector (or of the search vector when omitted).
+            if ln < 2:
+                st.err is "#ERROR"
+                return 0
+            local lvec is _range_values of [st, la[1]]
+            local lp is _match of [st, _arg_scalar of [st, la[0]], lvec, 1]
+            if lp == 0:
+                st.err is "#N/A"
+                return 0
+            if ln >= 3:
+                local rvec is _range_values of [st, la[2]]
+                if (lp - 1) < (len of rvec):
+                    return rvec[lp - 1]
+                st.err is "#REF!"
+                return 0
+            return lvec[lp - 1]
         # text functions: scalar comma-separated args (not ranges).
         if fname == "LEN" or fname == "UPPER" or fname == "LOWER" or fname == "TRIM" or fname == "LEFT" or fname == "RIGHT" or fname == "MID" or fname == "CONCATENATE":
             local targs is []
@@ -917,8 +1129,9 @@ define _eval_cmp(st) as:
 
 # Evaluate a formula's tokens; returns {"val", "err"}. err is "" on success or
 # an error token (#DIV/0!, #NAME?, #ERROR) that recalc routes into sheet.err.
-define _eval(toks, vals, cells) as:
-    local st is {"toks": toks, "i": 0, "vals": vals, "cells": cells, "err": ""}
+define _eval(toks, vals, cells, selfaddr) as:
+    local sp is _addr_parts of selfaddr
+    local st is {"toks": toks, "i": 0, "vals": vals, "cells": cells, "err": "", "self_col": _col_to_num of sp.col, "self_row": sp.row}
     local v is _eval_cmp of st
     # trailing tokens the parser did not consume mean the formula is malformed
     # (e.g. "=1E5" tokenizes to num 1 then cell E5; "=A1 A2")
@@ -998,7 +1211,7 @@ define recalc(sheet) as:
                 if (has_key of [formula_toks, d]) == 1 and (has_key of [sheet.vals, d]) == 0:
                     ready is 0
             if ready == 1:
-                local res is _eval of [formula_toks[addr], sheet.vals, sheet.cells]
+                local res is _eval of [formula_toks[addr], sheet.vals, sheet.cells, addr]
                 if res.err != "":
                     dict_set of [sheet.err, addr, res.err]
                     dict_set of [sheet.vals, addr, 0]

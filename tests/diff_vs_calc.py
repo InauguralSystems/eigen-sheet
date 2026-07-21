@@ -107,6 +107,27 @@ CELLS = {
     "Y4": "=IFS(A4>0,1,A4<0,2,A4=0,3)",  # 2    (A4<0)
     "Y5": "=SWITCH(A2,1,10,3,30,99)",    # 30   (A2=3 matches)
     "Y6": "=SWITCH(A1,1,10,2,20,99)",    # 99   (no match -> default)
+    # ---- lookup & reference (#4) ----
+    # a sorted numeric table: keys Z1:Z4, values AA1:AA4
+    "Z1": "10", "Z2": "20", "Z3": "30", "Z4": "40",
+    "AA1": "100", "AA2": "200", "AA3": "300", "AA4": "400",
+    # a horizontal table: keys AB1:AD1, values AB2:AD2
+    "AB1": "1", "AC1": "2", "AD1": "3",
+    "AB2": "11", "AC2": "22", "AD2": "33",
+    "AE1": "=VLOOKUP(30,Z1:AA4,2,0)",    # 300  (exact)
+    "AE2": "=VLOOKUP(25,Z1:AA4,2,1)",    # 200  (approx: largest key <=25 is 20)
+    "AE3": "=VLOOKUP(25,Z1:AA4,2)",      # 200  (approx is the default)
+    "AE4": "=HLOOKUP(2,AB1:AD2,2,0)",    # 22   (exact, horizontal)
+    "AF1": "=MATCH(30,Z1:Z4,0)",         # 3    (exact position)
+    "AF2": "=MATCH(25,Z1:Z4,1)",         # 2    (approx position)
+    "AF3": "=INDEX(AA1:AA4,3)",          # 300  (1-D column vector)
+    "AF4": "=INDEX(Z1:AA4,2,2)",         # 200  (2-D row,col)
+    "AG1": "=ROWS(Z1:AA4)",              # 4
+    "AG2": "=COLUMNS(Z1:AA4)",           # 2
+    "AG3": "=ROW(Z3)",                   # 3
+    "AG4": "=COLUMN(AA1)",               # 27   (AA)
+    "AH3": "=LOOKUP(25,Z1:Z4,AA1:AA4)",  # 200  (vector form, approx)
+    "AH4": "=MATCH(40,Z1:Z4,0)",         # 4
 }
 
 
