@@ -2062,6 +2062,72 @@ define sort_range(sheet, c0, r0, c1, r1, keycol, descending) as:
     recalc of sheet
     return sheet
 
+# ---- find & replace ------------------------------------------------
+
+# Replace every literal occurrence of `old` with `new` in text. cs=1 is
+# case-sensitive; cs=0 matches case-insensitively but emits the ORIGINAL
+# text for the non-matched parts (only the match becomes `new`), like Calc.
+define _replace_lit(text, old, new, cs) as:
+    if (len of old) == 0:
+        return text
+    local hay is text
+    local ndl is old
+    if cs == 0:
+        hay is str_lower of text
+        ndl is str_lower of old
+    local out is ""
+    local i is 0
+    local lo is len of old
+    local lt is len of text
+    loop while i < lt:
+        if (i + lo) <= lt and (substr of [hay, i, lo]) == ndl:
+            out is out + new
+            i is i + lo
+        else:
+            out is out + (char_at of [text, i])
+            i is i + 1
+    return out
+
+# Addresses of cells whose RAW content contains `needle` (like Calc's
+# search-in-formulas), in row-major order for determinism. cs = case-sensitive.
+define find_cells(sheet, needle, cs) as:
+    local ks is keys of sheet.cells
+    local hits is []
+    for i in range of (len of ks):
+        local a is ks[i]
+        if (_find_sub of [sheet.cells[a], needle, 0, cs]) >= 0:
+            local p is _addr_parts of a
+            append of [hits, {"key": p.row * 16384 + (_col_to_num of p.col), "a": a}]
+    # insertion sort by row-major key
+    local m is 1
+    loop while m < (len of hits):
+        local cur is hits[m]
+        local j is m - 1
+        loop while j >= 0 and hits[j].key > cur.key:
+            hits[j + 1] is hits[j]
+            j is j - 1
+        hits[j + 1] is cur
+        m is m + 1
+    local out is []
+    for i in range of (len of hits):
+        append of [out, hits[i].a]
+    return out
+
+# Replace every literal occurrence of `needle` with `replacement` in the raw
+# content of every cell, then recompute. Returns the number of cells changed.
+define replace_cells(sheet, needle, replacement, cs) as:
+    local ks is keys of sheet.cells
+    local count is 0
+    for i in range of (len of ks):
+        local a is ks[i]
+        local raw is sheet.cells[a]
+        local upd is _replace_lit of [raw, needle, replacement, cs]
+        if upd != raw:
+            dict_set of [sheet.cells, a, upd]
+            count is count + 1
+    recalc of sheet
+    return count
+
 # ---- CSV import / export (RFC 4180) --------------------------------
 
 # Quote a field only if it contains a comma, quote, or newline; double any

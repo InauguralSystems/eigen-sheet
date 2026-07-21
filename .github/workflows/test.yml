@@ -23,6 +23,8 @@ jobs:
         run: python3 tests/diff_vs_csv.py
       - name: Sort differential oracle (vs Python sorted)
         run: python3 tests/diff_vs_sort.py
+      - name: Find/replace differential oracle (vs Python string ops)
+        run: python3 tests/diff_vs_findreplace.py
 
   calc-oracle:
     # differential oracle: eigen-sheet recalc vs headless LibreOffice Calc.

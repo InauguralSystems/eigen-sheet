@@ -129,7 +129,9 @@ arithmetic, tighter than comparison, coercing numbers to text so `=5&"x"` is
 is true), and number↔text coercion (non-numeric text in arithmetic is
 `#VALUE!`). Text left-aligns, numbers right-align. **I/O:** `to_csv` / `from_csv`
 (RFC-4180, with quoting and round-trip). **Data:** `sort_range` (stable sort
-of a range by a key column, ascending/descending, numbers before text).
+of a range by a key column, ascending/descending, numbers before text),
+`find_cells` / `replace_cells` (literal, case-sensitive or not, over raw
+cell content).
 **Number formats:** `set_format` / `TEXT` — decimals, thousands grouping,
 percent, currency, and `Y`/`M`/`D` date codes (`#,##0.00`, `0%`,
 `$#,##0.00`, `YYYY-MM-DD`). Interactive: in-cell editing
