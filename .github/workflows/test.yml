@@ -31,6 +31,8 @@ jobs:
         run: python3 tests/diff_vs_goalseek.py
       - name: Filter differential oracle (vs Python)
         run: python3 tests/diff_vs_filter.py
+      - name: Native save/load round-trip
+        run: python3 tests/save_load_test.py
       - name: Scale correctness (large grid recalc)
         run: python3 tests/scale_test.py
 

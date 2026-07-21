@@ -37,8 +37,8 @@ print of (sheet.get of [s, "A4"])           # -> 16
 ```
 
 Importable surface: `new_sheet`, `set_cell`, `define_name`, `set_format`,
-`register_udf`, `recalc`, `get`, `display`, `to_csv` / `from_csv`, `to_xlsx`,
-`sort_range`, `find_cells` / `replace_cells`, `pivot`, `goal_seek`, and
+`register_udf`, `recalc`, `get`, `display`, `save` / `load`, `to_csv` / `from_csv`, `to_xlsx`,
+`sort_range`, `find_cells` / `replace_cells`, `filter_rows`, `pivot`, `goal_seek`, `register_udf`, and
 `draw_grid` (the gfx front-end;
 `run` opens a window but is never called on import, so `import sheet` is
 side-effect-free and headless-testable).
@@ -141,7 +141,10 @@ arithmetic, tighter than comparison, coercing numbers to text so `=5&"x"` is
 `REPLACE` / `REPT` / `PROPER` / `EXACT` / `TEXTJOIN` / `CHAR` / `CODE` /
 `VALUE` / `TEXT` (number/date formatting), case-insensitive text comparison (`="a"="A"`
 is true), and number↔text coercion (non-numeric text in arithmetic is
-`#VALUE!`). Text left-aligns, numbers right-align. **I/O:** `to_csv` / `from_csv`
+`#VALUE!`). Text left-aligns, numbers right-align. **I/O:** `save` / `load` (the native
+format — the whole sheet, incl. named ranges and number formats, as JSON; the
+raw cell contents *are* the replayable edit stream, so loading replays them and
+recalc rebuilds the grid), `to_csv` / `from_csv`
 (RFC-4180, with quoting and round-trip) and `to_xlsx` (writes a real
 `.xlsx` — a stored-ZIP of OOXML built by hand with a hand-rolled CRC32, since
 EigenScript has byte I/O and bitwise ops but no zip library; opens in Excel

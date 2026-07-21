@@ -2350,6 +2350,26 @@ define replace_cells(sheet, needle, replacement, cs) as:
     recalc of sheet
     return count
 
+# ---- native save / load --------------------------------------------
+
+# Save the whole sheet (raw cell contents + named ranges + number formats) as
+# JSON. The raw cell contents ARE the replayable edit stream — loading replays
+# them and recalc reconstructs the grid. UDFs are runtime functions, not data,
+# so they are NOT saved; re-register them before load.
+define save(sheet, path) as:
+    write_text of [path, json_encode of {"cells": sheet.cells, "names": sheet.names, "formats": sheet.formats}]
+    return path
+
+# Load a saved sheet into `sheet` (its registered UDFs are preserved), then
+# recompute. Returns the sheet.
+define load(sheet, path) as:
+    local data is json_decode of (read_text of path)
+    sheet.cells is data.cells
+    sheet.names is data.names
+    sheet.formats is data.formats
+    recalc of sheet
+    return sheet
+
 # ---- CSV import / export (RFC 4180) --------------------------------
 
 # Quote a field only if it contains a comma, quote, or newline; double any
