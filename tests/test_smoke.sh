@@ -80,6 +80,15 @@ $PKG_NAME.recalc of s
 print of ("cleared A3=" + ($PKG_NAME.display of [s, "A3"]) + " A2=[" + ($PKG_NAME.display of [s, "A2"]) + "]")
 $PKG_NAME.set_cell of [s, "A2", "3"]
 $PKG_NAME.recalc of s
+# absolute/mixed refs: copy =\$A\$1+\$A2+A\$1 from N10 to O11 (delta col+1,row+1).
+# Anchored column/row (\$) stay put; only the relative parts shift:
+#   \$A\$1 -> \$A\$1 (both anchored), \$A2 -> \$A3 (row rel), A\$1 -> B\$1 (col rel).
+# Value = A1 + A3 + B1 = 5 + 8 + 31 = 44.
+$PKG_NAME.set_cell of [s, "N10", "=\$A\$1+\$A2+A\$1"]
+$PKG_NAME.recalc of s
+ab is $PKG_NAME.copy_block of [s, 13, 9, 13, 9]
+$PKG_NAME.paste_block of [s, ab, 14, 10]
+print of ("abs O11=" + ($PKG_NAME.display of [s, "O11"]) + " raw=" + s.cells["O11"])
 # structural: a formula using EVERY token type — including a string literal and
 # the & operator — copied+pasted in place (delta 0) must reconstruct
 # byte-identically, guarding _shift_formula against any dropped-token class.
@@ -118,6 +127,7 @@ paste B3=35 raw==B1+B2
 E1=8 E2=3 E3=16 E4=16
 S1=hi World S2=HI! S3=5 S4=orl S5=53 S6=yes S7=#VALUE!
 cleared A3=5 A2=[]
+abs O11=44 raw==$A$1+$A3+B$1
 roundtrip==IF(A1&"x"="5x",SUM(A1:A3)+1,MIN(A1:A2)*2)
 errs=#NAME?,#DIV/0!,#ERROR,#ERROR gapavg=15
 EOF

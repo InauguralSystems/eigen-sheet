@@ -96,18 +96,37 @@ define _tokenize(s) as:
             loop while i < n and ((_is_digit of (char_at of [s, i])) == 1 or (char_at of [s, i]) == "."):
                 i is i + 1
             append of [toks, {"t": "num", "v": num of (substr of [s, start, i - start])}]
-        elif (_is_alpha of ch) == 1:
-            local start is i
-            loop while i < n and (_is_alpha of (char_at of [s, i])) == 1:
-                i is i + 1
-            local word is _upper of (substr of [s, start, i - start])
-            if i < n and (_is_digit of (char_at of [s, i])) == 1:
-                local dstart is i
-                loop while i < n and (_is_digit of (char_at of [s, i])) == 1:
-                    i is i + 1
-                append of [toks, {"t": "cell", "v": word + (substr of [s, dstart, i - dstart])}]
-            else:
+        elif ch == "$" or (_is_alpha of ch) == 1:
+            # a cell reference with optional $ anchors ($A$1, $A1, A$1, A1) or,
+            # when it's bare letters with no trailing digits, a function name.
+            # cabs / rabs record whether the column / row is anchored — used by
+            # copy/paste (_shift_formula) so an anchored part does NOT shift.
+            local cabs is 0
+            local j is i
+            if (char_at of [s, j]) == "$":
+                cabs is 1
+                j is j + 1
+            local lstart is j
+            loop while j < n and (_is_alpha of (char_at of [s, j])) == 1:
+                j is j + 1
+            local word is _upper of (substr of [s, lstart, j - lstart])
+            local rabs is 0
+            local k is j
+            if k < n and (char_at of [s, k]) == "$":
+                rabs is 1
+                k is k + 1
+            if (len of word) > 0 and k < n and (_is_digit of (char_at of [s, k])) == 1:
+                local dstart is k
+                loop while k < n and (_is_digit of (char_at of [s, k])) == 1:
+                    k is k + 1
+                append of [toks, {"t": "cell", "v": word + (substr of [s, dstart, k - dstart]), "cabs": cabs, "rabs": rabs}]
+                i is k
+            elif cabs == 0 and rabs == 0 and (len of word) > 0:
                 append of [toks, {"t": "func", "v": word}]
+                i is j
+            else:
+                # a stray $ that does not form a cell reference — skip it
+                i is i + 1
         elif ch == "+" or ch == "-" or ch == "*" or ch == "/" or ch == "^":
             append of [toks, {"t": "op", "v": ch}]
             i is i + 1
@@ -959,7 +978,21 @@ define _shift_formula(body, dcol, drow) as:
     for i in range of (len of toks):
         local tk is toks[i]
         if tk.t == "cell":
-            out is out + (_shift_addr of [tk.v, dcol, drow])
+            # an anchored column / row ($) does not shift; re-emit its $ markers
+            local dc is dcol
+            local dr is drow
+            if tk.cabs == 1:
+                dc is 0
+            if tk.rabs == 1:
+                dr is 0
+            local p is _addr_parts of (_shift_addr of [tk.v, dc, dr])
+            local ref is ""
+            if tk.cabs == 1:
+                ref is ref + "$"
+            ref is ref + p.col
+            if tk.rabs == 1:
+                ref is ref + "$"
+            out is out + ref + (str of p.row)
         elif tk.t == "num":
             out is out + (str of tk.v)
         elif tk.t == "str":

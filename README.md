@@ -90,7 +90,8 @@ mouse oracles).
 ## Scope
 
 Numbers, `+ - * /`, `^` (exponent, left-associative like Calc), parens and
-precedence, comparisons (`> < >= <= = <>`), cell references, multi-letter
+precedence, comparisons (`> < >= <= = <>`), cell references (relative and `$`-anchored
+absolute / mixed — `$A$1`, `$A1`, `A$1`), multi-letter
 columns, range aggregates `SUM` / `AVERAGE` (`AVG`) / `MIN` / `MAX` /
 `PRODUCT` and `IF(cond, then, else)` (nestable), the scalar math functions
 `ABS` / `INT` / `TRUNC` / `ROUND` / `ROUNDUP` / `ROUNDDOWN` / `SIGN` / `SQRT`
@@ -104,7 +105,8 @@ arithmetic, tighter than comparison, coercing numbers to text so `=5&"x"` is
 is true), and number↔text coercion (non-numeric text in arithmetic is
 `#VALUE!`). Text left-aligns, numbers right-align. Interactive: in-cell editing
 with a formula bar, click-drag range selection with a live Sum/Average/Count
-status bar, copy/paste with relative-reference adjustment (`Ctrl+C`/`V`),
+status bar, copy/paste with relative-reference adjustment — anchored `$` parts stay
+fixed (`Ctrl+C`/`V`),
 undo/redo (`Ctrl+Z`/`Y`), and delete-to-clear. Not yet: menus/toolbar,
 scrollbars, sheet tabs.
 

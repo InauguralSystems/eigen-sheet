@@ -87,6 +87,9 @@ CELLS = {
     "S2": "=VARP(A1:A4)",                # 13.25    (population, n)
     "S3": "=STDEV(A1:A4)",               # 4.20317  (sqrt sample var)
     "S4": "=STDEVP(A1:A4)",              # 3.64005  (sqrt pop var)
+    # ---- absolute / mixed references (#9): evaluate identically to relative ----
+    "U1": "=$A$1+$A2+A$3",               # 16   (5+3+8, anchors are eval no-ops)
+    "U2": "=SUM($A$1:$A$3)",             # 16
 }
 
 
