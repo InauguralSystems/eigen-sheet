@@ -90,7 +90,9 @@ mouse oracles).
 ## Scope
 
 Numbers, `+ - * /`, `^` (exponent, left-associative like Calc), parens and
-precedence, comparisons (`> < >= <= = <>`), cell references (relative and `$`-anchored
+precedence, comparisons (`> < >= <= = <>`, yielding first-class `TRUE`/`FALSE` that
+display as such but coerce to `1`/`0` in arithmetic and `"1"`/`"0"` in
+concatenation, like Calc), cell references (relative and `$`-anchored
 absolute / mixed — `$A$1`, `$A1`, `A$1`), multi-letter
 columns, range aggregates `SUM` / `AVERAGE` (`AVG`) / `MIN` / `MAX` /
 `PRODUCT`, `IF(cond, then, else)` (nestable, short-circuiting — the untaken

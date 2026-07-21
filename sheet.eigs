@@ -296,19 +296,38 @@ define _aggregate(fname, vals) as:
 # ---- value coercion + text ops -------------------------------------
 # Values flow through the evaluator as num OR str (like a real spreadsheet).
 
+# A first-class boolean is the marker {"b": 1/0}. It DISPLAYS as TRUE/FALSE but
+# COERCES to 1/0 in arithmetic, comparisons, and conditions — like a spreadsheet.
+define _mk_bool(n) as:
+    if n == 0:
+        return {"b": 0}
+    return {"b": 1}
+
+define _is_bool(v) as:
+    if (type of v) == "dict" and (has_key of [v, "b"]) == 1:
+        return 1
+    return 0
+
 # Coerce any value to display text — numbers via str (whole numbers lose the
 # decimal), so =5&"x" -> "5x". Matches a spreadsheet's number->text rule.
+# NOTE: a boolean coerces to "1"/"0" here (the & concatenation rule —
+# =TRUE()&"!" is "1!" in Calc, NOT "TRUE!"). Its TRUE/FALSE spelling is a
+# DISPLAY concern only, handled in display().
 define _to_text(v) as:
     if (type of v) == "str":
         return v
+    if (_is_bool of v) == 1:
+        return str of v.b
     return str of v
 
-# Coerce to a number for arithmetic. A numeric-looking string converts; other
-# text is #VALUE! (like ="a"+1 in a spreadsheet), routed through st.err.
+# Coerce to a number for arithmetic. A boolean is 1/0; a numeric-looking string
+# converts; other text is #VALUE! (like ="a"+1 in a spreadsheet), via st.err.
 define _to_num(st, v) as:
     if (type of v) == "num":
         return v
-    if (_is_number of v) == 1:
+    if (_is_bool of v) == 1:
+        return v.b
+    if (type of v) == "str" and (_is_number of v) == 1:
         return num of v
     st.err is "#VALUE!"
     return 0
@@ -317,20 +336,27 @@ define _to_num(st, v) as:
 # number<->number numeric; text<->text case-INSENSITIVE (="a"="A" is true);
 # mixed types are never equal and sort numbers before text. Returns 1/0.
 define _compare(l, r, opv) as:
-    local lt is type of l
-    local rt is type of r
+    # a boolean compares as its numeric value (TRUE=1, FALSE=0)
+    local lc is l
+    local rc is r
+    if (_is_bool of l) == 1:
+        lc is l.b
+    if (_is_bool of r) == 1:
+        rc is r.b
+    local lt is type of lc
+    local rt is type of rc
     local c is 0                       # sign of (l - r): -1 / 0 / 1
     if lt == "str" and rt == "str":
-        local a is str_lower of l
-        local b is str_lower of r
+        local a is str_lower of lc
+        local b is str_lower of rc
         if a < b:
             c is 0 - 1
         elif a > b:
             c is 1
     elif lt == "num" and rt == "num":
-        if l < r:
+        if lc < rc:
             c is 0 - 1
-        elif l > r:
+        elif lc > rc:
             c is 1
     else:
         # mixed: a number sorts before text, and they are never equal
@@ -787,7 +813,7 @@ define _eval_factor(st) as:
             # is 1, matching a spreadsheet).
             local cond is _eval_cmp of st
             local taken is 0
-            if cond != 0:
+            if (_to_num of [st, cond]) != 0:
                 taken is 1
             if (_peek of st) != null and (_peek of st).t == "comma":
                 st.i is st.i + 1
@@ -850,16 +876,16 @@ define _eval_factor(st) as:
             local bargs is _collect_args of st
             local bn is len of bargs
             if fname == "TRUE":
-                return 1
+                return _mk_bool of 1
             if fname == "FALSE":
-                return 0
+                return _mk_bool of 0
             if fname == "NOT":
                 if bn < 1:
                     st.err is "#ERROR"
                     return 0
                 if (_to_num of [st, bargs[0]]) == 0:
-                    return 1
-                return 0
+                    return _mk_bool of 1
+                return _mk_bool of 0
             if bn < 1:
                 st.err is "#ERROR"
                 return 0
@@ -869,16 +895,16 @@ define _eval_factor(st) as:
                     truthy is truthy + 1
             if fname == "AND":
                 if truthy == bn:
-                    return 1
-                return 0
+                    return _mk_bool of 1
+                return _mk_bool of 0
             if fname == "OR":
                 if truthy > 0:
-                    return 1
-                return 0
+                    return _mk_bool of 1
+                return _mk_bool of 0
             # XOR: true when an ODD number of args are truthy
             if (truthy % 2) == 1:
-                return 1
-            return 0
+                return _mk_bool of 1
+            return _mk_bool of 0
         # IFS(cond1,val1,cond2,val2,…): return the first val whose cond is
         # truthy, skipping the rest; #N/A if none match. Short-circuited.
         if fname == "IFS":
@@ -892,7 +918,7 @@ define _eval_factor(st) as:
                     _skip_arg of st
                 if (_peek of st) != null and (_peek of st).t == "comma":
                     st.i is st.i + 1
-                if matched == 0 and cnd != 0:
+                if matched == 0 and (_to_num of [st, cnd]) != 0:
                     ifs_result is _eval_cmp of st
                     matched is 1
                 else:
@@ -1152,8 +1178,8 @@ define _eval_factor(st) as:
                     st.err is "#ERROR"
                     return 0
                 if (_to_text of targs[0]) == (_to_text of targs[1]):
-                    return 1
-                return 0
+                    return _mk_bool of 1
+                return _mk_bool of 0
             if fname == "CHAR":
                 if na < 1:
                     st.err is "#ERROR"
@@ -1487,7 +1513,9 @@ define _eval_concat(st) as:
         v is (_to_text of v) + (_to_text of r)
     return v
 
-# Comparison level (lowest precedence): concat [<cmp> concat] -> 1/0.
+# Comparison level (lowest precedence): concat [<cmp> concat] -> a boolean.
+# The comparison OPERATOR yields a first-class TRUE/FALSE (=1>0 displays TRUE);
+# _compare itself still returns 1/0 for internal control-flow (lookups, SWITCH).
 define _eval_cmp(st) as:
     local l is _eval_concat of st
     local tk is _peek of st
@@ -1495,7 +1523,7 @@ define _eval_cmp(st) as:
         local opv is tk.v
         st.i is st.i + 1
         local r is _eval_concat of st
-        return _compare of [l, r, opv]
+        return _mk_bool of (_compare of [l, r, opv])
     return l
 
 # Evaluate a formula's tokens; returns {"val", "err"}. err is "" on success or
@@ -1790,6 +1818,10 @@ define display(sheet, addr) as:
         local v is sheet.vals[a]
         if (type of v) == "str":
             return v
+        if (_is_bool of v) == 1:
+            if v.b == 1:
+                return "TRUE"
+            return "FALSE"
         return _fmt of v
     if (_is_number of raw) == 1:
         return _fmt of (num of raw)

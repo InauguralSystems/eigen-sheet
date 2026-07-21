@@ -70,6 +70,18 @@ CELLS = {
     "C14": '=TEXTJOIN("-",1,"a","","b")',  # a-b  (ignore empty)
     "C15": '=TEXTJOIN(",",0,"a","","b")',  # a,,b (keep empty)
     "C16": '=PROPER("mIxEd cASE 3rd")',    # Mixed Case 3Rd
+    # ---- first-class booleans (#13): display as TRUE/FALSE ----
+    "D1": '=1>0',                          # TRUE  (comparison operator)
+    "D2": '=2<1',                          # FALSE
+    "D3": '=TRUE()',                       # TRUE
+    "D4": '=FALSE()',                      # FALSE
+    "D5": '=AND(1>0,2>0)',                 # TRUE
+    "D6": '=OR(1>2,3>4)',                  # FALSE
+    "D7": '=NOT(1>0)',                     # FALSE
+    "D8": '=EXACT("aB","aB")',             # TRUE
+    "D9": '=XOR(1>0,2>0)',                 # FALSE (both true -> even)
+    "D10": '=TRUE()&"!"',                  # 1!  (concat coerces a bool to "1"/"0", NOT its display text)
+    "D11": '=(5>3)&"/"&(1>9)',             # 1/0
 }
 
 
@@ -121,7 +133,7 @@ def eigs_values():
 
 # OOXML "future functions" are stored _xlfn.-prefixed; openpyxl writes the bare
 # name and LibreOffice reads #NAME?. eigen-sheet gets the plain formula.
-_XLFN = ("TEXTJOIN",)
+_XLFN = ("TEXTJOIN", "XOR")
 
 
 def _ooxml(formula):
