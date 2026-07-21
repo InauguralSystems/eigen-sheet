@@ -27,13 +27,13 @@ ENV = u.ENV
 REPO = u.REPO
 
 # Interactive-run grid geometry (window coords), from sheet.eigs run().
-OX, OY, COLW, ROWH = 8, 8, 84, 20
-BTN = (8, 448 + 12)                    # Insert button center
+GX, GY, CW, RH = 36, 22, 72, 22
+BTN = (83, 448 + 12)                   # Insert button center
 ITEM1 = (83, 448 - (3 - 1) * 22 + 10)  # menu item k=1 ("=A1*A2") center
 
 
-def cell_xy(col, row):   # 0-based -> window-pixel center-ish of the cell
-    return (OX + col * COLW + 24, OY + row * ROWH + 8)
+def cell_xy(col, row):   # 0-based -> window-pixel center of the cell
+    return (GX + col * CW + CW // 2, GY + row * RH + RH // 2)
 
 
 def launch():

@@ -24,7 +24,10 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV = dict(os.environ, SDL_VIDEODRIVER="x11", EIGS_GFX_FONT="/nonexistent/force-bitmap.ttf")
 
 CELL_W, CELL_H, ORIGIN_X, ORIGIN_Y = 12, 14, 8, 8   # scale-2 bitmap glyph grid
-COL_W, ROW_H = 84, 20                                # draw_grid cell pitch
+# draw_grid layout: row-header col GX wide, col-header row GY tall, data cells
+# CW x RH; text baseline is +4 into the cell. Values are RIGHT-aligned, so the
+# decoder reads every glyph cell across CW and strips (leading blanks).
+GX, GY, CW, RH, TPAD = 36, 22, 72, 22, 4
 NCOLS, NROWS = 3, 4                                  # region the oracle checks
 INK = lambda r, g, b: min(r, g, b) > 150
 CHARSET = "".join(chr(c) for c in range(33, 127))
@@ -187,24 +190,21 @@ def build_atlas(edit_path):
 
 
 def decode_grid(img, atlas):
-    """Decode the rendered grid into rows of cell strings."""
+    """Decode the rendered data grid into rows of cell strings (right-aligned)."""
     px = img.load(); W, H = img.size
     grid = []
     for r in range(NROWS):
         row = []
         for c in range(NCOLS):
-            ox = ORIGIN_X + c * COL_W
-            oy = ORIGIN_Y + r * ROW_H
+            ox = GX + c * CW
+            oy = GY + r * RH + TPAD
             s = ""
-            for k in range(COL_W // CELL_W):     # up to 7 glyph cells per grid cell
+            for k in range(CW // CELL_W):        # every glyph cell across the cell
                 cx = ox + k * CELL_W
                 if cx + CELL_W > W or oy + CELL_H > H:
                     break
-                ch = atlas.get(_cell_sig(px, cx, oy), "�")
-                if ch == "":
-                    break
-                s += ch
-            row.append(s)
+                s += atlas.get(_cell_sig(px, cx, oy), "�")   # blank -> "" from atlas
+            row.append(s.strip())                # strip the right-align padding
         grid.append(row)
     return grid
 
