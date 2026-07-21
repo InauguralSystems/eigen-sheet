@@ -1541,11 +1541,41 @@ define _eval(toks, vals, cells, selfaddr, errs) as:
 # ---- sheet + recalc -------------------------------------------------
 
 define new_sheet() as:
-    return {"cells": {}, "vals": {}, "err": {}, "order": []}
+    return {"cells": {}, "vals": {}, "err": {}, "order": [], "names": {}}
 
 define set_cell(sheet, addr, raw) as:
     dict_set of [sheet.cells, _upper of addr, raw]
     return sheet
+
+# Define a named range/expression: `revenue` -> "A1:A10", `taxrate` -> "0.2".
+# The name (alpha, case-insensitive) can then be used in any formula in place of
+# its definition — =SUM(revenue), =taxrate*100. Names are absolute: copy/paste
+# leaves them unshifted.
+define define_name(sheet, name, definition) as:
+    dict_set of [sheet.names, _upper of name, definition]
+    return sheet
+
+# Substitute each defined-name token with its definition's tokens. A name
+# tokenizes as a bare word (a "func" token NOT followed by "(") — a real
+# function call always has the "(" — so only those expand.
+define _expand_names(toks, names) as:
+    local out is []
+    local i is 0
+    local n is len of toks
+    loop while i < n:
+        local tk is toks[i]
+        local is_name is 0
+        if tk.t == "func" and (has_key of [names, tk.v]) == 1:
+            if (i + 1) >= n or toks[i + 1].t != "lp":
+                is_name is 1
+        if is_name == 1:
+            local deftoks is _tokenize of names[tk.v]
+            for j in range of (len of deftoks):
+                append of [out, deftoks[j]]
+        else:
+            append of [out, tk]
+        i is i + 1
+    return out
 
 define _is_number(s) as:
     if (len of s) == 0:
@@ -1582,7 +1612,7 @@ define recalc(sheet) as:
         local addr is addrs[i]
         local raw is sheet.cells[addr]
         if (len of raw) > 0 and (char_at of [raw, 0]) == "=":
-            local toks is _tokenize of (substr of [raw, 1, (len of raw) - 1])
+            local toks is _expand_names of [_tokenize of (substr of [raw, 1, (len of raw) - 1]), sheet.names]
             dict_set of [formula_toks, addr, toks]
             dict_set of [formula_deps, addr, _deps of toks]
             append of [pending, addr]

@@ -152,7 +152,31 @@ CELLS = {
     "AN2": '=DATEDIF(DATE(2020,1,1),DATE(2020,7,15),"m")',  # 6
     "AN3": "=WEEKDAY(DATE(2020,1,1),2)", # 3   (Mon=1 convention)
     "AN4": "=DATE(2021,13,1)-DATE(2022,1,1)",       # 0  (month overflow)
+    # ---- named ranges / expressions (#11) ----
+    "AO1": "=SUM(revenue)",              # 14  (revenue = A1:A4 = 5,3,8,-2)
+    "AO2": "=AVERAGE(revenue)",          # 3.5
+    "AO3": "=taxrate*100",               # 20  (taxrate = 0.2)
+    "AO4": "=MAX(revenue)+taxrate",      # 8.2
+    "AP1": "=SUM(revenue)*taxrate",      # 2.8
+    "AP2": "=VLOOKUP(8,revenue,1,0)",    # 8   (a name used as a range arg)
 }
+
+# Named ranges/expressions: name -> definition (a range, cell, or constant).
+# The eigs side calls define_name; the xlsx side registers a workbook DefinedName
+# so LibreOffice resolves the same names.
+NAMES = {
+    "revenue": "A1:A4",
+    "taxrate": "0.2",
+}
+
+
+def _defname_attr(defn):
+    m = re.match(r"^([A-Za-z]+)(\d+)(?::([A-Za-z]+)(\d+))?$", defn)
+    if not m:
+        return defn   # a constant like "0.2"
+    if m.group(3):
+        return "Sheet1!${}${}:${}${}".format(*m.groups())
+    return "Sheet1!${}${}".format(m.group(1), m.group(2))
 
 
 def col_to_num(letters):
@@ -172,6 +196,8 @@ def eigs_values():
     esc = lambda t: t.replace("\\", "\\\\").replace('"', '\\"')
     body = "\n".join('sheet.set_cell of [s, "%s", "%s"]' % (a, esc(raw))
                      for a, raw in CELLS.items())
+    body += "\n" + "\n".join('sheet.define_name of [s, "%s", "%s"]' % (nm, dfn)
+                             for nm, dfn in NAMES.items())
     prints = "\n".join(
         'print of ("%s\\t" + (str of (sheet.get of [s, "%s"])))' % (a, a)
         for a, raw in CELLS.items() if raw.startswith("="))
@@ -223,6 +249,9 @@ def write_xlsx(path):
                 ws[a] = float(raw)
             except ValueError:
                 ws[a] = raw   # text literal
+    from openpyxl.workbook.defined_name import DefinedName
+    for nm, dfn in NAMES.items():
+        wb.defined_names.add(DefinedName(nm, attr_text=_defname_attr(dfn)))
     wb.calculation.fullCalcOnLoad = True   # force Calc to recompute on load
     wb.save(path)
 

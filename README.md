@@ -36,9 +36,9 @@ sheet.recalc of s
 print of (sheet.get of [s, "A4"])           # -> 16
 ```
 
-Importable surface: `new_sheet`, `set_cell`, `recalc`, `get`, `display`, and
-`draw_grid` (the gfx front-end; `run` opens a window but is never called on
-import, so `import sheet` is side-effect-free and headless-testable).
+Importable surface: `new_sheet`, `set_cell`, `define_name`, `recalc`, `get`,
+`display`, and `draw_grid` (the gfx front-end; `run` opens a window but is never
+called on import, so `import sheet` is side-effect-free and headless-testable).
 
 ## Four oracles
 
@@ -106,6 +106,8 @@ branch is never evaluated), the logical functions `AND` / `OR` / `NOT` /
 date & time functions `DATE` / `YEAR` / `MONTH` / `DAY` / `WEEKDAY` /
 `EDATE` / `EOMONTH` / `DATEVALUE` / `DATEDIF` / `TIME` / `HOUR` / `MINUTE` /
 `SECOND` (a serial-date model on LibreOffice's epoch),
+named ranges / expressions (`define_name` — `=SUM(revenue)`, `=taxrate*100`;
+alpha names, resolved before recalc so dependencies are captured),
 dependency-ordered recalc, cycle detection. **Errors** (`#DIV/0!`, `#VALUE!`,
 `#NAME?`, `#REF!`, `#N/A`, `#NUM!`, `#CYCLE`) propagate through cell
 references and ranges — a formula reading an errored cell yields that error,
