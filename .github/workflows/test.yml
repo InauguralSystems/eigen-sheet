@@ -91,3 +91,6 @@ jobs:
 
       - name: Mouse oracle (real pointer drive -> pixel verify)
         run: xvfb-run -a -s "-screen 0 1400x768x24" python3 tests/mouse_oracle.py
+
+      - name: Style render oracle (background painted, value still readable)
+        run: xvfb-run -a -s "-screen 0 1400x768x24" python3 tests/style_oracle.py

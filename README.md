@@ -37,8 +37,9 @@ print of (sheet.get of [s, "A4"])           # -> 16
 ```
 
 Importable surface: `new_sheet`, `set_cell`, `define_name`, `set_format`,
-`register_udf`, `recalc`, `get`, `display`, `save` / `load`, `to_csv` / `from_csv`, `to_xlsx`,
-`sort_range`, `find_cells` / `replace_cells`, `filter_rows`, `pivot`, `goal_seek`, `register_udf`, and
+`register_udf`, `set_style`, `set_validation` / `is_valid`, `recalc`, `get`, `display`,
+`save` / `load`, `to_csv` / `from_csv`, `to_xlsx`, `sort_range`,
+`find_cells` / `replace_cells`, `filter_rows`, `pivot`, `goal_seek`, `register_udf`, and
 `draw_grid` (the gfx front-end;
 `run` opens a window but is never called on import, so `import sheet` is
 side-effect-free and headless-testable).
@@ -165,7 +166,9 @@ layer, and a UDF's argument cells are captured as dependencies, so it recalcs
 in order and updates when its inputs change.
 **Number formats:** `set_format` / `TEXT` — decimals, thousands grouping,
 percent, currency, and `Y`/`M`/`D` date codes (`#,##0.00`, `0%`,
-`$#,##0.00`, `YYYY-MM-DD`). Interactive: in-cell editing
+`$#,##0.00`, `YYYY-MM-DD`). **Cell styling:** `set_style` — background fill,
+text color, alignment (left/right/center), bold; applied in `draw_grid` and
+saved with the sheet. Interactive: in-cell editing
 with a formula bar, click-drag range selection with a live Sum/Average/Count
 status bar, copy/paste with relative-reference adjustment — anchored `$` parts stay
 fixed (`Ctrl+C`/`V`),

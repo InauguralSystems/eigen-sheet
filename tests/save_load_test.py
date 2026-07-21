@@ -22,6 +22,7 @@ GRID = {
 }
 NAMES = {"revenue": "A1:A3", "taxrate": "0.5"}
 FORMATS = {"A1": "#,##0.00", "D1": "0.00%"}
+STYLES = {"A1": '{"bg": [180,40,40], "color": [255,255,200], "align": "right", "bold": 1}'}
 
 
 def eigs_str(s):
@@ -39,6 +40,7 @@ def main():
         body = "\n".join("sheet.set_cell of [s, %s, %s]" % (eigs_str(a), eigs_str(r)) for a, r in GRID.items())
         body += "\n" + "\n".join("sheet.define_name of [s, %s, %s]" % (eigs_str(n), eigs_str(d)) for n, d in NAMES.items())
         body += "\n" + "\n".join("sheet.set_format of [s, %s, %s]" % (eigs_str(a), eigs_str(c)) for a, c in FORMATS.items())
+        body += "\n" + "\n".join("sheet.set_style of [s, %s, %s]" % (eigs_str(a), lit) for a, lit in STYLES.items())
         orig = "\n".join('print of ("O\\t" + %s + "\\t" + (sheet.display of [s, %s]))' % (eigs_str(a), eigs_str(a)) for a in GRID)
         load = "\n".join('print of ("L\\t" + %s + "\\t" + (sheet.display of [s2, %s]))' % (eigs_str(a), eigs_str(a)) for a in GRID)
         prog = (
@@ -63,7 +65,10 @@ def main():
         try:
             data = json.load(open(path))
             assert set(data["cells"]) == set(GRID), "cells mismatch"
-            print("PASS file is valid JSON with all %d cells + names + formats" % len(GRID))
+            assert data["names"], "names missing"
+            assert data["formats"], "formats missing"
+            assert data["styles"].get("A1", {}).get("bg") == [180, 40, 40], "style not saved"
+            print("PASS file is valid JSON with all %d cells + names + formats + styles" % len(GRID))
         except Exception as e:
             failures += 1
             print("FAIL JSON validity: %r" % e)
