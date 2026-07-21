@@ -104,6 +104,13 @@ $PKG_NAME.set_cell of [s, "K7", "=ROW()"]
 $PKG_NAME.set_cell of [s, "K8", "=COLUMN()"]
 $PKG_NAME.recalc of s
 print of ("xlookup=" + ($PKG_NAME.display of [s, "K5"]) + "," + ($PKG_NAME.display of [s, "K6"]) + " selfrc=" + ($PKG_NAME.display of [s, "K7"]) + "," + ($PKG_NAME.display of [s, "K8"]))
+# error propagation: an error in a referenced cell / range flows to dependents
+# (was silently 0). P2 references the errored P1; P3 sums a range containing it.
+$PKG_NAME.set_cell of [s, "P1", "=1/0"]
+$PKG_NAME.set_cell of [s, "P2", "=P1+1"]
+$PKG_NAME.set_cell of [s, "P3", "=SUM(P1:P2)"]
+$PKG_NAME.recalc of s
+print of ("prop P2=" + ($PKG_NAME.display of [s, "P2"]) + " P3=" + ($PKG_NAME.display of [s, "P3"]))
 # structural: a formula using EVERY token type — including a string literal and
 # the & operator — copied+pasted in place (delta 0) must reconstruct
 # byte-identically, guarding _shift_formula against any dropped-token class.
@@ -144,6 +151,7 @@ S1=hi World S2=HI! S3=5 S4=orl S5=53 S6=yes S7=#VALUE!
 cleared A3=5 A2=[]
 abs O11=44 raw==$A$1+$A3+B$1
 xlookup=200,-1 selfrc=7,11
+prop P2=#DIV/0! P3=#DIV/0!
 roundtrip==IF(A1&"x"="5x",SUM(A1:A3)+1,MIN(A1:A2)*2)
 errs=#NAME?,#DIV/0!,#ERROR,#ERROR gapavg=15
 EOF

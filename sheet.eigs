@@ -543,9 +543,13 @@ define _mk_range(a, b) as:
         r2 is t2
     return {"r": 1, "c1": c1, "r1": r1, "c2": c2, "r2": r2}
 
-# Value at a 1-based (col,row) cell.
+# Value at a 1-based (col,row) cell; an errored cell propagates its error.
 define _ref_val(st, col, row) as:
-    return _cellval of [st, _cell_addr of [col, row]]
+    local addr is _cell_addr of [col, row]
+    if (has_key of [st.errs, addr]) == 1:
+        st.err is st.errs[addr]
+        return 0
+    return _cellval of [st, addr]
 
 # Flatten a range's values in row-major reading order.
 define _range_values(st, rg) as:
@@ -662,6 +666,44 @@ define _eval_factor(st) as:
             if (_peek of st) != null and (_peek of st).t == "rp":
                 st.i is st.i + 1
             return result
+        # IFERROR(value, fallback) / IFNA(value, fallback): evaluate value; if it
+        # raised an error (any error for IFERROR, only #N/A for IFNA), swallow it
+        # and return fallback; otherwise return value and skip fallback. Relies on
+        # error propagation, so IFERROR(A1,0) with A1 #DIV/0! yields 0.
+        # NA() — the canonical #N/A producer (pairs with IFNA / MATCH misses)
+        if fname == "NA":
+            if (_peek of st) != null and (_peek of st).t == "rp":
+                st.i is st.i + 1
+            st.err is "#N/A"
+            return 0
+        if fname == "IFERROR" or fname == "IFNA":
+            local pre is st.err
+            st.err is ""
+            local v1 is _eval_cmp of st
+            local a1err is st.err
+            local caught is 0
+            if a1err != "":
+                if fname == "IFERROR":
+                    caught is 1
+                elif a1err == "#N/A":
+                    caught is 1
+            if (_peek of st) != null and (_peek of st).t == "comma":
+                st.i is st.i + 1
+            if caught == 1:
+                st.err is ""
+                local v2 is _eval_cmp of st
+                if (_peek of st) != null and (_peek of st).t == "rp":
+                    st.i is st.i + 1
+                if st.err == "":
+                    st.err is pre
+                return v2
+            # not caught: keep a non-caught error (propagates), restore prior if clean
+            _skip_arg of st
+            if (_peek of st) != null and (_peek of st).t == "rp":
+                st.i is st.i + 1
+            if a1err == "":
+                st.err is pre
+            return v1
         # boolean combinators — evaluate ALL args (spreadsheets don't
         # short-circuit AND/OR), return 1/0. TRUE()/FALSE() are 1/0 (they will
         # display as TRUE/FALSE once first-class booleans land, #13).
@@ -1004,6 +1046,10 @@ define _eval_factor(st) as:
             local cells is _range_cells of [a, b]
             for j in range of (len of cells):
                 local ad is cells[j]
+                # an error anywhere in the range propagates (SUM over a #DIV/0!
+                # cell is #DIV/0!, like a spreadsheet)
+                if (has_key of [st.errs, ad]) == 1:
+                    st.err is st.errs[ad]
                 if (has_key of [st.cells, ad]) == 1 and (len of st.cells[ad]) > 0:
                     n_nonempty is n_nonempty + 1
                 else:
@@ -1057,6 +1103,11 @@ define _eval_factor(st) as:
         return 0
     if tk.t == "cell":
         st.i is st.i + 1
+        # an error in a referenced cell propagates (=A1+1 with A1 #DIV/0! is
+        # #DIV/0!, not 1). errs is populated for deps first by topological order.
+        if (has_key of [st.errs, tk.v]) == 1:
+            st.err is st.errs[tk.v]
+            return 0
         return _cellval of [st, tk.v]
     # any other token where an operand was expected is malformed
     st.err is "#ERROR"
@@ -1129,9 +1180,9 @@ define _eval_cmp(st) as:
 
 # Evaluate a formula's tokens; returns {"val", "err"}. err is "" on success or
 # an error token (#DIV/0!, #NAME?, #ERROR) that recalc routes into sheet.err.
-define _eval(toks, vals, cells, selfaddr) as:
+define _eval(toks, vals, cells, selfaddr, errs) as:
     local sp is _addr_parts of selfaddr
-    local st is {"toks": toks, "i": 0, "vals": vals, "cells": cells, "err": "", "self_col": _col_to_num of sp.col, "self_row": sp.row}
+    local st is {"toks": toks, "i": 0, "vals": vals, "cells": cells, "err": "", "self_col": _col_to_num of sp.col, "self_row": sp.row, "errs": errs}
     local v is _eval_cmp of st
     # trailing tokens the parser did not consume mean the formula is malformed
     # (e.g. "=1E5" tokenizes to num 1 then cell E5; "=A1 A2")
@@ -1211,7 +1262,7 @@ define recalc(sheet) as:
                 if (has_key of [formula_toks, d]) == 1 and (has_key of [sheet.vals, d]) == 0:
                     ready is 0
             if ready == 1:
-                local res is _eval of [formula_toks[addr], sheet.vals, sheet.cells, addr]
+                local res is _eval of [formula_toks[addr], sheet.vals, sheet.cells, addr, sheet.err]
                 if res.err != "":
                     dict_set of [sheet.err, addr, res.err]
                     dict_set of [sheet.vals, addr, 0]

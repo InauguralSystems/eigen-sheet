@@ -128,6 +128,13 @@ CELLS = {
     "AG4": "=COLUMN(AA1)",               # 27   (AA)
     "AH3": "=LOOKUP(25,Z1:Z4,AA1:AA4)",  # 200  (vector form, approx)
     "AH4": "=MATCH(40,Z1:Z4,0)",         # 4
+    # ---- error model: IFERROR / IFNA that RESOLVE to a number (#12) ----
+    "AI1": "=IFERROR(A1/0,42)",          # 42   (#DIV/0! caught)
+    "AI2": "=IFERROR(A1+A2,-1)",         # 8    (clean -> value)
+    "AI3": "=IFNA(VLOOKUP(999,Z1:AA4,2,0),-5)",  # -5 (#N/A caught)
+    "AI4": "=IFERROR(NA(),7)",           # 7    (#N/A is an error for IFERROR)
+    "AJ1": "=IFERROR(SQRT(-1),0)",       # 0    (#NUM! caught)
+    "AJ2": "=IFNA(A1+A2,-9)",            # 8    (no error -> value)
 }
 
 
@@ -175,7 +182,7 @@ def eigs_values():
 # with an _xlfn. prefix; openpyxl writes the bare name, which LibreOffice (and
 # Excel) then reject as #NAME?. eigen-sheet always gets the PLAIN formula — only
 # the .xlsx handed to LibreOffice carries the prefix, so both compute the same fn.
-_XLFN = ("XOR", "IFS", "SWITCH")
+_XLFN = ("XOR", "IFS", "SWITCH", "IFNA")
 
 
 def _ooxml(formula):

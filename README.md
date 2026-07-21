@@ -101,7 +101,11 @@ branch is never evaluated), the logical functions `AND` / `OR` / `NOT` /
 `COUNTA` / `COUNTBLANK` / `MEDIAN` / `MODE` / `STDEV` / `STDEVP` / `VAR` /
 `VARP`, the lookup & reference functions `VLOOKUP` / `HLOOKUP` / `LOOKUP` /
 `XLOOKUP` / `INDEX` / `MATCH` / `ROW` / `COLUMN` / `ROWS` / `COLUMNS`,
-dependency-ordered recalc, cycle detection. **Text:** string literals
+dependency-ordered recalc, cycle detection. **Errors** (`#DIV/0!`, `#VALUE!`,
+`#NAME?`, `#REF!`, `#N/A`, `#NUM!`, `#CYCLE`) propagate through cell
+references and ranges — a formula reading an errored cell yields that error,
+not a silent `0` — and `IFERROR` / `IFNA` / `NA()` catch or raise them.
+**Text:** string literals
 (`"..."`, `""` escapes a quote), the `&` concatenation operator (looser than
 arithmetic, tighter than comparison, coercing numbers to text so `=5&"x"` is
 `5x`), the text functions `LEN` / `UPPER` / `LOWER` / `TRIM` / `LEFT` /
