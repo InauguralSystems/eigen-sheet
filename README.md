@@ -39,11 +39,11 @@ Importable surface: `new_sheet`, `set_cell`, `recalc`, `get`, `display`, and
 `draw_grid` (the gfx front-end; `run` opens a window but is never called on
 import, so `import sheet` is side-effect-free and headless-testable).
 
-## Three oracles
+## Four oracles
 
 A byte-diff against my own expectations is a golden master — it pins
 regressions but can't say what *right* looks like. So correctness rests on
-three **independent** checks:
+four **independent** checks:
 
 1. **Model** (`tests/test_smoke.sh`) — replays cell edits, recalcs, and
    byte-diffs displayed values. *Self-consistency:* dependency chains, SUM,
@@ -62,21 +62,32 @@ three **independent** checks:
    the deterministic bitmap-font atlas (12×14 px cells; forced via a
    nonexistent `EIGS_GFX_FONT`), self-validated by a planted fault (blank a
    cell — must be caught).
+4. **Mouse** (`tests/mouse_oracle.py`) — the grid view has mouse-driven
+   controls (click a cell to select; an "Insert" dropdown that edits the
+   selected cell), and a dropdown isn't verified until a real click moved real
+   pixels. This drives **real xdotool pointer input** through the whole flow —
+   select A4 → open the dropdown → click `=A1*A2` — and decodes the grid to
+   assert A4 became 15 **and** B1 recomputed 31→29 (the mouse edit propagated
+   through the dependency graph). The menu item must win the click over the
+   grid cell beneath it (the popup click-trap), and a no-op drive can't pass
+   (the post-click grid must differ from the untouched baseline).
 
 ```sh
 EIGENSCRIPT=… bash tests/test_smoke.sh                 # model
 EIGENSCRIPT=… python3 tests/diff_vs_calc.py            # needs libreoffice-calc + openpyxl
-xvfb-run -a python3 tests/ui_oracle.py                 # needs gfx build + xvfb + xdotool + PIL
+xvfb-run -a python3 tests/ui_oracle.py                 # render: needs gfx build + xvfb + xdotool + PIL
+xvfb-run -a python3 tests/mouse_oracle.py              # mouse: same deps
 ```
 
-CI runs all three as jobs (`test`, `calc-oracle`, `ui-oracle`).
+CI runs `test`, `calc-oracle`, and `ui-oracle` (which runs both the render and
+mouse oracles).
 
 ## Scope (v0.1)
 
 Numbers, `+ - * /`, parens and precedence, cell references, `SUM(range)`,
-multi-letter columns, dependency-ordered recalc, cycle detection. Not yet:
-in-app cell editing, more functions (AVG/MIN/MAX/IF), string formulas, mouse
-selection + dropdowns (which will get a mouse-driven oracle when they land).
+multi-letter columns, dependency-ordered recalc, cycle detection, and
+mouse-driven cell selection + an "Insert" formula dropdown. Not yet: typing
+into cells, more functions (AVG/MIN/MAX/IF), string formulas.
 
 ## License
 

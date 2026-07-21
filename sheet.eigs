@@ -397,8 +397,26 @@ define _demo(sheet) as:
     return sheet
 
 define run() as:
-    gfx_open of [720, 480, "eigen-sheet v" + VERSION]
+    local W is 720
+    local H is 480
+    local ox is 8
+    local oy is 8
+    local colw is 84
+    local rowh is 20
+    local ncols is 6
+    local nrows is 8
+    gfx_open of [W, H, "eigen-sheet v" + VERSION]
     local s is _demo of (new_sheet of null)
+    local sel_c is 0 - 1
+    local sel_r is 0 - 1
+    local menu_open is 0
+    local items is ["=SUM(A1:A4)", "=A1*A2", "clear"]
+    local nitems is len of items
+    local ih is 22
+    local btnx is 8
+    local btnw is 150
+    local btnh is 24
+    local btny is H - 32
     local running is 1
     loop while running == 1:
         local ev is gfx_poll of null
@@ -407,8 +425,67 @@ define run() as:
                 running is 0
             elif ev.type == "keydown" and ev.key == "escape":
                 running is 0
+            elif ev.type == "mousedown":
+                local mx is ev.x
+                local my is ev.y
+                if menu_open == 1:
+                    # hit-test the OPEN menu FIRST — it is the topmost overlay,
+                    # so its items must win the click before the grid under it.
+                    local hit is 0 - 1
+                    local k is 0
+                    loop while k < nitems:
+                        local iy is btny - (nitems - k) * ih
+                        if mx >= btnx and mx < (btnx + 160) and my >= iy and my < (iy + ih):
+                            hit is k
+                        k is k + 1
+                    if hit >= 0 and sel_c >= 0:
+                        local addr is _cell_addr of [sel_c + 1, sel_r + 1]
+                        if items[hit] == "clear":
+                            dict_set of [s.cells, addr, ""]
+                        else:
+                            set_cell of [s, addr, items[hit]]
+                        recalc of s
+                    menu_open is 0
+                elif mx >= btnx and mx < (btnx + btnw) and my >= btny and my < (btny + btnh):
+                    menu_open is 1
+                elif mx >= ox and my >= oy and mx < (ox + ncols * colw) and my < (oy + nrows * rowh):
+                    sel_c is floor of ((mx - ox) / colw)
+                    sel_r is floor of ((my - oy) / rowh)
+                else:
+                    sel_c is 0 - 1
+                    sel_r is 0 - 1
             ev is gfx_poll of null
-        draw_grid of [s, 6, 8]
+        draw_grid of [s, ncols, nrows]
+        # selection outline (four thin edges around the picked cell)
+        if sel_c >= 0:
+            local sx is ox + sel_c * colw - 3
+            local sy is oy + sel_r * rowh - 3
+            local sw is colw - 4
+            local shh is rowh
+            gfx_rect of [sx, sy, sw, 2, 90, 170, 250]
+            gfx_rect of [sx, sy + shh, sw, 2, 90, 170, 250]
+            gfx_rect of [sx, sy, 2, shh, 90, 170, 250]
+            gfx_rect of [sx + sw, sy, 2, shh, 90, 170, 250]
+        # status: which cell is selected and its raw content
+        if sel_c >= 0:
+            local saddr is _cell_addr of [sel_c + 1, sel_r + 1]
+            local sraw is ""
+            if (has_key of [s.cells, saddr]) == 1:
+                sraw is s.cells[saddr]
+            gfx_text of [170, btny + 4, saddr + ": " + sraw, 200, 205, 220, 2]
+        else:
+            gfx_text of [170, btny + 4, "click a cell", 120, 128, 150, 2]
+        # the dropdown button
+        gfx_rect of [btnx, btny, btnw, btnh, 46, 90, 150]
+        gfx_text of [btnx + 8, btny + 4, "Insert v", 235, 238, 248, 2]
+        # the open menu, drawn LAST so it is the topmost layer
+        if menu_open == 1:
+            local m is 0
+            loop while m < nitems:
+                local iy is btny - (nitems - m) * ih
+                gfx_rect of [btnx, iy, 160, ih - 1, 40, 46, 64]
+                gfx_text of [btnx + 6, iy + 4, items[m], 220, 224, 236, 2]
+                m is m + 1
         gfx_present of null
         gfx_delay of 16
     gfx_close of null

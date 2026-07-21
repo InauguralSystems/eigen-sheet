@@ -58,3 +58,6 @@ jobs:
           echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
       - name: Render-vs-model UI oracle
         run: xvfb-run -a -s "-screen 0 1400x768x24" python3 tests/ui_oracle.py
+
+      - name: Mouse oracle (real pointer drive -> pixel verify)
+        run: xvfb-run -a -s "-screen 0 1400x768x24" python3 tests/mouse_oracle.py
