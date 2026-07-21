@@ -82,9 +82,11 @@ several **independent** checks:
    `diff_vs_csv.py` (`to_csv`/`from_csv` vs the `csv` module + round-trip),
    `diff_vs_sort.py` (`sort_range` vs stable `sorted()`),
    `diff_vs_findreplace.py` (`find_cells`/`replace_cells` vs Python string ops),
-   and `diff_vs_pivot.py` (`pivot` vs a Python groupby). *External truth:* what's
-   right is what the standard library computes, not our say-so. Pure Python — no
-   LibreOffice — so they run in the lightweight `test` job.
+   `diff_vs_pivot.py` (`pivot` vs a Python groupby), and `diff_vs_goalseek.py`
+   (`goal_seek`'s secant vs an independent Python **bisection** — two different
+   root-finders landing on the same root). *External truth:* what's right is what
+   the standard library computes, not our say-so. Pure Python — no LibreOffice —
+   so they run in the lightweight `test` job.
 
 ```sh
 EIGENSCRIPT=… bash tests/test_smoke.sh                 # model
@@ -139,7 +141,9 @@ is true), and number↔text coercion (non-numeric text in arithmetic is
 of a range by a key column, ascending/descending, numbers before text),
 `find_cells` / `replace_cells` (literal, case-sensitive or not, over raw
 cell content), `pivot` (group a source range by a row field and aggregate a
-data field — SUM/COUNT/AVERAGE/MIN/MAX — with a grand total).
+data field — SUM/COUNT/AVERAGE/MIN/MAX — with a grand total). **What-if:**
+`goal_seek` (find the input that drives a formula cell to a target — the
+observer model run backward, by the secant method).
 **Number formats:** `set_format` / `TEXT` — decimals, thousands grouping,
 percent, currency, and `Y`/`M`/`D` date codes (`#,##0.00`, `0%`,
 `$#,##0.00`, `YYYY-MM-DD`). Interactive: in-cell editing

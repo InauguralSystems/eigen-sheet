@@ -2136,6 +2136,56 @@ define pivot(sheet, c0, r0, c1, r1, row_col, data_col, aggfn, tc, tr) as:
     recalc of sheet
     return sheet
 
+# ---- what-if: Goal Seek --------------------------------------------
+
+# Set the variable cell to x, recompute, and read the target formula's value.
+define _gs_eval(sheet, va, x, fa) as:
+    dict_set of [sheet.cells, va, str of x]
+    recalc of sheet
+    if (has_key of [sheet.vals, fa]) == 1 and (type of sheet.vals[fa]) == "num":
+        return sheet.vals[fa]
+    return 0
+
+# Goal Seek: find the value for `var_addr` that makes `formula_addr` evaluate
+# to `target`, by the secant method on g(x) = formula(x) - target. Sets the
+# variable to the solution and recomputes; returns the solved value. This is
+# the observer model run BACKWARD — hold the observed output fixed, solve for
+# the input. Converges fast on smooth functions; leaves the best estimate if
+# it can't proceed (a flat secant).
+define goal_seek(sheet, formula_addr, target, var_addr) as:
+    local fa is _upper of formula_addr
+    local va is _upper of var_addr
+    local x0 is 0
+    if (has_key of [sheet.cells, va]) == 1 and (_is_number of sheet.cells[va]) == 1:
+        x0 is num of sheet.cells[va]
+    local x1 is x0 + 1
+    if x0 != 0:
+        x1 is x0 * 1.1
+    local g0 is (_gs_eval of [sheet, va, x0, fa]) - target
+    local g1 is (_gs_eval of [sheet, va, x1, fa]) - target
+    local iter is 0
+    local done is 0
+    loop while iter < 100 and done == 0:
+        local ag is g1
+        if ag < 0:
+            ag is 0 - ag
+        if ag < 0.0000001:
+            done is 1
+        else:
+            local denom is g1 - g0
+            if denom == 0:
+                done is 1
+            else:
+                local x2 is x1 - g1 * (x1 - x0) / denom
+                x0 is x1
+                g0 is g1
+                x1 is x2
+                g1 is (_gs_eval of [sheet, va, x1, fa]) - target
+                iter is iter + 1
+    dict_set of [sheet.cells, va, str of x1]
+    recalc of sheet
+    return x1
+
 # ---- find & replace ------------------------------------------------
 
 # Replace every literal occurrence of `old` with `new` in text. cs=1 is
