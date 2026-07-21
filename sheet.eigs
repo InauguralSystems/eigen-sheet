@@ -1857,6 +1857,115 @@ define display(sheet, addr) as:
         return _fmt of (num of raw)
     return raw
 
+# ---- CSV import / export (RFC 4180) --------------------------------
+
+# Quote a field only if it contains a comma, quote, or newline; double any
+# embedded quote. Matches Python csv (QUOTE_MINIMAL) and LibreOffice.
+define _csv_field(s) as:
+    local need is 0
+    for i in range of (len of s):
+        local ch is char_at of [s, i]
+        if ch == "," or ch == "\"" or ch == "\n":
+            need is 1
+    if need == 0:
+        return s
+    local out is "\""
+    for i in range of (len of s):
+        local ch is char_at of [s, i]
+        if ch == "\"":
+            out is out + "\"\""
+        else:
+            out is out + ch
+    return out + "\""
+
+# Export the DISPLAYED values of the range [c0..c1] x [r0..r1] (0-based corners,
+# any order) as an RFC-4180 CSV string (rows \n-separated, no trailing newline).
+define to_csv(sheet, c0, r0, c1, r1) as:
+    local clo is c0
+    local chi is c1
+    if c0 > c1:
+        clo is c1
+        chi is c0
+    local rlo is r0
+    local rhi is r1
+    if r0 > r1:
+        rlo is r1
+        rhi is r0
+    local out is ""
+    local r is rlo
+    loop while r <= rhi:
+        local c is clo
+        loop while c <= chi:
+            if c > clo:
+                out is out + ","
+            out is out + (_csv_field of (display of [sheet, _cell_addr of [c + 1, r + 1]]))
+            c is c + 1
+        if r < rhi:
+            out is out + "\n"
+        r is r + 1
+    return out
+
+# Parse RFC-4180 CSV text into a list of rows (each a list of field strings).
+define _parse_csv(text) as:
+    local rows is []
+    local row is []
+    local field is ""
+    local i is 0
+    local n is len of text
+    local inq is 0
+    loop while i < n:
+        local ch is char_at of [text, i]
+        if inq == 1:
+            if ch == "\"":
+                if (i + 1) < n and (char_at of [text, i + 1]) == "\"":
+                    field is field + "\""
+                    i is i + 2
+                else:
+                    inq is 0
+                    i is i + 1
+            else:
+                field is field + ch
+                i is i + 1
+        elif ch == "\"":
+            inq is 1
+            i is i + 1
+        elif ch == ",":
+            append of [row, field]
+            field is ""
+            i is i + 1
+        elif ch == "\n":
+            append of [row, field]
+            append of [rows, row]
+            row is []
+            field is ""
+            i is i + 1
+        elif ch == "\r":
+            i is i + 1
+        else:
+            field is field + ch
+            i is i + 1
+    # flush the final field/row, unless the text ended exactly on a newline
+    if (len of field) > 0 or (len of row) > 0:
+        append of [row, field]
+        append of [rows, row]
+    return rows
+
+# Import CSV text into cells with the top-left field at 0-based (c0, r0), then
+# recompute. A field is stored as raw cell content: numeric text becomes a
+# number, a leading "=" a formula, everything else a text literal.
+define from_csv(sheet, text, c0, r0) as:
+    local rows is _parse_csv of text
+    local i is 0
+    loop while i < (len of rows):
+        local row is rows[i]
+        local j is 0
+        loop while j < (len of row):
+            dict_set of [sheet.cells, _cell_addr of [c0 + j + 1, r0 + i + 1], row[j]]
+            j is j + 1
+        i is i + 1
+    recalc of sheet
+    return sheet
+
 # Keyboard scancode name (+ shift) -> the character it types, for cell entry.
 _KEYSHIFT is {"1": "!", "2": "@", "3": "#", "4": "$", "5": "%", "6": "^", "7": "&", "8": "*", "9": "(", "0": ")", "-": "_", "=": "+", ";": ":", "'": "\"", ",": "<", ".": ">", "/": "?", "[": "{", "]": "}", "\\": "|", "`": "~"}
 

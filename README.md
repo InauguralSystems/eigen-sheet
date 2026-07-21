@@ -37,14 +37,15 @@ print of (sheet.get of [s, "A4"])           # -> 16
 ```
 
 Importable surface: `new_sheet`, `set_cell`, `define_name`, `recalc`, `get`,
-`display`, and `draw_grid` (the gfx front-end; `run` opens a window but is never
-called on import, so `import sheet` is side-effect-free and headless-testable).
+`display`, `to_csv` / `from_csv`, and `draw_grid` (the gfx front-end; `run` opens
+a window but is never called on import, so `import sheet` is side-effect-free and
+headless-testable).
 
-## Four oracles
+## Five oracles
 
 A byte-diff against my own expectations is a golden master — it pins
 regressions but can't say what *right* looks like. So correctness rests on
-four **independent** checks:
+five **independent** checks:
 
 1. **Model** (`tests/test_smoke.sh`) — replays cell edits, recalcs, and
    byte-diffs displayed values. *Self-consistency:* dependency chains, SUM,
@@ -75,17 +76,22 @@ four **independent** checks:
    through the dependency graph). The menu item must win the click over the
    grid cell beneath it (the popup click-trap), and a no-op drive can't pass
    (the post-click grid must differ from the untouched baseline).
+5. **CSV differential** (`tests/diff_vs_csv.py`) — exports a grid with `to_csv`
+   and byte-diffs it against **Python's `csv` module** (a canonical, independent
+   RFC-4180 implementation), then round-trips it back through `from_csv`.
+   *External truth for the format:* what's right is what the standard library's
+   writer produces (QUOTE_MINIMAL quoting, `\n` terminator), not our say-so.
 
 ```sh
 EIGENSCRIPT=… bash tests/test_smoke.sh                 # model
+EIGENSCRIPT=… python3 tests/diff_vs_csv.py             # CSV diff: pure Python, no LibreOffice
 EIGENSCRIPT=… python3 tests/diff_vs_calc.py            # numeric diff: needs libreoffice-calc + openpyxl
 EIGENSCRIPT=… python3 tests/diff_vs_calc_str.py        # string diff: same deps
 xvfb-run -a python3 tests/ui_oracle.py                 # render: needs gfx build + xvfb + xdotool + PIL
 xvfb-run -a python3 tests/mouse_oracle.py              # mouse: same deps
 ```
 
-CI runs `test`, `calc-oracle`, and `ui-oracle` (which runs both the render and
-mouse oracles).
+CI runs `test` (model + CSV), `calc-oracle`, and `ui-oracle` (render + mouse).
 
 ## Scope
 
@@ -120,7 +126,8 @@ arithmetic, tighter than comparison, coercing numbers to text so `=5&"x"` is
 `REPLACE` / `REPT` / `PROPER` / `EXACT` / `TEXTJOIN` / `CHAR` / `CODE` /
 `VALUE`, case-insensitive text comparison (`="a"="A"`
 is true), and number↔text coercion (non-numeric text in arithmetic is
-`#VALUE!`). Text left-aligns, numbers right-align. Interactive: in-cell editing
+`#VALUE!`). Text left-aligns, numbers right-align. **I/O:** `to_csv` / `from_csv`
+(RFC-4180, with quoting and round-trip). Interactive: in-cell editing
 with a formula bar, click-drag range selection with a live Sum/Average/Count
 status bar, copy/paste with relative-reference adjustment — anchored `$` parts stay
 fixed (`Ctrl+C`/`V`),

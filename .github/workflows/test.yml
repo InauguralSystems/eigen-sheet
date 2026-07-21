@@ -19,6 +19,8 @@ jobs:
           echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
       - name: Model oracle (recalc byte-diff)
         run: bash tests/test_smoke.sh
+      - name: CSV differential oracle (vs Python csv module)
+        run: python3 tests/diff_vs_csv.py
 
   calc-oracle:
     # differential oracle: eigen-sheet recalc vs headless LibreOffice Calc.
