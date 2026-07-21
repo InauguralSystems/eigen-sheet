@@ -37,8 +37,9 @@ print of (sheet.get of [s, "A4"])           # -> 16
 ```
 
 Importable surface: `new_sheet`, `set_cell`, `define_name`, `set_format`,
-`recalc`, `get`, `display`, `to_csv` / `from_csv`, `to_xlsx`, `sort_range`,
-`find_cells` / `replace_cells`, `pivot`, `goal_seek`, and `draw_grid` (the gfx front-end;
+`register_udf`, `recalc`, `get`, `display`, `to_csv` / `from_csv`, `to_xlsx`,
+`sort_range`, `find_cells` / `replace_cells`, `pivot`, `goal_seek`, and
+`draw_grid` (the gfx front-end;
 `run` opens a window but is never called on import, so `import sheet` is
 side-effect-free and headless-testable).
 
@@ -146,7 +147,12 @@ of a range by a key column, ascending/descending, numbers before text),
 cell content), `pivot` (group a source range by a row field and aggregate a
 data field — SUM/COUNT/AVERAGE/MIN/MAX — with a grand total). **What-if:**
 `goal_seek` (find the input that drives a formula cell to a target — the
-observer model run backward, by the secant method).
+observer model run backward, by the secant method). **User functions:**
+`register_udf` — call any EigenScript function from a formula
+(`=MYFN(A1, B1:B3)`; a single cell arrives as a scalar, a range as a value
+list). The host language *is* EigenScript, so this needs no separate macro
+layer, and a UDF's argument cells are captured as dependencies, so it recalcs
+in order and updates when its inputs change.
 **Number formats:** `set_format` / `TEXT` — decimals, thousands grouping,
 percent, currency, and `Y`/`M`/`D` date codes (`#,##0.00`, `0%`,
 `$#,##0.00`, `YYYY-MM-DD`). Interactive: in-cell editing

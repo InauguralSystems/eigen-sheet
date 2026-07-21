@@ -807,6 +807,23 @@ define _eval_factor(st) as:
         st.i is st.i + 1
         if (_peek of st) != null and (_peek of st).t == "lp":
             st.i is st.i + 1
+        # user-defined function: call the registered EigenScript fn with the
+        # evaluated args (a range arg becomes a value list). Checked before the
+        # builtins, so a UDF shadows a builtin of the same name.
+        if (has_key of [st.udfs, fname]) == 1:
+            local uargs is _parse_args2 of st
+            local callargs is []
+            for ui in range of (len of uargs):
+                local ua is uargs[ui]
+                if ua.r == 1:
+                    if ua.c1 == ua.c2 and ua.r1 == ua.r2:
+                        # a single cell arrives as a scalar, a range as a list
+                        append of [callargs, _arg_scalar of [st, ua]]
+                    else:
+                        append of [callargs, _range_values of [st, ua]]
+                else:
+                    append of [callargs, ua.v]
+            return (st.udfs[fname]) of callargs
         if fname == "IF":
             # short-circuit: evaluate the taken branch, SKIP the other, so an
             # error/side-effect in the untaken branch never fires (=IF(A1>0,1,1/0)
@@ -1533,9 +1550,9 @@ define _eval_cmp(st) as:
 
 # Evaluate a formula's tokens; returns {"val", "err"}. err is "" on success or
 # an error token (#DIV/0!, #NAME?, #ERROR) that recalc routes into sheet.err.
-define _eval(toks, vals, cells, selfaddr, errs) as:
+define _eval(toks, vals, cells, selfaddr, errs, udfs) as:
     local sp is _addr_parts of selfaddr
-    local st is {"toks": toks, "i": 0, "vals": vals, "cells": cells, "err": "", "self_col": _col_to_num of sp.col, "self_row": sp.row, "errs": errs}
+    local st is {"toks": toks, "i": 0, "vals": vals, "cells": cells, "err": "", "self_col": _col_to_num of sp.col, "self_row": sp.row, "errs": errs, "udfs": udfs}
     local v is _eval_cmp of st
     # trailing tokens the parser did not consume mean the formula is malformed
     # (e.g. "=1E5" tokenizes to num 1 then cell E5; "=A1 A2")
@@ -1546,7 +1563,17 @@ define _eval(toks, vals, cells, selfaddr, errs) as:
 # ---- sheet + recalc -------------------------------------------------
 
 define new_sheet() as:
-    return {"cells": {}, "vals": {}, "err": {}, "order": [], "names": {}, "formats": {}}
+    return {"cells": {}, "vals": {}, "err": {}, "order": [], "names": {}, "formats": {}, "udfs": {}}
+
+# Register an EigenScript function as a formula function: after
+# register_udf(s, "MYFN", myfn), a formula =MYFN(A1, B1:B3) calls myfn with a
+# list of evaluated args (a range arg arrives as a value list). The host
+# language IS EigenScript, so this needs no separate macro layer. The arg cells
+# are captured by dependency extraction, so a UDF recalcs in order and updates
+# when its inputs change. (A UDF name shadows a builtin of the same name.)
+define register_udf(sheet, name, fn) as:
+    dict_set of [sheet.udfs, _upper of name, fn]
+    return sheet
 
 # Assign a number-format code to a cell (e.g. "#,##0.00", "0%", "YYYY-MM-DD").
 # It affects display() only; the stored value is unchanged.
@@ -1651,7 +1678,7 @@ define recalc(sheet) as:
                 if (has_key of [formula_toks, d]) == 1 and (has_key of [sheet.vals, d]) == 0:
                     ready is 0
             if ready == 1:
-                local res is _eval of [formula_toks[addr], sheet.vals, sheet.cells, addr, sheet.err]
+                local res is _eval of [formula_toks[addr], sheet.vals, sheet.cells, addr, sheet.err, sheet.udfs]
                 if res.err != "":
                     dict_set of [sheet.err, addr, res.err]
                     dict_set of [sheet.vals, addr, 0]

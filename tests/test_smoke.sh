@@ -120,6 +120,23 @@ $PKG_NAME.set_cell of [s, "Q2", "=1/8"]
 $PKG_NAME.set_format of [s, "Q2", "0.00%"]
 $PKG_NAME.recalc of s
 print of ("fmt Q1=" + ($PKG_NAME.display of [s, "Q1"]) + " Q2=" + ($PKG_NAME.display of [s, "Q2"]) + " val=" + (str of ($PKG_NAME.get of [s, "Q1"])))
+# user-defined functions: register EigenScript fns callable from formulas — the
+# differentiator (Calc needs a separate macro layer). A scalar-arg UDF used in
+# arithmetic, and a range-arg UDF receiving the values as a list. A1=5,A2=3,A3=8.
+define udf_double(ua) as:
+    return ua[0] * 2
+define udf_sumsq(ua) as:
+    local rr is ua[0]
+    local acc is 0
+    for ui in range of (len of rr):
+        acc is acc + rr[ui] * rr[ui]
+    return acc
+$PKG_NAME.register_udf of [s, "DOUBLE", udf_double]
+$PKG_NAME.register_udf of [s, "SUMSQ", udf_sumsq]
+$PKG_NAME.set_cell of [s, "R1", "=DOUBLE(A1)+1"]
+$PKG_NAME.set_cell of [s, "R2", "=SUMSQ(A1:A3)"]
+$PKG_NAME.recalc of s
+print of ("udf R1=" + ($PKG_NAME.display of [s, "R1"]) + " R2=" + ($PKG_NAME.display of [s, "R2"]))
 # structural: a formula using EVERY token type — including a string literal and
 # the & operator — copied+pasted in place (delta 0) must reconstruct
 # byte-identically, guarding _shift_formula against any dropped-token class.
@@ -162,6 +179,7 @@ abs O11=44 raw==$A$1+$A3+B$1
 xlookup=200,-1 selfrc=7,11
 prop P2=#DIV/0! P3=#DIV/0!
 fmt Q1=1,234.50 Q2=12.50% val=1234.5
+udf R1=11 R2=98
 roundtrip==IF(A1&"x"="5x",SUM(A1:A3)+1,MIN(A1:A2)*2)
 errs=#NAME?,#DIV/0!,#ERROR,#ERROR gapavg=15
 EOF
