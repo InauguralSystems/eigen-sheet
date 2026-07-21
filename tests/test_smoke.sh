@@ -43,6 +43,12 @@ show of "C1"
 show of "D1"
 show of "D2"
 print of ("order=" + (str of s.order))
+# range stats (Sum/Count of numeric cells; text/empty skipped, corners any order)
+define stat(label, st) as:
+    print of (label + " sum=" + (str of st.sum) + " count=" + (str of st.count))
+stat of ["A1:A4", $PKG_NAME.range_stats of [s, 0, 0, 0, 3]]
+stat of ["A1:B2", $PKG_NAME.range_stats of [s, 0, 0, 1, 1]]
+stat of ["B2:A1", $PKG_NAME.range_stats of [s, 1, 1, 0, 0]]
 EOF
 
 OUT="$("$EIGS" "$TMP/app.eigs" 2>&1)"
@@ -55,6 +61,9 @@ C1=31
 D1=#CYCLE
 D2=#CYCLE
 order=["A3", "A4", "B1", "B2", "C1"]
+A1:A4 sum=32 count=4
+A1:B2 sum=43 count=4
+B2:A1 sum=43 count=4
 EOF
 )"
 

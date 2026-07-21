@@ -341,6 +341,41 @@ define get(sheet, addr) as:
         return sheet.vals[a]
     return 0
 
+# Sum and count of the NUMERIC cells (number literals + formulas; empty and
+# text cells are skipped) in the rectangle spanned by two 0-based corners.
+# Pure — the status bar renders it, and the model oracle checks it.
+define range_stats(sheet, c0, r0, c1, r1) as:
+    local clo is c0
+    local chi is c1
+    if c0 > c1:
+        clo is c1
+        chi is c0
+    local rlo is r0
+    local rhi is r1
+    if r0 > r1:
+        rlo is r1
+        rhi is r0
+    local total is 0
+    local count is 0
+    local c is clo
+    loop while c <= chi:
+        local r is rlo
+        loop while r <= rhi:
+            local addr is _cell_addr of [c + 1, r + 1]
+            if (has_key of [sheet.cells, addr]) == 1:
+                local raw is sheet.cells[addr]
+                local isnum is 0
+                if (len of raw) > 0 and (char_at of [raw, 0]) == "=":
+                    isnum is 1
+                elif (_is_number of raw) == 1:
+                    isnum is 1
+                if isnum == 1:
+                    total is total + (get of [sheet, addr])
+                    count is count + 1
+            r is r + 1
+        c is c + 1
+    return {"sum": total, "count": count}
+
 # Format a number for display: whole values as integers, otherwise trimmed to
 # a short decimal (so =A1/A2 shows 1.6667, not a 17-digit float tail).
 define _fmt(n) as:
@@ -468,8 +503,11 @@ define run() as:
     local nrows is 17
     gfx_open of [W, H, "eigen-sheet v" + VERSION]
     local s is _demo of (new_sheet of null)
-    local sel_c is 0
+    local sel_c is 0        # anchor / active cell
     local sel_r is 0
+    local cur_c is 0        # opposite corner of the selected range
+    local cur_r is 0
+    local dragging is 0
     local editing is 0
     local buf is ""
     local running is 1
@@ -496,6 +534,8 @@ define run() as:
                         buf is ""
                     if sel_r < (nrows - 1):
                         sel_r is sel_r + 1
+                    cur_c is sel_c
+                    cur_r is sel_r
                 elif key == "backspace":
                     if editing == 1 and (len of buf) > 0:
                         buf is substr of [buf, 0, (len of buf) - 1]
@@ -512,12 +552,16 @@ define run() as:
                         sel_r is sel_r - 1
                     if key == "down" and sel_r < (nrows - 1):
                         sel_r is sel_r + 1
+                    cur_c is sel_c
+                    cur_r is sel_r
                 else:
                     local ch is _key_char of [key, shift]
                     if (len of ch) > 0:
                         if editing == 0:
                             editing is 1
                             buf is ""
+                            cur_c is sel_c
+                            cur_r is sel_r
                         buf is buf + ch
             elif ev.type == "mousedown":
                 local mx is ev.x
@@ -529,22 +573,61 @@ define run() as:
                         buf is ""
                     sel_c is floor of ((mx - gx) / cw)
                     sel_r is floor of ((my - gy) / rh)
+                    cur_c is sel_c
+                    cur_r is sel_r
+                    dragging is 1
+            elif ev.type == "mousemove":
+                if dragging == 1:
+                    # extend the range to the dragged corner, clamped to the grid
+                    local dc is floor of ((ev.x - gx) / cw)
+                    local dr is floor of ((ev.y - gy) / rh)
+                    if dc < 0:
+                        dc is 0
+                    if dc > (ncols - 1):
+                        dc is ncols - 1
+                    if dr < 0:
+                        dr is 0
+                    if dr > (nrows - 1):
+                        dr is nrows - 1
+                    cur_c is dc
+                    cur_r is dr
+            elif ev.type == "mouseup":
+                dragging is 0
             ev is gfx_poll of null
         draw_grid of [s, ncols, nrows, fbh]
-        # active column + row header highlight (like a real spreadsheet)
+        # normalized selection rectangle (anchor sel .. dragged cur)
+        local clo is sel_c
+        local chi is cur_c
+        if sel_c > cur_c:
+            clo is cur_c
+            chi is sel_c
+        local rlo is sel_r
+        local rhi is cur_r
+        if sel_r > cur_r:
+            rlo is cur_r
+            rhi is sel_r
+        # translucent fill over the whole range
+        gfx_rect of [gx + clo * cw, gy + rlo * rh, (chi - clo + 1) * cw, (rhi - rlo + 1) * rh, 90, 150, 230, 55]
+        # header highlight across the range's columns and rows
+        local hc is clo
+        loop while hc <= chi:
+            gfx_rect of [gx + hc * cw, fbh, cw, 22, 60, 96, 150]
+            local hl is _num_to_col of (hc + 1)
+            gfx_text of [gx + hc * cw + (cw / 2) - (len of hl) * 6, fbh + 4, hl, 240, 244, 252, 2]
+            hc is hc + 1
+        local hrr is rlo
+        loop while hrr <= rhi:
+            gfx_rect of [0, gy + hrr * rh, gx, rh, 60, 96, 150]
+            local rlab is str of (hrr + 1)
+            gfx_text of [gx - (len of rlab) * 12 - 4, gy + hrr * rh + 4, rlab, 240, 244, 252, 2]
+            hrr is hrr + 1
+        # active-cell (anchor) outline, brighter than the range
         local hx is gx + sel_c * cw
         local hy is gy + sel_r * rh
-        gfx_rect of [hx, fbh, cw, 22, 60, 96, 150]
-        gfx_rect of [0, hy, gx, rh, 60, 96, 150]
-        local hl is _num_to_col of (sel_c + 1)
-        gfx_text of [gx + sel_c * cw + (cw / 2) - (len of hl) * 6, fbh + 4, hl, 240, 244, 252, 2]
-        local rl is str of (sel_r + 1)
-        gfx_text of [gx - (len of rl) * 12 - 4, hy + 4, rl, 240, 244, 252, 2]
-        # active-cell outline
-        gfx_rect of [hx, hy, cw, 2, 90, 170, 250]
-        gfx_rect of [hx, hy + rh, cw, 2, 90, 170, 250]
-        gfx_rect of [hx, hy, 2, rh, 90, 170, 250]
-        gfx_rect of [hx + cw, hy, 2, rh, 90, 170, 250]
+        gfx_rect of [hx, hy, cw, 2, 120, 190, 255]
+        gfx_rect of [hx, hy + rh, cw, 2, 120, 190, 255]
+        gfx_rect of [hx, hy, 2, rh, 120, 190, 255]
+        gfx_rect of [hx + cw, hy, 2, rh, 120, 190, 255]
         # formula bar: name box (the active reference) + editable content
         gfx_rect of [0, 0, W, fbh, 30, 34, 48]
         gfx_rect of [0, 0, 70, fbh, 44, 50, 70]
@@ -558,6 +641,13 @@ define run() as:
             if (has_key of [s.cells, addr]) == 1:
                 content is s.cells[addr]
         gfx_text of [80, 4, content, 222, 226, 240, 2]
+        # status bar: live Sum / Average / Count of the current selection
+        gfx_rect of [0, H - 24, W, 24, 30, 34, 48]
+        gfx_rect of [0, H - 24, W, 1, 60, 66, 88]
+        local stats is range_stats of [s, sel_c, sel_r, cur_c, cur_r]
+        if stats.count > 0:
+            local avg is stats.sum / stats.count
+            gfx_text of [8, H - 20, "Sum: " + (_fmt of stats.sum) + "   Average: " + (_fmt of avg) + "   Count: " + (str of stats.count), 200, 206, 224, 2]
         gfx_present of null
         gfx_delay of 16
     gfx_close of null
