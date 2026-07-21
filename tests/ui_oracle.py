@@ -108,12 +108,14 @@ def _capture(edit_path, render_body, title, w=720, h=480):
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         try:
             wid = None
-            for _ in range(50):
-                time.sleep(0.1)
+            for _ in range(150):   # up to ~30s: CI window mapping is high-variance
+                time.sleep(0.2)
                 r = subprocess.run(["xdotool", "search", "--name", title],
                                    env=ENV, capture_output=True, text=True)
                 if r.stdout.strip():
                     wid = r.stdout.strip().split("\n")[0]; break
+                if proc.poll() is not None:   # the renderer died — surface its output
+                    raise RuntimeError("renderer exited early: " + (proc.stdout.read() or ""))
             if not wid:
                 raise RuntimeError("window never appeared: " + (proc.stdout.read() or ""))
             # Poll until the window has actually painted a frame — a fixed sleep
