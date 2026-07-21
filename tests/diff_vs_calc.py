@@ -72,6 +72,21 @@ CELLS = {
     "O2": "=-A1^2",                      # 25   (unary minus binds tighter: (-5)^2)
     "O3": "=2^3^2",                      # 64   (^ is left-associative in Calc)
     "O4": "=TRUNC(-A1/A2)",              # -1   (toward zero)
+    # ---- statistical library (#2) ----
+    "P1": "4", "P2": "4", "P3": "7", "P4": "4",
+    "Q1": "=COUNT(A1:A4)",               # 4
+    "Q2": "=COUNT(G1:G3)",               # 2    (empty G2 skipped)
+    "Q3": "=COUNTA(G1:G3)",              # 2
+    "Q4": "=COUNTA(I1:I2)",              # 2    (text counts)
+    "R1": "=COUNTBLANK(G1:G3)",          # 1    (G2)
+    "R2": "=MEDIAN(A1:A4)",              # 4    ([-2,3,5,8] -> (3+5)/2)
+    "R3": "=MEDIAN(A1:A3)",              # 5    ([3,5,8])
+    "R4": "=MODE(P1:P4)",                # 4    (most frequent)
+    "T1": "=MEDIAN(P1:P4)",              # 4    ([4,4,4,7] -> (4+4)/2)
+    "S1": "=VAR(A1:A4)",                 # 17.6667  (sample, n-1)
+    "S2": "=VARP(A1:A4)",                # 13.25    (population, n)
+    "S3": "=STDEV(A1:A4)",               # 4.20317  (sqrt sample var)
+    "S4": "=STDEVP(A1:A4)",              # 3.64005  (sqrt pop var)
 }
 
 

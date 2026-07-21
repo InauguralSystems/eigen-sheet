@@ -429,6 +429,52 @@ define _round_dp(x, nd, mode) as:
         r is 0 - r
     return r / factor
 
+# ---- statistical reducers over a numeric range ---------------------
+
+define _mean(vals) as:
+    local n is len of vals
+    if n == 0:
+        return 0
+    local t is 0
+    for j in range of n:
+        t is t + vals[j]
+    return t / n
+
+# Sum of squared deviations from the mean (numerator of VAR/STDEV).
+define _ss(vals) as:
+    local m is _mean of vals
+    local s is 0
+    for j in range of (len of vals):
+        local d is vals[j] - m
+        s is s + d * d
+    return s
+
+# Middle value of the sorted range; the mean of the two middles when even.
+define _median(vals) as:
+    local n is len of vals
+    if n == 0:
+        return 0
+    local s is sort of vals
+    local mid is floor of (n / 2)
+    if (n % 2) == 1:
+        return s[mid]
+    return (s[mid - 1] + s[mid]) / 2
+
+# Most frequent value + how often it occurs (caller raises #N/A if < 2).
+define _mode(vals) as:
+    local n is len of vals
+    local best is 0
+    local bestcount is 0
+    for i in range of n:
+        local c is 0
+        for j in range of n:
+            if vals[j] == vals[i]:
+                c is c + 1
+        if c > bestcount:
+            bestcount is c
+            best is vals[i]
+    return {"val": best, "count": bestcount}
+
 # Collect comma-separated scalar argument VALUES up to the closing ')'.
 define _collect_args(st) as:
     local args is []
@@ -590,6 +636,8 @@ define _eval_factor(st) as:
         # that actually hold a number contribute — empty and text cells are
         # skipped, so AVERAGE/MIN/MAX are not skewed by gaps.
         local vals is []
+        local n_nonempty is 0        # cells with content (COUNTA)
+        local n_empty is 0           # empty cells (COUNTBLANK)
         if (_peek of st) != null and (_peek of st).t == "cell":
             local a is (_peek of st).v
             st.i is st.i + 1
@@ -601,8 +649,13 @@ define _eval_factor(st) as:
                     st.i is st.i + 1
             local cells is _range_cells of [a, b]
             for j in range of (len of cells):
-                if (_cell_is_num of [st.cells, cells[j]]) == 1:
-                    local cv is _cellval of [st, cells[j]]
+                local ad is cells[j]
+                if (has_key of [st.cells, ad]) == 1 and (len of st.cells[ad]) > 0:
+                    n_nonempty is n_nonempty + 1
+                else:
+                    n_empty is n_empty + 1
+                if (_cell_is_num of [st.cells, ad]) == 1:
+                    local cv is _cellval of [st, ad]
                     # a formula can now evaluate to text; a spreadsheet's
                     # numeric aggregates ignore text, so skip non-numbers.
                     if (type of cv) == "num":
@@ -611,6 +664,40 @@ define _eval_factor(st) as:
             st.i is st.i + 1
         if fname == "SUM" or fname == "AVG" or fname == "AVERAGE" or fname == "MIN" or fname == "MAX" or fname == "PRODUCT":
             return _aggregate of [fname, vals]
+        # statistical reducers. COUNT counts numbers; COUNTA counts non-empty
+        # cells (text too); COUNTBLANK counts empties.
+        if fname == "COUNT":
+            return len of vals
+        if fname == "COUNTA":
+            return n_nonempty
+        if fname == "COUNTBLANK":
+            return n_empty
+        if fname == "MEDIAN":
+            return _median of vals
+        if fname == "MODE":
+            local mr is _mode of vals
+            if mr.count < 2:
+                st.err is "#N/A"
+                return 0
+            return mr.val
+        # sample statistics (n-1): need at least two numbers, else #DIV/0!
+        if fname == "VAR" or fname == "STDEV":
+            if (len of vals) < 2:
+                st.err is "#DIV/0!"
+                return 0
+            local v2 is (_ss of vals) / ((len of vals) - 1)
+            if fname == "VAR":
+                return v2
+            return sqrt of v2
+        # population statistics (n)
+        if fname == "VARP" or fname == "STDEVP":
+            if (len of vals) < 1:
+                st.err is "#DIV/0!"
+                return 0
+            local v3 is (_ss of vals) / (len of vals)
+            if fname == "VARP":
+                return v3
+            return sqrt of v3
         # unknown function name
         st.err is "#NAME?"
         return 0

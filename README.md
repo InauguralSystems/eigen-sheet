@@ -94,8 +94,9 @@ precedence, comparisons (`> < >= <= = <>`), cell references, multi-letter
 columns, range aggregates `SUM` / `AVERAGE` (`AVG`) / `MIN` / `MAX` /
 `PRODUCT` and `IF(cond, then, else)` (nestable), the scalar math functions
 `ABS` / `INT` / `TRUNC` / `ROUND` / `ROUNDUP` / `ROUNDDOWN` / `SIGN` / `SQRT`
-/ `MOD` / `POWER` / `CEILING` / `FLOOR`, dependency-ordered recalc, cycle
-detection. **Text:** string literals
+/ `MOD` / `POWER` / `CEILING` / `FLOOR`, the statistical functions `COUNT` /
+`COUNTA` / `COUNTBLANK` / `MEDIAN` / `MODE` / `STDEV` / `STDEVP` / `VAR` /
+`VARP`, dependency-ordered recalc, cycle detection. **Text:** string literals
 (`"..."`, `""` escapes a quote), the `&` concatenation operator (looser than
 arithmetic, tighter than comparison, coercing numbers to text so `=5&"x"` is
 `5x`), the text functions `LEN` / `UPPER` / `LOWER` / `TRIM` / `LEFT` /
