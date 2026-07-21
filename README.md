@@ -2,9 +2,10 @@
 
 A spreadsheet **recalc engine** written in [EigenScript](https://github.com/InauguralSystems/EigenScript):
 A1-style cells, formulas (`=` arithmetic over numbers, cell references, parens,
-and `SUM(range)`), a dependency graph, a topological recalc, and cycle
-detection. It runs standalone on the desktop and is designed for EigenOS's
-desktop to import — the same `sheet.eigs`, not a private copy.
+`SUM(range)`, and text — string literals, the `&` concatenation operator, and
+text functions), a dependency graph, a topological recalc, and cycle detection.
+It runs standalone on the desktop and is designed for EigenOS's desktop to
+import — the same `sheet.eigs`, not a private copy.
 
 ![eigen-sheet grid view](docs/screenshot.png)
 
@@ -48,13 +49,16 @@ four **independent** checks:
 1. **Model** (`tests/test_smoke.sh`) — replays cell edits, recalcs, and
    byte-diffs displayed values. *Self-consistency:* dependency chains, SUM,
    precedence, cycle → `#CYCLE`, topological order. Headless, no display.
-2. **Differential vs a real spreadsheet** (`tests/diff_vs_calc.py`) — writes
-   the same formulas to an `.xlsx` and byte-diffs eigen-sheet's recalc against
-   **headless LibreOffice Calc**. *External truth:* for the numeric operations
-   every spreadsheet agrees on — arithmetic, precedence, cell refs, `SUM` —
-   what's right is what a real, used engine computes, not our say-so.
-   LibreOffice's numbers are the reference. (Error tokens like `#CYCLE` and
-   div-by-zero differ across engines, so they stay with the model oracle.)
+2. **Differential vs a real spreadsheet** (`tests/diff_vs_calc.py` for numbers,
+   `tests/diff_vs_calc_str.py` for text) — writes the same formulas to an
+   `.xlsx` and byte-diffs eigen-sheet's recalc against **headless LibreOffice
+   Calc**. *External truth:* for the operations every spreadsheet agrees on —
+   arithmetic, precedence, cell refs, `SUM`, and on the text side `&`
+   concatenation, the text functions, number↔text coercion, and
+   case-insensitive text comparison — what's right is what a real, used engine
+   computes, not our say-so. LibreOffice's output is the reference. (Error
+   tokens like `#CYCLE`, `#VALUE!`, and div-by-zero differ across engines, so
+   they stay with the model oracle.)
 3. **Render** (`tests/ui_oracle.py`) — because it's a UI, renders through the
    real `draw_grid`, screenshots the window, and **decodes each cell's pixels
    back into text**, asserting they equal the model. *Render fidelity:* a cell
@@ -74,7 +78,8 @@ four **independent** checks:
 
 ```sh
 EIGENSCRIPT=… bash tests/test_smoke.sh                 # model
-EIGENSCRIPT=… python3 tests/diff_vs_calc.py            # needs libreoffice-calc + openpyxl
+EIGENSCRIPT=… python3 tests/diff_vs_calc.py            # numeric diff: needs libreoffice-calc + openpyxl
+EIGENSCRIPT=… python3 tests/diff_vs_calc_str.py        # string diff: same deps
 xvfb-run -a python3 tests/ui_oracle.py                 # render: needs gfx build + xvfb + xdotool + PIL
 xvfb-run -a python3 tests/mouse_oracle.py              # mouse: same deps
 ```
@@ -82,16 +87,22 @@ xvfb-run -a python3 tests/mouse_oracle.py              # mouse: same deps
 CI runs `test`, `calc-oracle`, and `ui-oracle` (which runs both the render and
 mouse oracles).
 
-## Scope (v0.1)
+## Scope
 
 Numbers, `+ - * /`, parens and precedence, comparisons (`> < >= <= = <>`),
-cell references, multi-letter columns, functions `SUM` / `AVERAGE` (`AVG`) /
-`MIN` / `MAX` over a range and `IF(cond, then, else)` (nestable), dependency-
-ordered recalc, cycle detection. Interactive: in-cell editing with a formula
-bar, click-drag range selection with a live Sum/Average/Count status bar,
-copy/paste with relative-reference adjustment (`Ctrl+C`/`V`), undo/redo
-(`Ctrl+Z`/`Y`), and delete-to-clear. Not yet: menus/toolbar, scrollbars, sheet
-tabs, string formulas.
+cell references, multi-letter columns, numeric functions `SUM` / `AVERAGE`
+(`AVG`) / `MIN` / `MAX` over a range and `IF(cond, then, else)` (nestable),
+dependency-ordered recalc, cycle detection. **Text:** string literals
+(`"..."`, `""` escapes a quote), the `&` concatenation operator (looser than
+arithmetic, tighter than comparison, coercing numbers to text so `=5&"x"` is
+`5x`), the text functions `LEN` / `UPPER` / `LOWER` / `TRIM` / `LEFT` /
+`RIGHT` / `MID` / `CONCATENATE`, case-insensitive text comparison (`="a"="A"`
+is true), and number↔text coercion (non-numeric text in arithmetic is
+`#VALUE!`). Text left-aligns, numbers right-align. Interactive: in-cell editing
+with a formula bar, click-drag range selection with a live Sum/Average/Count
+status bar, copy/paste with relative-reference adjustment (`Ctrl+C`/`V`),
+undo/redo (`Ctrl+Z`/`Y`), and delete-to-clear. Not yet: menus/toolbar,
+scrollbars, sheet tabs.
 
 ## License
 

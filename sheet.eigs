@@ -1,7 +1,8 @@
 # sheet — a spreadsheet recalc engine in EigenScript.
 #
 # The pure core: a grid of cells (A1-style), formulas (= arithmetic over
-# numbers, cell refs, parens, and SUM(range)), a dependency graph, a
+# numbers, cell refs, parens, SUM(range); text via string literals, the &
+# concatenation operator, and text functions), a dependency graph, a
 # topological recalc, and cycle detection. No gfx — it runs and tests in a
 # plain build; the gfx grid view (draw_grid/run) is a separate front-end
 # defined but never called on import, so `import sheet` is side-effect-free.
@@ -142,6 +143,27 @@ define _tokenize(s) as:
         elif ch == ",":
             append of [toks, {"t": "comma"}]
             i is i + 1
+        elif ch == "&":
+            append of [toks, {"t": "op", "v": "&"}]
+            i is i + 1
+        elif ch == "\"":
+            # a "double-quoted" string literal; "" is an embedded quote.
+            i is i + 1
+            local sval is ""
+            local done is 0
+            loop while i < n and done == 0:
+                local c2 is char_at of [s, i]
+                if c2 == "\"":
+                    if (i + 1) < n and (char_at of [s, i + 1]) == "\"":
+                        sval is sval + "\""
+                        i is i + 2
+                    else:
+                        i is i + 1
+                        done is 1
+                else:
+                    sval is sval + c2
+                    i is i + 1
+            append of [toks, {"t": "str", "v": sval}]
         else:
             i is i + 1
     return toks
@@ -247,6 +269,132 @@ define _aggregate(fname, vals) as:
         total is total + vals[j]
     return total
 
+# ---- value coercion + text ops -------------------------------------
+# Values flow through the evaluator as num OR str (like a real spreadsheet).
+
+# Coerce any value to display text — numbers via str (whole numbers lose the
+# decimal), so =5&"x" -> "5x". Matches a spreadsheet's number->text rule.
+define _to_text(v) as:
+    if (type of v) == "str":
+        return v
+    return str of v
+
+# Coerce to a number for arithmetic. A numeric-looking string converts; other
+# text is #VALUE! (like ="a"+1 in a spreadsheet), routed through st.err.
+define _to_num(st, v) as:
+    if (type of v) == "num":
+        return v
+    if (_is_number of v) == 1:
+        return num of v
+    st.err is "#VALUE!"
+    return 0
+
+# Compare two values for a cmp operator, type-aware like a spreadsheet:
+# number<->number numeric; text<->text case-INSENSITIVE (="a"="A" is true);
+# mixed types are never equal and sort numbers before text. Returns 1/0.
+define _compare(l, r, opv) as:
+    local lt is type of l
+    local rt is type of r
+    local c is 0                       # sign of (l - r): -1 / 0 / 1
+    if lt == "str" and rt == "str":
+        local a is str_lower of l
+        local b is str_lower of r
+        if a < b:
+            c is 0 - 1
+        elif a > b:
+            c is 1
+    elif lt == "num" and rt == "num":
+        if l < r:
+            c is 0 - 1
+        elif l > r:
+            c is 1
+    else:
+        # mixed: a number sorts before text, and they are never equal
+        if lt == "num":
+            c is 0 - 1
+        else:
+            c is 1
+    if opv == ">":
+        if c > 0:
+            return 1
+        return 0
+    if opv == "<":
+        if c < 0:
+            return 1
+        return 0
+    if opv == ">=":
+        if c >= 0:
+            return 1
+        return 0
+    if opv == "<=":
+        if c <= 0:
+            return 1
+        return 0
+    if opv == "=":
+        if c == 0:
+            return 1
+        return 0
+    if opv == "<>":
+        if c != 0:
+            return 1
+        return 0
+    return 0
+
+# TRIM: strip leading/trailing spaces and collapse internal runs to one space,
+# matching LibreOffice ("  a   b  " -> "a b").
+define _trim(s) as:
+    local out is ""
+    local i is 0
+    local n is len of s
+    local pending is 0                 # spaces seen since the last non-space
+    local started is 0
+    loop while i < n:
+        local ch is char_at of [s, i]
+        if ch == " ":
+            if started == 1:
+                pending is 1
+        else:
+            if pending == 1:
+                out is out + " "
+                pending is 0
+            out is out + ch
+            started is 1
+        i is i + 1
+    return out
+
+# LEFT/RIGHT/MID — 1-based positions, clamped to the string (LEFT("hi",5)="hi").
+define _left(s, k) as:
+    local n is len of s
+    local m is floor of k
+    if m < 0:
+        m is 0
+    if m > n:
+        m is n
+    return substr of [s, 0, m]
+
+define _right(s, k) as:
+    local n is len of s
+    local m is floor of k
+    if m < 0:
+        m is 0
+    if m > n:
+        m is n
+    return substr of [s, n - m, m]
+
+define _mid(s, start, k) as:
+    local n is len of s
+    local st0 is (floor of start) - 1  # 1-based -> 0-based
+    if st0 < 0:
+        st0 is 0
+    if st0 > n:
+        st0 is n
+    local m is floor of k
+    if m < 0:
+        m is 0
+    if (st0 + m) > n:
+        m is n - st0
+    return substr of [s, st0, m]
+
 define _eval_factor(st) as:
     local tk is _peek of st
     if tk == null:
@@ -255,8 +403,11 @@ define _eval_factor(st) as:
         return 0
     if tk.t == "op" and tk.v == "-":
         st.i is st.i + 1
-        return 0 - (_eval_factor of st)
+        return 0 - (_to_num of [st, _eval_factor of st])
     if tk.t == "num":
+        st.i is st.i + 1
+        return tk.v
+    if tk.t == "str":
         st.i is st.i + 1
         return tk.v
     if tk.t == "lp":
@@ -283,6 +434,57 @@ define _eval_factor(st) as:
             if cond != 0:
                 return aval
             return bval
+        # text functions: scalar comma-separated args (not ranges).
+        if fname == "LEN" or fname == "UPPER" or fname == "LOWER" or fname == "TRIM" or fname == "LEFT" or fname == "RIGHT" or fname == "MID" or fname == "CONCATENATE":
+            local targs is []
+            if (_peek of st) != null and (_peek of st).t != "rp":
+                append of [targs, _eval_cmp of st]
+                loop while (_peek of st) != null and (_peek of st).t == "comma":
+                    st.i is st.i + 1
+                    append of [targs, _eval_cmp of st]
+            if (_peek of st) != null and (_peek of st).t == "rp":
+                st.i is st.i + 1
+            local na is len of targs
+            if fname == "LEN":
+                if na < 1:
+                    st.err is "#ERROR"
+                    return 0
+                return len of (_to_text of targs[0])
+            if fname == "UPPER":
+                if na < 1:
+                    st.err is "#ERROR"
+                    return ""
+                return str_upper of (_to_text of targs[0])
+            if fname == "LOWER":
+                if na < 1:
+                    st.err is "#ERROR"
+                    return ""
+                return str_lower of (_to_text of targs[0])
+            if fname == "TRIM":
+                if na < 1:
+                    st.err is "#ERROR"
+                    return ""
+                return _trim of (_to_text of targs[0])
+            if fname == "LEFT":
+                if na < 2:
+                    st.err is "#ERROR"
+                    return ""
+                return _left of [_to_text of targs[0], _to_num of [st, targs[1]]]
+            if fname == "RIGHT":
+                if na < 2:
+                    st.err is "#ERROR"
+                    return ""
+                return _right of [_to_text of targs[0], _to_num of [st, targs[1]]]
+            if fname == "MID":
+                if na < 3:
+                    st.err is "#ERROR"
+                    return ""
+                return _mid of [_to_text of targs[0], _to_num of [st, targs[1]], _to_num of [st, targs[2]]]
+            # CONCATENATE: fold every arg to text
+            local acc is ""
+            for j in range of na:
+                acc is acc + (_to_text of targs[j])
+            return acc
         # aggregate over a range: SUM / AVG / AVERAGE / MIN / MAX. Only cells
         # that actually hold a number contribute — empty and text cells are
         # skipped, so AVERAGE/MIN/MAX are not skewed by gaps.
@@ -299,7 +501,11 @@ define _eval_factor(st) as:
             local cells is _range_cells of [a, b]
             for j in range of (len of cells):
                 if (_cell_is_num of [st.cells, cells[j]]) == 1:
-                    append of [vals, _cellval of [st, cells[j]]]
+                    local cv is _cellval of [st, cells[j]]
+                    # a formula can now evaluate to text; a spreadsheet's
+                    # numeric aggregates ignore text, so skip non-numbers.
+                    if (type of cv) == "num":
+                        append of [vals, cv]
         if (_peek of st) != null and (_peek of st).t == "rp":
             st.i is st.i + 1
         if fname == "SUM" or fname == "AVG" or fname == "AVERAGE" or fname == "MIN" or fname == "MAX":
@@ -319,7 +525,8 @@ define _eval_term(st) as:
     loop while (_peek of st) != null and (_peek of st).t == "op" and ((_peek of st).v == "*" or (_peek of st).v == "/"):
         local op is (_peek of st).v
         st.i is st.i + 1
-        local r is _eval_factor of st
+        v is _to_num of [st, v]
+        local r is _to_num of [st, _eval_factor of st]
         if op == "*":
             v is v * r
         else:
@@ -336,45 +543,34 @@ define _eval_expr(st) as:
     loop while (_peek of st) != null and (_peek of st).t == "op" and ((_peek of st).v == "+" or (_peek of st).v == "-"):
         local op is (_peek of st).v
         st.i is st.i + 1
-        local r is _eval_term of st
+        v is _to_num of [st, v]
+        local r is _to_num of [st, _eval_term of st]
         if op == "+":
             v is v + r
         else:
             v is v - r
     return v
 
-# Comparison level (lowest precedence): expr [<cmp> expr] -> 1/0.
+# Concatenation level: expr (& expr)* -> string. Binds looser than arithmetic,
+# tighter than comparison (Excel/LibreOffice precedence: =1+2&3 is "33"). Each
+# operand is coerced to text, so =5&"x" -> "5x".
+define _eval_concat(st) as:
+    local v is _eval_expr of st
+    loop while (_peek of st) != null and (_peek of st).t == "op" and (_peek of st).v == "&":
+        st.i is st.i + 1
+        local r is _eval_expr of st
+        v is (_to_text of v) + (_to_text of r)
+    return v
+
+# Comparison level (lowest precedence): concat [<cmp> concat] -> 1/0.
 define _eval_cmp(st) as:
-    local l is _eval_expr of st
+    local l is _eval_concat of st
     local tk is _peek of st
     if tk != null and tk.t == "cmp":
         local opv is tk.v
         st.i is st.i + 1
-        local r is _eval_expr of st
-        if opv == ">":
-            if l > r:
-                return 1
-            return 0
-        if opv == "<":
-            if l < r:
-                return 1
-            return 0
-        if opv == ">=":
-            if l >= r:
-                return 1
-            return 0
-        if opv == "<=":
-            if l <= r:
-                return 1
-            return 0
-        if opv == "=":
-            if l == r:
-                return 1
-            return 0
-        if opv == "<>":
-            if l != r:
-                return 1
-            return 0
+        local r is _eval_concat of st
+        return _compare of [l, r, opv]
     return l
 
 # Evaluate a formula's tokens; returns {"val", "err"}. err is "" on success or
@@ -439,8 +635,10 @@ define recalc(sheet) as:
         elif (_is_number of raw) == 1:
             dict_set of [sheet.vals, addr, num of raw]
         else:
-            # text literal: value 0 in arithmetic, raw kept for display
-            dict_set of [sheet.vals, addr, 0]
+            # text literal: its value IS the string (used by & and text fns).
+            # Numeric aggregates still skip it via _cell_is_num, so sums are
+            # unaffected; direct arithmetic on it is #VALUE!, like a spreadsheet.
+            dict_set of [sheet.vals, addr, raw]
     # Kahn topological evaluation over formula cells.
     local guard is (len of pending) + 1
     loop while (len of pending) > 0 and guard > 0:
@@ -510,8 +708,12 @@ define range_stats(sheet, c0, r0, c1, r1) as:
                 elif (_is_number of raw) == 1:
                     isnum is 1
                 if isnum == 1:
-                    total is total + (get of [sheet, addr])
-                    count is count + 1
+                    # a formula can evaluate to text; the numeric status bar
+                    # ignores it (adding a string would be a type error).
+                    local gv is get of [sheet, addr]
+                    if (type of gv) == "num":
+                        total is total + gv
+                        count is count + 1
             r is r + 1
         c is c + 1
     return {"sum": total, "count": count}
@@ -523,6 +725,18 @@ define _copy_cells(cells) as:
     for i in range of (len of ks):
         dict_set of [out, ks[i], cells[ks[i]]]
     return out
+
+# Re-serialize a string-literal token to source form for copy/paste, doubling
+# any embedded quote ("a\"b" -> "a""b") so the round-trip re-parses identically.
+define _str_lit(s) as:
+    local out is "\""
+    for i in range of (len of s):
+        local ch is char_at of [s, i]
+        if ch == "\"":
+            out is out + "\"\""
+        else:
+            out is out + ch
+    return out + "\""
 
 # Shift a cell address by (dcol, drow), clamped to the A1 corner.
 define _shift_addr(addr, dcol, drow) as:
@@ -546,6 +760,8 @@ define _shift_formula(body, dcol, drow) as:
             out is out + (_shift_addr of [tk.v, dcol, drow])
         elif tk.t == "num":
             out is out + (str of tk.v)
+        elif tk.t == "str":
+            out is out + (_str_lit of tk.v)
         elif tk.t == "op":
             out is out + tk.v
         elif tk.t == "func":
@@ -629,7 +845,10 @@ define display(sheet, addr) as:
         return ""
     local raw is sheet.cells[a]
     if (len of raw) > 0 and (char_at of [raw, 0]) == "=":
-        return _fmt of sheet.vals[a]
+        local v is sheet.vals[a]
+        if (type of v) == "str":
+            return v
+        return _fmt of v
     if (_is_number of raw) == 1:
         return _fmt of (num of raw)
     return raw
@@ -704,7 +923,19 @@ define draw_grid(sheet, ncols, nrows, top) as:
             local addr is _cell_addr of [c + 1, r + 1]
             local txt is display of [sheet, addr]
             if (len of txt) > 0:
-                local tx is gx + (c + 1) * cw - (len of txt) * 12
+                # numbers hug the right edge; text (and errors) sit at the left,
+                # like a real spreadsheet.
+                local is_num_disp is 0
+                if (has_key of [sheet.err, addr]) == 0 and (has_key of [sheet.cells, addr]) == 1:
+                    local raw2 is sheet.cells[addr]
+                    if (len of raw2) > 0 and (char_at of [raw2, 0]) == "=":
+                        if (type of sheet.vals[addr]) == "num":
+                            is_num_disp is 1
+                    elif (_is_number of raw2) == 1:
+                        is_num_disp is 1
+                local tx is gx + c * cw + 4
+                if is_num_disp == 1:
+                    tx is gx + (c + 1) * cw - (len of txt) * 12
                 gfx_text of [tx, gy + r * rh + 4, txt, 225, 227, 240, 2]
             c is c + 1
         r is r + 1

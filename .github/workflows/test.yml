@@ -34,12 +34,18 @@ jobs:
           git clone --depth 1 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"
           make -C "$RUNNER_TEMP/eigs" -s
           echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
-      - name: Differential oracle vs LibreOffice Calc
+      - name: Differential oracle vs LibreOffice Calc (numeric)
         run: |
           python3 tests/diff_vs_calc.py; rc=$?
           # exit 2 = skipped (no working Calc). In CI Calc is installed, so a
           # skip means the check silently didn't run — fail loudly instead.
           if [ $rc -eq 2 ]; then echo "external oracle skipped in CI — that's a gap"; exit 1; fi
+          exit $rc
+
+      - name: Differential oracle vs LibreOffice Calc (strings)
+        run: |
+          python3 tests/diff_vs_calc_str.py; rc=$?
+          if [ $rc -eq 2 ]; then echo "string oracle skipped in CI — that's a gap"; exit 1; fi
           exit $rc
 
   ui-oracle:

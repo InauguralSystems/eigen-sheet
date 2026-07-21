@@ -60,9 +60,23 @@ $PKG_NAME.set_cell of [s, "E3", "=MAX(A1:A4)"]
 $PKG_NAME.set_cell of [s, "E4", "=IF(A1>A2,MAX(A1:A4),MIN(A1:A4))"]
 $PKG_NAME.recalc of s
 print of ("E1=" + ($PKG_NAME.display of [s, "E1"]) + " E2=" + ($PKG_NAME.display of [s, "E2"]) + " E3=" + ($PKG_NAME.display of [s, "E3"]) + " E4=" + ($PKG_NAME.display of [s, "E4"]))
-# structural: a formula using EVERY token type, copied+pasted in place (delta 0),
-# must reconstruct byte-identically — guards _shift_formula against dropped tokens
-$PKG_NAME.set_cell of [s, "Y1", "=IF(A1>=A2,SUM(A1:A3)+1,MIN(A1:A2)*2)"]
+# string formulas: literals, & concat (with number coercion), text functions,
+# and case-insensitive text comparison. F-cells hold text-literal inputs.
+$PKG_NAME.set_cell of [s, "F1", "hi"]
+$PKG_NAME.set_cell of [s, "F2", "World"]
+$PKG_NAME.set_cell of [s, "S1", "=F1&\" \"&F2"]
+$PKG_NAME.set_cell of [s, "S2", "=UPPER(F1)&\"!\""]
+$PKG_NAME.set_cell of [s, "S3", "=LEN(F2)"]
+$PKG_NAME.set_cell of [s, "S4", "=MID(F2,2,3)"]
+$PKG_NAME.set_cell of [s, "S5", "=A1&A2"]
+$PKG_NAME.set_cell of [s, "S6", "=IF(F1=\"HI\",\"yes\",\"no\")"]
+$PKG_NAME.set_cell of [s, "S7", "=\"a\"+1"]
+$PKG_NAME.recalc of s
+print of ("S1=" + ($PKG_NAME.display of [s, "S1"]) + " S2=" + ($PKG_NAME.display of [s, "S2"]) + " S3=" + ($PKG_NAME.display of [s, "S3"]) + " S4=" + ($PKG_NAME.display of [s, "S4"]) + " S5=" + ($PKG_NAME.display of [s, "S5"]) + " S6=" + ($PKG_NAME.display of [s, "S6"]) + " S7=" + ($PKG_NAME.display of [s, "S7"]))
+# structural: a formula using EVERY token type — including a string literal and
+# the & operator — copied+pasted in place (delta 0) must reconstruct
+# byte-identically, guarding _shift_formula against any dropped-token class.
+$PKG_NAME.set_cell of [s, "Y1", "=IF(A1&\"x\"=\"5x\",SUM(A1:A3)+1,MIN(A1:A2)*2)"]
 $PKG_NAME.recalc of s
 rt is $PKG_NAME.copy_block of [s, 24, 0, 24, 0]
 $PKG_NAME.paste_block of [s, rt, 24, 0]
@@ -95,7 +109,8 @@ A1:B2 sum=43 count=4
 B2:A1 sum=43 count=4
 paste B3=35 raw==B1+B2
 E1=8 E2=3 E3=16 E4=16
-roundtrip==IF(A1>=A2,SUM(A1:A3)+1,MIN(A1:A2)*2)
+S1=hi World S2=HI! S3=5 S4=orl S5=53 S6=yes S7=#VALUE!
+roundtrip==IF(A1&"x"="5x",SUM(A1:A3)+1,MIN(A1:A2)*2)
 errs=#NAME?,#DIV/0!,#ERROR,#ERROR gapavg=15
 EOF
 )"
