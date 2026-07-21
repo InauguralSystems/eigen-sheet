@@ -51,6 +51,27 @@ CELLS = {
     "I1": "note", "I2": "7",             # I1 is text
     "J1": "=AVERAGE(I1:I2)",             # 7   (text I1 skipped)
     "J2": "=MIN(I1:I2)",                 # 7
+    # ---- math & rounding library (#1) ----
+    "K1": "=ABS(A4)",                    # 2    (A4 = -2)
+    "K2": "=SIGN(A4)",                   # -1
+    "K3": "=SIGN(A1)",                   # 1
+    "K4": "=INT(B4)",                    # 1    (B4 = 1.666..)
+    "L1": "=ROUND(B4,2)",                # 1.67
+    "L2": "=ROUNDUP(B4,1)",              # 1.7
+    "L3": "=ROUNDDOWN(B4,2)",            # 1.66
+    "L4": "=TRUNC(B4)",                  # 1
+    "O1": "=ROUND(1234.5678,-2)",        # 1200 (negative digits)
+    "M1": "=MOD(A3,A2)",                 # 2    (8 mod 3)
+    "M2": "=MOD(A4,A2)",                 # 1    (-2 mod 3 -> sign of divisor)
+    "M3": "=POWER(A2,A1)",               # 243  (3^5)
+    "M4": "=A2^A1",                      # 243  (^ operator)
+    "N1": "=SQRT(A3)",                   # 2.828..
+    "N2": "=CEILING(A3,A2)",             # 9    (8 up to a multiple of 3)
+    "N3": "=FLOOR(A3,A2)",               # 6
+    "N4": "=PRODUCT(A1:A3)",             # 120  (5*3*8)
+    "O2": "=-A1^2",                      # 25   (unary minus binds tighter: (-5)^2)
+    "O3": "=2^3^2",                      # 64   (^ is left-associative in Calc)
+    "O4": "=TRUNC(-A1/A2)",              # -1   (toward zero)
 }
 
 

@@ -108,7 +108,7 @@ define _tokenize(s) as:
                 append of [toks, {"t": "cell", "v": word + (substr of [s, dstart, i - dstart])}]
             else:
                 append of [toks, {"t": "func", "v": word}]
-        elif ch == "+" or ch == "-" or ch == "*" or ch == "/":
+        elif ch == "+" or ch == "-" or ch == "*" or ch == "/" or ch == "^":
             append of [toks, {"t": "op", "v": ch}]
             i is i + 1
         elif ch == ">":
@@ -263,6 +263,11 @@ define _aggregate(fname, vals) as:
             if vals[j] > mx:
                 mx is vals[j]
         return mx
+    if fname == "PRODUCT":
+        local p is 1
+        for j in range of n:
+            p is p * vals[j]
+        return p
     # default: SUM
     local total is 0
     for j in range of n:
@@ -395,6 +400,47 @@ define _mid(s, start, k) as:
         m is n - st0
     return substr of [s, st0, m]
 
+# ---- numeric functions (scalar) ------------------------------------
+
+define _sign(x) as:
+    if x > 0:
+        return 1
+    if x < 0:
+        return 0 - 1
+    return 0
+
+# Round |x| to nd decimal places then reapply the sign. mode 0 = half away
+# from zero (ROUND), 1 = always away from zero (ROUNDUP), 2 = toward zero
+# (ROUNDDOWN/TRUNC). nd may be negative, e.g. ROUND(1234,-2)=1200.
+define _round_dp(x, nd, mode) as:
+    local factor is pow of [10, floor of nd]
+    local y is x * factor
+    local ay is y
+    if ay < 0:
+        ay is 0 - ay
+    local r is 0
+    if mode == 1:
+        r is ceil of ay
+    elif mode == 2:
+        r is floor of ay
+    else:
+        r is floor of (ay + 0.5)
+    if y < 0:
+        r is 0 - r
+    return r / factor
+
+# Collect comma-separated scalar argument VALUES up to the closing ')'.
+define _collect_args(st) as:
+    local args is []
+    if (_peek of st) != null and (_peek of st).t != "rp":
+        append of [args, _eval_cmp of st]
+        loop while (_peek of st) != null and (_peek of st).t == "comma":
+            st.i is st.i + 1
+            append of [args, _eval_cmp of st]
+    if (_peek of st) != null and (_peek of st).t == "rp":
+        st.i is st.i + 1
+    return args
+
 define _eval_factor(st) as:
     local tk is _peek of st
     if tk == null:
@@ -485,6 +531,61 @@ define _eval_factor(st) as:
             for j in range of na:
                 acc is acc + (_to_text of targs[j])
             return acc
+        # scalar numeric functions: ABS / INT / TRUNC / ROUND / ROUNDUP /
+        # ROUNDDOWN / SIGN / SQRT / MOD / POWER / CEILING / FLOOR. Args are
+        # comma-separated scalars (not ranges), matching a spreadsheet.
+        if fname == "ABS" or fname == "INT" or fname == "TRUNC" or fname == "ROUND" or fname == "ROUNDUP" or fname == "ROUNDDOWN" or fname == "SIGN" or fname == "SQRT" or fname == "MOD" or fname == "POWER" or fname == "CEILING" or fname == "FLOOR":
+            local nargs is _collect_args of st
+            local nn is len of nargs
+            if nn < 1:
+                st.err is "#ERROR"
+                return 0
+            local x is _to_num of [st, nargs[0]]
+            if fname == "ABS":
+                return abs of x
+            if fname == "INT":
+                return floor of x
+            if fname == "SIGN":
+                return _sign of x
+            if fname == "SQRT":
+                if x < 0:
+                    st.err is "#NUM!"
+                    return 0
+                return sqrt of x
+            if fname == "ROUND" or fname == "ROUNDUP" or fname == "ROUNDDOWN" or fname == "TRUNC":
+                local nd is 0
+                if nn >= 2:
+                    nd is _to_num of [st, nargs[1]]
+                local mode is 0
+                if fname == "ROUNDUP":
+                    mode is 1
+                elif fname == "ROUNDDOWN" or fname == "TRUNC":
+                    mode is 2
+                return _round_dp of [x, nd, mode]
+            if fname == "MOD":
+                if nn < 2:
+                    st.err is "#ERROR"
+                    return 0
+                local d is _to_num of [st, nargs[1]]
+                if d == 0:
+                    st.err is "#DIV/0!"
+                    return 0
+                # result takes the sign of the divisor, like a spreadsheet
+                return x - d * (floor of (x / d))
+            if fname == "POWER":
+                if nn < 2:
+                    st.err is "#ERROR"
+                    return 0
+                return pow of [x, _to_num of [st, nargs[1]]]
+            # CEILING / FLOOR: round x to a multiple of significance (default 1)
+            local sig is 1
+            if nn >= 2:
+                sig is _to_num of [st, nargs[1]]
+            if sig == 0:
+                return 0
+            if fname == "CEILING":
+                return (ceil of (x / sig)) * sig
+            return (floor of (x / sig)) * sig
         # aggregate over a range: SUM / AVG / AVERAGE / MIN / MAX. Only cells
         # that actually hold a number contribute — empty and text cells are
         # skipped, so AVERAGE/MIN/MAX are not skewed by gaps.
@@ -508,7 +609,7 @@ define _eval_factor(st) as:
                         append of [vals, cv]
         if (_peek of st) != null and (_peek of st).t == "rp":
             st.i is st.i + 1
-        if fname == "SUM" or fname == "AVG" or fname == "AVERAGE" or fname == "MIN" or fname == "MAX":
+        if fname == "SUM" or fname == "AVG" or fname == "AVERAGE" or fname == "MIN" or fname == "MAX" or fname == "PRODUCT":
             return _aggregate of [fname, vals]
         # unknown function name
         st.err is "#NAME?"
@@ -520,13 +621,25 @@ define _eval_factor(st) as:
     st.err is "#ERROR"
     return 0
 
-define _eval_term(st) as:
+# Exponentiation level: binds tighter than * and /, looser than unary minus
+# (so =-2^2 is 4, matching Excel/LibreOffice), and is left-associative
+# (=2^3^2 is 64, like Calc — NOT the math-convention 512).
+define _eval_power(st) as:
     local v is _eval_factor of st
+    loop while (_peek of st) != null and (_peek of st).t == "op" and (_peek of st).v == "^":
+        st.i is st.i + 1
+        v is _to_num of [st, v]
+        local r is _to_num of [st, _eval_factor of st]
+        v is pow of [v, r]
+    return v
+
+define _eval_term(st) as:
+    local v is _eval_power of st
     loop while (_peek of st) != null and (_peek of st).t == "op" and ((_peek of st).v == "*" or (_peek of st).v == "/"):
         local op is (_peek of st).v
         st.i is st.i + 1
         v is _to_num of [st, v]
-        local r is _to_num of [st, _eval_factor of st]
+        local r is _to_num of [st, _eval_power of st]
         if op == "*":
             v is v * r
         else:
