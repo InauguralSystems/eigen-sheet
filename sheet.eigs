@@ -1,0 +1,415 @@
+# sheet — a spreadsheet recalc engine in EigenScript.
+#
+# The pure core: a grid of cells (A1-style), formulas (= arithmetic over
+# numbers, cell refs, parens, and SUM(range)), a dependency graph, a
+# topological recalc, and cycle detection. No gfx — it runs and tests in a
+# plain build; the gfx grid view (draw_grid/run) is a separate front-end
+# defined but never called on import, so `import sheet` is side-effect-free.
+#
+# Recalc is where the observer niche lives: a cell's value is a function of
+# the cells it observes, dirty-propagation flows along the dependency edges,
+# and a cycle is an observation with no fixed point — reported as #CYCLE
+# rather than looping. A change is a replayable event; the same edits in the
+# same order reconstruct the same grid.
+#
+# Numeric-formula results are byte-checked against a real spreadsheet
+# (LibreOffice) in tests/diff_vs_calc.py — that engine, not our say-so, is
+# what "right" looks like for the operations every spreadsheet agrees on.
+
+VERSION is "0.1.0"
+
+# ---- addresses ------------------------------------------------------
+
+define _is_alpha(ch) as:
+    local c is ord of ch
+    if c >= 65 and c <= 90:
+        return 1
+    if c >= 97 and c <= 122:
+        return 1
+    return 0
+
+define _is_digit(ch) as:
+    local c is ord of ch
+    if c >= 48 and c <= 57:
+        return 1
+    return 0
+
+define _upper(s) as:
+    local out is ""
+    for i in range of (len of s):
+        local ch is char_at of [s, i]
+        local c is ord of ch
+        if c >= 97 and c <= 122:
+            out is out + (chr of (c - 32))
+        else:
+            out is out + ch
+    return out
+
+# "AB12" -> {"col": "AB", "row": 12}
+define _addr_parts(addr) as:
+    local a is _upper of addr
+    local letters is ""
+    local i is 0
+    loop while i < (len of a):
+        local ch is char_at of [a, i]
+        if (_is_alpha of ch) == 1:
+            letters is letters + ch
+            i is i + 1
+        else:
+            i is len of a
+    local digits is substr of [a, len of letters, (len of a) - (len of letters)]
+    return {"col": letters, "row": num of digits}
+
+define _col_to_num(letters) as:
+    local n is 0
+    for i in range of (len of letters):
+        n is n * 26 + ((ord of (char_at of [letters, i])) - 64)
+    return n
+
+define _num_to_col(n) as:
+    local out is ""
+    local x is n
+    loop while x > 0:
+        local rem is ((x - 1) % 26)
+        out is (chr of (65 + rem)) + out
+        x is floor of ((x - 1) / 26)
+    return out
+
+define _cell_addr(coln, rown) as:
+    return (_num_to_col of coln) + (str of rown)
+
+# ---- tokenizer ------------------------------------------------------
+# tokens: {"t":"num","v":n} {"t":"cell","v":"A1"} {"t":"op","v":"+"}
+#         {"t":"lp"} {"t":"rp"} {"t":"colon"} {"t":"func","v":"SUM"}
+
+define _tokenize(s) as:
+    local toks is []
+    local i is 0
+    local n is len of s
+    loop while i < n:
+        local ch is char_at of [s, i]
+        if ch == " ":
+            i is i + 1
+        elif (_is_digit of ch) == 1 or ch == ".":
+            local start is i
+            loop while i < n and ((_is_digit of (char_at of [s, i])) == 1 or (char_at of [s, i]) == "."):
+                i is i + 1
+            append of [toks, {"t": "num", "v": num of (substr of [s, start, i - start])}]
+        elif (_is_alpha of ch) == 1:
+            local start is i
+            loop while i < n and (_is_alpha of (char_at of [s, i])) == 1:
+                i is i + 1
+            local word is _upper of (substr of [s, start, i - start])
+            if i < n and (_is_digit of (char_at of [s, i])) == 1:
+                local dstart is i
+                loop while i < n and (_is_digit of (char_at of [s, i])) == 1:
+                    i is i + 1
+                append of [toks, {"t": "cell", "v": word + (substr of [s, dstart, i - dstart])}]
+            else:
+                append of [toks, {"t": "func", "v": word}]
+        elif ch == "+" or ch == "-" or ch == "*" or ch == "/":
+            append of [toks, {"t": "op", "v": ch}]
+            i is i + 1
+        elif ch == "(":
+            append of [toks, {"t": "lp"}]
+            i is i + 1
+        elif ch == ")":
+            append of [toks, {"t": "rp"}]
+            i is i + 1
+        elif ch == ":":
+            append of [toks, {"t": "colon"}]
+            i is i + 1
+        else:
+            i is i + 1
+    return toks
+
+# ---- dependency extraction -----------------------------------------
+
+define _range_cells(a, b) as:
+    local pa is _addr_parts of a
+    local pb is _addr_parts of b
+    local c1 is _col_to_num of pa.col
+    local c2 is _col_to_num of pb.col
+    local r1 is pa.row
+    local r2 is pb.row
+    if c1 > c2:
+        local t is c1
+        c1 is c2
+        c2 is t
+    if r1 > r2:
+        local t2 is r1
+        r1 is r2
+        r2 is t2
+    local out is []
+    local c is c1
+    loop while c <= c2:
+        local r is r1
+        loop while r <= r2:
+            append of [out, _cell_addr of [c, r]]
+            r is r + 1
+        c is c + 1
+    return out
+
+# All cell addresses a token list references (SUM ranges expanded).
+define _deps(toks) as:
+    local out is []
+    local i is 0
+    loop while i < (len of toks):
+        local tk is toks[i]
+        if tk.t == "cell":
+            # a cell followed by ':' cell is a range endpoint pair
+            if (i + 2) < (len of toks) and toks[i + 1].t == "colon" and toks[i + 2].t == "cell":
+                local rc is _range_cells of [tk.v, toks[i + 2].v]
+                for j in range of (len of rc):
+                    append of [out, rc[j]]
+                i is i + 3
+            else:
+                append of [out, tk.v]
+                i is i + 1
+        else:
+            i is i + 1
+    return out
+
+# ---- evaluator (recursive descent over tokens) ---------------------
+# st = {"toks":..., "i":0, "vals":...}. st.i mutates through the calls.
+
+define _peek(st) as:
+    if st.i < (len of st.toks):
+        return st.toks[st.i]
+    return null
+
+define _cellval(st, addr) as:
+    if (has_key of [st.vals, addr]) == 1:
+        return st.vals[addr]
+    return 0
+
+define _eval_factor(st) as:
+    local tk is _peek of st
+    if tk == null:
+        return 0
+    if tk.t == "op" and tk.v == "-":
+        st.i is st.i + 1
+        return 0 - (_eval_factor of st)
+    if tk.t == "num":
+        st.i is st.i + 1
+        return tk.v
+    if tk.t == "lp":
+        st.i is st.i + 1
+        local v is _eval_expr of st
+        if (_peek of st) != null and (_peek of st).t == "rp":
+            st.i is st.i + 1
+        return v
+    if tk.t == "func":
+        st.i is st.i + 1
+        # SUM ( cell : cell )
+        if (_peek of st) != null and (_peek of st).t == "lp":
+            st.i is st.i + 1
+        local total is 0
+        if (_peek of st) != null and (_peek of st).t == "cell":
+            local a is (_peek of st).v
+            st.i is st.i + 1
+            local b is a
+            if (_peek of st) != null and (_peek of st).t == "colon":
+                st.i is st.i + 1
+                if (_peek of st) != null and (_peek of st).t == "cell":
+                    b is (_peek of st).v
+                    st.i is st.i + 1
+            local cells is _range_cells of [a, b]
+            for j in range of (len of cells):
+                total is total + (_cellval of [st, cells[j]])
+        if (_peek of st) != null and (_peek of st).t == "rp":
+            st.i is st.i + 1
+        return total
+    if tk.t == "cell":
+        st.i is st.i + 1
+        return _cellval of [st, tk.v]
+    return 0
+
+define _eval_term(st) as:
+    local v is _eval_factor of st
+    loop while (_peek of st) != null and (_peek of st).t == "op" and ((_peek of st).v == "*" or (_peek of st).v == "/"):
+        local op is (_peek of st).v
+        st.i is st.i + 1
+        local r is _eval_factor of st
+        if op == "*":
+            v is v * r
+        else:
+            v is v / r
+    return v
+
+define _eval_expr(st) as:
+    local v is _eval_term of st
+    loop while (_peek of st) != null and (_peek of st).t == "op" and ((_peek of st).v == "+" or (_peek of st).v == "-"):
+        local op is (_peek of st).v
+        st.i is st.i + 1
+        local r is _eval_term of st
+        if op == "+":
+            v is v + r
+        else:
+            v is v - r
+    return v
+
+define _eval(toks, vals) as:
+    local st is {"toks": toks, "i": 0, "vals": vals}
+    return _eval_expr of st
+
+# ---- sheet + recalc -------------------------------------------------
+
+define new_sheet() as:
+    return {"cells": {}, "vals": {}, "err": {}, "order": []}
+
+define set_cell(sheet, addr, raw) as:
+    dict_set of [sheet.cells, _upper of addr, raw]
+    return sheet
+
+define _is_number(s) as:
+    if (len of s) == 0:
+        return 0
+    local i is 0
+    local seen is 0
+    local saw_dot is 0
+    loop while i < (len of s):
+        local ch is char_at of [s, i]
+        if i == 0 and ch == "-":
+            i is i + 1
+        elif ch == "." and saw_dot == 0:
+            saw_dot is 1
+            i is i + 1
+        elif (_is_digit of ch) == 1:
+            seen is 1
+            i is i + 1
+        else:
+            return 0
+    return seen
+
+# Recompute every cell. Literals resolve immediately; formulas evaluate in
+# dependency (topological) order; cells on a dependency cycle get #CYCLE.
+define recalc(sheet) as:
+    sheet.vals is {}
+    sheet.err is {}
+    sheet.order is []
+    local addrs is keys of sheet.cells
+    local formula_toks is {}
+    local formula_deps is {}
+    local pending is []
+    # classify
+    for i in range of (len of addrs):
+        local addr is addrs[i]
+        local raw is sheet.cells[addr]
+        if (len of raw) > 0 and (char_at of [raw, 0]) == "=":
+            local toks is _tokenize of (substr of [raw, 1, (len of raw) - 1])
+            dict_set of [formula_toks, addr, toks]
+            dict_set of [formula_deps, addr, _deps of toks]
+            append of [pending, addr]
+        elif (_is_number of raw) == 1:
+            dict_set of [sheet.vals, addr, num of raw]
+        else:
+            # text literal: value 0 in arithmetic, raw kept for display
+            dict_set of [sheet.vals, addr, 0]
+    # Kahn topological evaluation over formula cells.
+    local guard is (len of pending) + 1
+    loop while (len of pending) > 0 and guard > 0:
+        local progressed is 0
+        local still is []
+        for i in range of (len of pending):
+            local addr is pending[i]
+            local deps is formula_deps[addr]
+            local ready is 1
+            for j in range of (len of deps):
+                local d is deps[j]
+                # a dep that is itself an unresolved formula blocks us
+                if (has_key of [formula_toks, d]) == 1 and (has_key of [sheet.vals, d]) == 0:
+                    ready is 0
+            if ready == 1:
+                dict_set of [sheet.vals, addr, _eval of [formula_toks[addr], sheet.vals]]
+                append of [sheet.order, addr]
+                progressed is progressed + 1
+            else:
+                append of [still, addr]
+        pending is still
+        if progressed == 0:
+            guard is 0
+    # anything left is on a cycle
+    for i in range of (len of pending):
+        dict_set of [sheet.err, pending[i], "#CYCLE"]
+        dict_set of [sheet.vals, pending[i], 0]
+    return sheet
+
+define get(sheet, addr) as:
+    local a is _upper of addr
+    if (has_key of [sheet.vals, a]) == 1:
+        return sheet.vals[a]
+    return 0
+
+# Display string for a cell: error token, number, text literal, or "".
+define display(sheet, addr) as:
+    local a is _upper of addr
+    if (has_key of [sheet.err, a]) == 1:
+        return sheet.err[a]
+    if (has_key of [sheet.cells, a]) == 0:
+        return ""
+    local raw is sheet.cells[a]
+    if (len of raw) > 0 and (char_at of [raw, 0]) == "=":
+        return str of sheet.vals[a]
+    if (_is_number of raw) == 1:
+        return str of (num of raw)
+    return raw
+
+# ---- gfx grid view (only runs when explicitly called) --------------
+# Split out so the UI oracle (tests/ui_oracle.py) drives the SAME draw
+# code. Each cell's display text is laid out on a per-cell 12x14 bitmap
+# grid: column c, row r (0-based) -> text origin (8 + c*84, 8 + r*16),
+# scale 2. 84 = 7 glyph cells wide, so the oracle decodes each cell by
+# reading glyph cells from its origin until blank.
+
+define draw_grid(sheet, ncols, nrows) as:
+    local ox is 8
+    local oy is 8
+    local colw is 84
+    local rowh is 20
+    gfx_clear of [16, 18, 28]
+    # faint column separators, drawn between cells so they never land in a
+    # glyph cell the render oracle decodes (it reads text from ox + c*colw).
+    local c2 is 1
+    loop while c2 < ncols:
+        gfx_rect of [ox + c2 * colw - 6, oy - 2, 1, nrows * rowh, 44, 48, 64]
+        c2 is c2 + 1
+    local r is 0
+    loop while r < nrows:
+        local c is 0
+        loop while c < ncols:
+            local addr is _cell_addr of [c + 1, r + 1]
+            local txt is display of [sheet, addr]
+            if (len of txt) > 0:
+                gfx_text of [ox + c * colw, oy + r * rowh, txt, 220, 222, 235, 2]
+            c is c + 1
+        r is r + 1
+    return 0
+
+define _demo(sheet) as:
+    set_cell of [sheet, "A1", "5"]
+    set_cell of [sheet, "A2", "3"]
+    set_cell of [sheet, "A3", "=A1+A2"]
+    set_cell of [sheet, "A4", "=SUM(A1:A3)"]
+    set_cell of [sheet, "B1", "=A4*2-1"]
+    set_cell of [sheet, "B2", "=(A1+A2)/2"]
+    recalc of sheet
+    return sheet
+
+define run() as:
+    gfx_open of [720, 480, "eigen-sheet v" + VERSION]
+    local s is _demo of (new_sheet of null)
+    local running is 1
+    loop while running == 1:
+        local ev is gfx_poll of null
+        loop while ev != null:
+            if ev.type == "quit":
+                running is 0
+            elif ev.type == "keydown" and ev.key == "escape":
+                running is 0
+            ev is gfx_poll of null
+        draw_grid of [s, 6, 8]
+        gfx_present of null
+        gfx_delay of 16
+    gfx_close of null
+    return s

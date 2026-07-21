@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    # model oracle: recalc byte-diff. Plain build, headless.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build EigenScript from source
+        run: |
+          git clone --depth 1 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"
+          make -C "$RUNNER_TEMP/eigs" -s
+          echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
+      - name: Model oracle (recalc byte-diff)
+        run: bash tests/test_smoke.sh
+
+  calc-oracle:
+    # differential oracle: eigen-sheet recalc vs headless LibreOffice Calc.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LibreOffice Calc + openpyxl
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libreoffice-calc python3-openpyxl
+      - name: Build EigenScript from source
+        run: |
+          git clone --depth 1 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"
+          make -C "$RUNNER_TEMP/eigs" -s
+          echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
+      - name: Differential oracle vs LibreOffice Calc
+        run: |
+          python3 tests/diff_vs_calc.py; rc=$?
+          # exit 2 = skipped (no working Calc). In CI Calc is installed, so a
+          # skip means the check silently didn't run — fail loudly instead.
+          if [ $rc -eq 2 ]; then echo "external oracle skipped in CI — that's a gap"; exit 1; fi
+          exit $rc
+
+  ui-oracle:
+    # render oracle: draw_grid pixels decoded back to the model. gfx + xvfb.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install display + capture tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb x11-apps xdotool python3-pil libsdl2-2.0-0 libsdl2-ttf-2.0-0
+      - name: Build EigenScript (gfx) from source
+        run: |
+          git clone --depth 1 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"
+          make -C "$RUNNER_TEMP/eigs" -s gfx
+          echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
+      - name: Render-vs-model UI oracle
+        run: xvfb-run -a -s "-screen 0 1400x768x24" python3 tests/ui_oracle.py

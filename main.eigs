@@ -1,0 +1,10 @@
+# Standalone launcher for eigen-sheet.
+#
+#   make gfx -C <EigenScript>      # once, for a gfx-capable build
+#   eigenscript main.eigs          # opens the grid view (demo sheet)
+#
+# The recalc engine lives in sheet.eigs as a pure, importable core; this
+# file is the gfx front-end. Escape (or the window close box) quits.
+import sheet
+
+sheet.run of null
