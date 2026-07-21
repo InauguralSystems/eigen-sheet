@@ -90,6 +90,23 @@ CELLS = {
     # ---- absolute / mixed references (#9): evaluate identically to relative ----
     "U1": "=$A$1+$A2+A$3",               # 16   (5+3+8, anchors are eval no-ops)
     "U2": "=SUM($A$1:$A$3)",             # 16
+    # ---- logical functions + IF short-circuit (#3) ----
+    # booleans wrapped so results stay numeric (Calc exports bare TRUE/FALSE as text)
+    "V1": "=IF(A1>A2,100,A1/0)",         # 100  (untaken 1/0 NOT evaluated)
+    "V2": "=IF(A1<A2,A1/0,200)",         # 200  (untaken 1/0 NOT evaluated)
+    "V3": "=IF(AND(A1>0,A2>0),1,0)",     # 1
+    "V4": "=IF(AND(A1>0,A4>0),1,0)",     # 0    (A4 = -2)
+    "W1": "=IF(OR(A4>0,A1>0),1,0)",      # 1
+    "W2": "=IF(OR(A4>0,A4>10),1,0)",     # 0
+    "W3": "=IF(NOT(A1>A2),1,0)",         # 0    (A1>A2 true -> NOT false)
+    "W4": "=IF(XOR(A1>0,A4>0),1,0)",     # 1    (exactly one true)
+    "X6": "=IF(XOR(A1>0,A2>0),1,0)",     # 0    (both true -> even)
+    "X7": "=AND(A1>0,A2>0)*10",          # 10   (bare AND coerces 1)
+    "X8": "=TRUE()+FALSE()",             # 1
+    "X9": "=IFS(A1>10,1,A1>3,2,A1>0,3)", # 2    (first true branch: 5>3)
+    "Y4": "=IFS(A4>0,1,A4<0,2,A4=0,3)",  # 2    (A4<0)
+    "Y5": "=SWITCH(A2,1,10,3,30,99)",    # 30   (A2=3 matches)
+    "Y6": "=SWITCH(A1,1,10,2,20,99)",    # 99   (no match -> default)
 }
 
 
@@ -133,6 +150,20 @@ def eigs_values():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# "Future functions" added after the original OOXML spec are stored in .xlsx
+# with an _xlfn. prefix; openpyxl writes the bare name, which LibreOffice (and
+# Excel) then reject as #NAME?. eigen-sheet always gets the PLAIN formula — only
+# the .xlsx handed to LibreOffice carries the prefix, so both compute the same fn.
+_XLFN = ("XOR", "IFS", "SWITCH")
+
+
+def _ooxml(formula):
+    import re
+    for name in _XLFN:
+        formula = re.sub(r"\b" + name + r"\(", "_xlfn." + name + "(", formula)
+    return formula
+
+
 def write_xlsx(path):
     import openpyxl
     wb = openpyxl.Workbook()
@@ -140,7 +171,7 @@ def write_xlsx(path):
     ws.title = "Sheet1"
     for a, raw in CELLS.items():
         if raw.startswith("="):
-            ws[a] = raw
+            ws[a] = _ooxml(raw)
         else:
             try:
                 ws[a] = float(raw)

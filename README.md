@@ -93,7 +93,9 @@ Numbers, `+ - * /`, `^` (exponent, left-associative like Calc), parens and
 precedence, comparisons (`> < >= <= = <>`), cell references (relative and `$`-anchored
 absolute / mixed — `$A$1`, `$A1`, `A$1`), multi-letter
 columns, range aggregates `SUM` / `AVERAGE` (`AVG`) / `MIN` / `MAX` /
-`PRODUCT` and `IF(cond, then, else)` (nestable), the scalar math functions
+`PRODUCT`, `IF(cond, then, else)` (nestable, short-circuiting — the untaken
+branch is never evaluated), the logical functions `AND` / `OR` / `NOT` /
+`XOR` / `TRUE` / `FALSE` / `IFS` / `SWITCH`, the scalar math functions
 `ABS` / `INT` / `TRUNC` / `ROUND` / `ROUNDUP` / `ROUNDDOWN` / `SIGN` / `SQRT`
 / `MOD` / `POWER` / `CEILING` / `FLOOR`, the statistical functions `COUNT` /
 `COUNTA` / `COUNTBLANK` / `MEDIAN` / `MODE` / `STDEV` / `STDEVP` / `VAR` /
