@@ -42,6 +42,15 @@ CELLS = {
     "F1": "=IF(A1<A2,10,20)",            # 20   (5 < 3 false)
     "F2": "=IF(SUM(A1:A4)>10,MAX(A1:A4),MIN(A1:A4))",  # 8 (14>10 -> MAX)
     "F3": "=IF(A2=3,A3*2,0)",            # 16   (equality)
+    # ranges with GAPS and TEXT — aggregates must skip them, like Calc.
+    "G1": "10", "G3": "20",              # G2 deliberately empty
+    "H1": "=AVERAGE(G1:G3)",             # 15  ((10+20)/2, empty G2 skipped)
+    "H2": "=MIN(G1:G3)",                 # 10  (not 0)
+    "H3": "=MAX(G1:G3)",                 # 20
+    "H4": "=SUM(G1:G3)",                 # 30
+    "I1": "note", "I2": "7",             # I1 is text
+    "J1": "=AVERAGE(I1:I2)",             # 7   (text I1 skipped)
+    "J2": "=MIN(I1:I2)",                 # 7
 }
 
 
@@ -91,7 +100,13 @@ def write_xlsx(path):
     ws = wb.active
     ws.title = "Sheet1"
     for a, raw in CELLS.items():
-        ws[a] = raw if raw.startswith("=") else float(raw)
+        if raw.startswith("="):
+            ws[a] = raw
+        else:
+            try:
+                ws[a] = float(raw)
+            except ValueError:
+                ws[a] = raw   # text literal
     wb.calculation.fullCalcOnLoad = True   # force Calc to recompute on load
     wb.save(path)
 

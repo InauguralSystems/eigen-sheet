@@ -60,6 +60,24 @@ $PKG_NAME.set_cell of [s, "E3", "=MAX(A1:A4)"]
 $PKG_NAME.set_cell of [s, "E4", "=IF(A1>A2,MAX(A1:A4),MIN(A1:A4))"]
 $PKG_NAME.recalc of s
 print of ("E1=" + ($PKG_NAME.display of [s, "E1"]) + " E2=" + ($PKG_NAME.display of [s, "E2"]) + " E3=" + ($PKG_NAME.display of [s, "E3"]) + " E4=" + ($PKG_NAME.display of [s, "E4"]))
+# structural: a formula using EVERY token type, copied+pasted in place (delta 0),
+# must reconstruct byte-identically — guards _shift_formula against dropped tokens
+$PKG_NAME.set_cell of [s, "Y1", "=IF(A1>=A2,SUM(A1:A3)+1,MIN(A1:A2)*2)"]
+$PKG_NAME.recalc of s
+rt is $PKG_NAME.copy_block of [s, 24, 0, 24, 0]
+$PKG_NAME.paste_block of [s, rt, 24, 0]
+print of ("roundtrip=" + s.cells["Y1"])
+# error channel: unknown function, div-by-zero, scientific-notation garbage,
+# trailing operator, and an aggregate over a gap (empty cell skipped)
+$PKG_NAME.set_cell of [s, "X1", "=FOO(A1:A2)"]
+$PKG_NAME.set_cell of [s, "X2", "=A1/0"]
+$PKG_NAME.set_cell of [s, "X3", "=1E5"]
+$PKG_NAME.set_cell of [s, "X4", "=A1+"]
+$PKG_NAME.set_cell of [s, "G1", "10"]
+$PKG_NAME.set_cell of [s, "G3", "20"]
+$PKG_NAME.set_cell of [s, "X5", "=AVERAGE(G1:G3)"]
+$PKG_NAME.recalc of s
+print of ("errs=" + ($PKG_NAME.display of [s, "X1"]) + "," + ($PKG_NAME.display of [s, "X2"]) + "," + ($PKG_NAME.display of [s, "X3"]) + "," + ($PKG_NAME.display of [s, "X4"]) + " gapavg=" + ($PKG_NAME.display of [s, "X5"]))
 EOF
 
 OUT="$("$EIGS" "$TMP/app.eigs" 2>&1)"
@@ -77,6 +95,8 @@ A1:B2 sum=43 count=4
 B2:A1 sum=43 count=4
 paste B3=35 raw==B1+B2
 E1=8 E2=3 E3=16 E4=16
+roundtrip==IF(A1>=A2,SUM(A1:A3)+1,MIN(A1:A2)*2)
+errs=#NAME?,#DIV/0!,#ERROR,#ERROR gapavg=15
 EOF
 )"
 
