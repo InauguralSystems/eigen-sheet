@@ -125,7 +125,10 @@ date & time functions `DATE` / `YEAR` / `MONTH` / `DAY` / `WEEKDAY` /
 `SECOND` (a serial-date model on LibreOffice's epoch),
 named ranges / expressions (`define_name` — `=SUM(revenue)`, `=taxrate*100`;
 alpha names, resolved before recalc so dependencies are captured),
-dependency-ordered recalc, cycle detection. **Errors** (`#DIV/0!`, `#VALUE!`,
+dependency-ordered recalc (an O(V+E) in-degree topological pass; a reused
+evaluator state keeps a large sheet from thrashing the allocator), cycle
+detection, and a sparse cell store so the full Calc addressing extent
+(`XFD1048576` = 16384 × 1,048,576) costs nothing until used. **Errors** (`#DIV/0!`, `#VALUE!`,
 `#NAME?`, `#REF!`, `#N/A`, `#NUM!`, `#CYCLE`) propagate through cell
 references and ranges — a formula reading an errored cell yields that error,
 not a silent `0` — and `IFERROR` / `IFNA` / `NA()` catch or raise them.

@@ -29,6 +29,8 @@ jobs:
         run: python3 tests/diff_vs_pivot.py
       - name: Goal Seek differential oracle (secant vs Python bisection)
         run: python3 tests/diff_vs_goalseek.py
+      - name: Scale correctness (large grid recalc)
+        run: python3 tests/scale_test.py
 
   calc-oracle:
     # differential oracle: eigen-sheet recalc vs headless LibreOffice Calc.

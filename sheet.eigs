@@ -1550,15 +1550,25 @@ define _eval_cmp(st) as:
 
 # Evaluate a formula's tokens; returns {"val", "err"}. err is "" on success or
 # an error token (#DIV/0!, #NAME?, #ERROR) that recalc routes into sheet.err.
-define _eval(toks, vals, cells, selfaddr, errs, udfs) as:
+# Evaluate `toks` for the cell `selfaddr` by REUSING a prebuilt st (its vals/
+# cells/errs/udfs already point at the sheet's dicts). Reuse matters: building a
+# fresh st per formula — a short-lived dict referencing the large vals/cells
+# dicts — makes recalc O(N^2), because collecting each st scans the referenced
+# structures. Mutating one st keeps recalc O(N). (Upstream: EigenScript #685.)
+define _eval_st(st, toks, selfaddr) as:
     local sp is _addr_parts of selfaddr
-    local st is {"toks": toks, "i": 0, "vals": vals, "cells": cells, "err": "", "self_col": _col_to_num of sp.col, "self_row": sp.row, "errs": errs, "udfs": udfs}
+    st.toks is toks
+    st.i is 0
+    st.err is ""
+    st.self_col is _col_to_num of sp.col
+    st.self_row is sp.row
     local v is _eval_cmp of st
     # trailing tokens the parser did not consume mean the formula is malformed
-    # (e.g. "=1E5" tokenizes to num 1 then cell E5; "=A1 A2")
+    # (e.g. "=1E5" tokenizes to num 1 then cell E5; "=A1 A2"). The error is left
+    # on st.err (no per-formula result dict — fewer allocations in the hot loop).
     if st.err == "" and st.i < (len of toks):
         st.err is "#ERROR"
-    return {"val": v, "err": st.err}
+    return v
 
 # ---- sheet + recalc -------------------------------------------------
 
@@ -1663,38 +1673,58 @@ define recalc(sheet) as:
             dict_set of [sheet.vals, addr, raw]
         # an empty cell (raw "") is left out of vals entirely: a reference to it
         # reads 0 in arithmetic, like a spreadsheet's empty cell (NOT #VALUE!).
-    # Kahn topological evaluation over formula cells.
-    local guard is (len of pending) + 1
-    loop while (len of pending) > 0 and guard > 0:
-        local progressed is 0
-        local still is []
-        for i in range of (len of pending):
-            local addr is pending[i]
-            local deps is formula_deps[addr]
-            local ready is 1
-            for j in range of (len of deps):
-                local d is deps[j]
-                # a dep that is itself an unresolved formula blocks us
-                if (has_key of [formula_toks, d]) == 1 and (has_key of [sheet.vals, d]) == 0:
-                    ready is 0
-            if ready == 1:
-                local res is _eval of [formula_toks[addr], sheet.vals, sheet.cells, addr, sheet.err, sheet.udfs]
-                if res.err != "":
-                    dict_set of [sheet.err, addr, res.err]
-                    dict_set of [sheet.vals, addr, 0]
-                else:
-                    dict_set of [sheet.vals, addr, res.val]
-                append of [sheet.order, addr]
-                progressed is progressed + 1
-            else:
-                append of [still, addr]
-        pending is still
-        if progressed == 0:
-            guard is 0
-    # anything left is on a cycle
+    # In-degree (Kahn) topological evaluation in O(V+E): count each formula's
+    # unresolved-formula dependencies, keep a queue of ready (in-degree 0)
+    # formulas, and decrement dependents as each resolves. Replaces an O(V^2)
+    # per-pass re-scan (which made a length-N dependency chain quadratic).
+    local indeg is {}
+    local dependents is {}
     for i in range of (len of pending):
-        dict_set of [sheet.err, pending[i], "#CYCLE"]
-        dict_set of [sheet.vals, pending[i], 0]
+        dict_set of [indeg, pending[i], 0]
+        dict_set of [dependents, pending[i], []]
+    for i in range of (len of pending):
+        local addr is pending[i]
+        local deps is formula_deps[addr]
+        local seen is {}                 # dedup repeated deps (=A1+A1)
+        for j in range of (len of deps):
+            local d is deps[j]
+            # only a dep that is itself a formula can block us; a self-reference
+            # counts (its in-degree never reaches 0 -> #CYCLE)
+            if (has_key of [formula_toks, d]) == 1 and (has_key of [seen, d]) == 0:
+                dict_set of [seen, d, 1]
+                dict_set of [indeg, addr, indeg[addr] + 1]
+                append of [dependents[d], addr]
+    local queue is []
+    for i in range of (len of pending):
+        if indeg[pending[i]] == 0:
+            append of [queue, pending[i]]
+    local done is {}
+    local qi is 0
+    # ONE reusable evaluator state (see _eval_st) — created after sheet.vals /
+    # sheet.err are reset, so it references the live dicts recalc fills in.
+    local st is {"toks": [], "i": 0, "vals": sheet.vals, "cells": sheet.cells, "err": "", "self_col": 0, "self_row": 0, "errs": sheet.err, "udfs": sheet.udfs}
+    loop while qi < (len of queue):
+        local addr is queue[qi]
+        qi is qi + 1
+        dict_set of [done, addr, 1]
+        local v is _eval_st of [st, formula_toks[addr], addr]
+        if st.err != "":
+            dict_set of [sheet.err, addr, st.err]
+            dict_set of [sheet.vals, addr, 0]
+        else:
+            dict_set of [sheet.vals, addr, v]
+        append of [sheet.order, addr]
+        local deps2 is dependents[addr]
+        for j in range of (len of deps2):
+            local dp is deps2[j]
+            dict_set of [indeg, dp, indeg[dp] - 1]
+            if indeg[dp] == 0:
+                append of [queue, dp]
+    # any formula never dequeued is on (or downstream of) a dependency cycle
+    for i in range of (len of pending):
+        if (has_key of [done, pending[i]]) == 0:
+            dict_set of [sheet.err, pending[i], "#CYCLE"]
+            dict_set of [sheet.vals, pending[i], 0]
     return sheet
 
 define get(sheet, addr) as:
