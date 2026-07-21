@@ -419,6 +419,93 @@ define _mid(s, start, k) as:
         m is n - st0
     return substr of [s, st0, m]
 
+# 0-based index of needle in hay at/after start0 (-1 if absent). cs=1 is
+# case-sensitive (FIND); cs=0 case-insensitive (SEARCH).
+define _find_sub(hay, needle, start0, cs) as:
+    local h is hay
+    local nd is needle
+    if cs == 0:
+        h is str_lower of hay
+        nd is str_lower of needle
+    local ln is len of nd
+    local lh is len of h
+    if ln == 0:
+        return start0
+    local i is start0
+    loop while (i + ln) <= lh:
+        if (substr of [h, i, ln]) == nd:
+            return i
+        i is i + 1
+    return 0 - 1
+
+# Title-case: first letter of each alpha run upper, the rest lower.
+define _proper(s) as:
+    local out is ""
+    local prev_alpha is 0
+    for i in range of (len of s):
+        local ch is char_at of [s, i]
+        if (_is_alpha of ch) == 1:
+            if prev_alpha == 0:
+                out is out + (str_upper of ch)
+            else:
+                out is out + (str_lower of ch)
+            prev_alpha is 1
+        else:
+            out is out + ch
+            prev_alpha is 0
+    return out
+
+# Replace occurrences of old with new. instance 0 = all; else only the nth.
+define _substitute(text, old, new, instance) as:
+    if (len of old) == 0:
+        return text
+    local out is ""
+    local i is 0
+    local count is 0
+    local lo is len of old
+    local lt is len of text
+    loop while i < lt:
+        if (i + lo) <= lt and (substr of [text, i, lo]) == old:
+            count is count + 1
+            if instance == 0 or count == instance:
+                out is out + new
+            else:
+                out is out + old
+            i is i + lo
+        else:
+            out is out + (char_at of [text, i])
+            i is i + 1
+    return out
+
+# Remove `count` chars starting at 1-based `start1`, splice `new` in.
+define _replace_str(text, start1, count, new) as:
+    local lt is len of text
+    local s0 is (floor of start1) - 1
+    if s0 < 0:
+        s0 is 0
+    if s0 > lt:
+        s0 is lt
+    local c is floor of count
+    if c < 0:
+        c is 0
+    local endpos is s0 + c
+    if endpos > lt:
+        endpos is lt
+    local pre is substr of [text, 0, s0]
+    local post is ""
+    if endpos < lt:
+        post is substr of [text, endpos, lt - endpos]
+    return pre + new + post
+
+# Repeat text n times.
+define _rept(text, n) as:
+    local out is ""
+    local k is floor of n
+    loop while k > 0:
+        out is out + text
+        k is k - 1
+    return out
+
 # ---- numeric functions (scalar) ------------------------------------
 
 define _sign(x) as:
@@ -923,7 +1010,7 @@ define _eval_factor(st) as:
                 return 0
             return lvec[lp - 1]
         # text functions: scalar comma-separated args (not ranges).
-        if fname == "LEN" or fname == "UPPER" or fname == "LOWER" or fname == "TRIM" or fname == "LEFT" or fname == "RIGHT" or fname == "MID" or fname == "CONCATENATE":
+        if fname == "LEN" or fname == "UPPER" or fname == "LOWER" or fname == "TRIM" or fname == "LEFT" or fname == "RIGHT" or fname == "MID" or fname == "CONCATENATE" or fname == "FIND" or fname == "SEARCH" or fname == "SUBSTITUTE" or fname == "REPLACE" or fname == "REPT" or fname == "PROPER" or fname == "EXACT" or fname == "CHAR" or fname == "CODE" or fname == "VALUE" or fname == "TEXTJOIN":
             local targs is []
             if (_peek of st) != null and (_peek of st).t != "rp":
                 append of [targs, _eval_cmp of st]
@@ -968,6 +1055,99 @@ define _eval_factor(st) as:
                     st.err is "#ERROR"
                     return ""
                 return _mid of [_to_text of targs[0], _to_num of [st, targs[1]], _to_num of [st, targs[2]]]
+            if fname == "FIND" or fname == "SEARCH":
+                if na < 2:
+                    st.err is "#ERROR"
+                    return 0
+                local start0 is 0
+                if na >= 3:
+                    start0 is (floor of (_to_num of [st, targs[2]])) - 1
+                    if start0 < 0:
+                        start0 is 0
+                local cs is 1
+                if fname == "SEARCH":
+                    cs is 0
+                local fpos is _find_sub of [_to_text of targs[1], _to_text of targs[0], start0, cs]
+                if fpos < 0:
+                    st.err is "#VALUE!"
+                    return 0
+                return fpos + 1
+            if fname == "SUBSTITUTE":
+                if na < 3:
+                    st.err is "#ERROR"
+                    return ""
+                local inst is 0
+                if na >= 4:
+                    inst is floor of (_to_num of [st, targs[3]])
+                return _substitute of [_to_text of targs[0], _to_text of targs[1], _to_text of targs[2], inst]
+            if fname == "REPLACE":
+                if na < 4:
+                    st.err is "#ERROR"
+                    return ""
+                return _replace_str of [_to_text of targs[0], _to_num of [st, targs[1]], _to_num of [st, targs[2]], _to_text of targs[3]]
+            if fname == "REPT":
+                if na < 2:
+                    st.err is "#ERROR"
+                    return ""
+                return _rept of [_to_text of targs[0], _to_num of [st, targs[1]]]
+            if fname == "PROPER":
+                if na < 1:
+                    st.err is "#ERROR"
+                    return ""
+                return _proper of (_to_text of targs[0])
+            if fname == "EXACT":
+                if na < 2:
+                    st.err is "#ERROR"
+                    return 0
+                if (_to_text of targs[0]) == (_to_text of targs[1]):
+                    return 1
+                return 0
+            if fname == "CHAR":
+                if na < 1:
+                    st.err is "#ERROR"
+                    return ""
+                return chr of (floor of (_to_num of [st, targs[0]]))
+            if fname == "CODE":
+                if na < 1:
+                    st.err is "#ERROR"
+                    return 0
+                local ct is _to_text of targs[0]
+                if (len of ct) == 0:
+                    st.err is "#VALUE!"
+                    return 0
+                return ord of (char_at of [ct, 0])
+            if fname == "VALUE":
+                if na < 1:
+                    st.err is "#ERROR"
+                    return 0
+                local vt is _to_text of targs[0]
+                if (_is_number of vt) == 1:
+                    return num of vt
+                st.err is "#VALUE!"
+                return 0
+            if fname == "TEXTJOIN":
+                if na < 3:
+                    st.err is "#ERROR"
+                    return ""
+                local delim is _to_text of targs[0]
+                local ignore is 0
+                if (_to_num of [st, targs[1]]) != 0:
+                    ignore is 1
+                local jout is ""
+                local first is 1
+                for j in range of na:
+                    if j >= 2:
+                        local piece is _to_text of targs[j]
+                        local keep is 1
+                        if ignore == 1 and (len of piece) == 0:
+                            keep is 0
+                        if keep == 1:
+                            if first == 1:
+                                jout is piece
+                                first is 0
+                            else:
+                                jout is jout + delim + piece
+                return jout
             # CONCATENATE: fold every arg to text
             local acc is ""
             for j in range of na:

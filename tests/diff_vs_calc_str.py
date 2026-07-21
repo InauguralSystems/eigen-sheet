@@ -53,6 +53,23 @@ CELLS = {
     "A19": '=IF("apple"<"banana","1st","2nd")',  # 1st
     "A20": '=IF(B1="HI","match","no")', # match (case-insensitive vs cell)
     "A21": '=UPPER(LEFT("hello",3))',   # HEL (nested)
+    # ---- text library extend (#5) ----
+    "C1": '=FIND("l","hello")',            # 3   (1-based, case-sensitive)
+    "C2": '=SEARCH("L","hello")',          # 3   (case-insensitive)
+    "C3": '=SUBSTITUTE("a-b-c","-","+")',  # a+b+c  (all)
+    "C4": '=SUBSTITUTE("a-b-c","-","+",2)',# a-b+c  (2nd only)
+    "C5": '=REPLACE("abcdef",2,3,"XY")',   # aXYef
+    "C6": '=REPT("ab",3)',                 # ababab
+    "C7": '=PROPER("hello world")',        # Hello World
+    "C8": '=IF(EXACT("aB","aB"),"y","n")', # y
+    "C9": '=IF(EXACT("ab","aB"),"y","n")', # n   (case-sensitive)
+    "C10": '=CHAR(65)',                    # A
+    "C11": '=CODE("A")',                   # 65
+    "C12": '=VALUE("42")',                 # 42
+    "C13": '=VALUE("3.5")+1',              # 4.5 (VALUE -> number)
+    "C14": '=TEXTJOIN("-",1,"a","","b")',  # a-b  (ignore empty)
+    "C15": '=TEXTJOIN(",",0,"a","","b")',  # a,,b (keep empty)
+    "C16": '=PROPER("mIxEd cASE 3rd")',    # Mixed Case 3Rd
 }
 
 
@@ -102,6 +119,17 @@ def eigs_values():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# OOXML "future functions" are stored _xlfn.-prefixed; openpyxl writes the bare
+# name and LibreOffice reads #NAME?. eigen-sheet gets the plain formula.
+_XLFN = ("TEXTJOIN",)
+
+
+def _ooxml(formula):
+    for name in _XLFN:
+        formula = re.sub(r"\b" + name + r"\(", "_xlfn." + name + "(", formula)
+    return formula
+
+
 def write_xlsx(path):
     import openpyxl
     wb = openpyxl.Workbook()
@@ -109,7 +137,7 @@ def write_xlsx(path):
     ws.title = "Sheet1"
     for a, raw in CELLS.items():
         if raw.startswith("="):
-            ws[a] = raw
+            ws[a] = _ooxml(raw)
         else:
             ws[a] = raw   # everything else is a text literal (incl "5")
     wb.calculation.fullCalcOnLoad = True

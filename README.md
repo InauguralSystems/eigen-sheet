@@ -109,7 +109,9 @@ not a silent `0` — and `IFERROR` / `IFNA` / `NA()` catch or raise them.
 (`"..."`, `""` escapes a quote), the `&` concatenation operator (looser than
 arithmetic, tighter than comparison, coercing numbers to text so `=5&"x"` is
 `5x`), the text functions `LEN` / `UPPER` / `LOWER` / `TRIM` / `LEFT` /
-`RIGHT` / `MID` / `CONCATENATE`, case-insensitive text comparison (`="a"="A"`
+`RIGHT` / `MID` / `CONCATENATE` / `FIND` / `SEARCH` / `SUBSTITUTE` /
+`REPLACE` / `REPT` / `PROPER` / `EXACT` / `TEXTJOIN` / `CHAR` / `CODE` /
+`VALUE`, case-insensitive text comparison (`="a"="A"`
 is true), and number↔text coercion (non-numeric text in arithmetic is
 `#VALUE!`). Text left-aligns, numbers right-align. Interactive: in-cell editing
 with a formula bar, click-drag range selection with a live Sum/Average/Count
