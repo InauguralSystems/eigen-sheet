@@ -858,6 +858,24 @@ define _eval_factor(st) as:
                 st.i is st.i + 1
             st.err is "#N/A"
             return 0
+        # TODAY() / NOW() — the wall clock as a spreadsheet serial. clock_unix
+        # (seconds since the Unix epoch, tape-captured upstream so recalc stays
+        # replayable — EigenScript #688) / 86400 + 25569 shifts to the
+        # LibreOffice epoch. Read ONCE per recalc and cached in st.now (sentinel
+        # < 0 = unread), so every TODAY()/NOW() in a pass agrees — Calc reads its
+        # clock once per recalc too — and a clock-free sheet never touches the
+        # nondeterministic builtin (no tape record). UTC-based; kept OUT of the
+        # Calc differential oracle (value changes per run), pinned instead in the
+        # record→replay model oracle. TODAY() floors to midnight; NOW() keeps the
+        # fractional day. (#34)
+        if fname == "TODAY" or fname == "NOW":
+            if (_peek of st) != null and (_peek of st).t == "rp":
+                st.i is st.i + 1
+            if st.now < 0:
+                st.now is (clock_unix of null) / 86400.0 + 25569
+            if fname == "TODAY":
+                return floor of st.now
+            return st.now
         if fname == "IFERROR" or fname == "IFNA":
             local pre is st.err
             st.err is ""
@@ -1812,7 +1830,7 @@ define recalc(sheet) as:
     local qi is 0
     # ONE reusable evaluator state (see _eval_st) — created after sheet.vals /
     # sheet.err are reset, so it references the live dicts recalc fills in.
-    local st is {"toks": [], "i": 0, "vals": sheet.vals, "cells": sheet.cells, "err": "", "self_col": 0, "self_row": 0, "errs": sheet.err, "udfs": sheet.udfs}
+    local st is {"toks": [], "i": 0, "vals": sheet.vals, "cells": sheet.cells, "err": "", "self_col": 0, "self_row": 0, "errs": sheet.err, "udfs": sheet.udfs, "now": 0 - 1}
     loop while qi < (len of queue):
         local addr is queue[qi]
         qi is qi + 1

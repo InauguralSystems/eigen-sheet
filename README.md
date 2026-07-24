@@ -124,7 +124,9 @@ branch is never evaluated), the logical functions `AND` / `OR` / `NOT` /
 `XLOOKUP` / `INDEX` / `MATCH` / `ROW` / `COLUMN` / `ROWS` / `COLUMNS`, the
 date & time functions `DATE` / `YEAR` / `MONTH` / `DAY` / `WEEKDAY` /
 `EDATE` / `EOMONTH` / `DATEVALUE` / `DATEDIF` / `TIME` / `HOUR` / `MINUTE` /
-`SECOND` (a serial-date model on LibreOffice's epoch),
+`SECOND` / `TODAY` / `NOW` (a serial-date model on LibreOffice's epoch; the
+`TODAY`/`NOW` clock read is snapshotted once per recalc and flows through
+EigenScript's trace tape, so a recorded recalc replays identically),
 named ranges / expressions (`define_name` — `=SUM(revenue)`, `=taxrate*100`;
 alpha names, resolved before recalc so dependencies are captured),
 dependency-ordered recalc (an O(V+E) in-degree topological pass; a reused
