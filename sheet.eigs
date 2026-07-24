@@ -891,6 +891,39 @@ define _crit_reduce(keys, vals, crit, agg) as:
         return total
     return {"total": total, "count": count}
 
+# ---- information / type predicates (#8) -------------------------------------
+# Introspect a cell by address: blank, errored, or holding a value.
+define _cell_kind(st, addr) as:
+    local raw is ""
+    if (has_key of [st.cells, addr]) == 1:
+        raw is st.cells[addr]
+    if (len of raw) == 0:
+        return {"k": "blank"}
+    if (has_key of [st.errs, addr]) == 1:
+        return {"k": "err", "e": st.errs[addr]}
+    return {"k": "val", "v": _cellval of [st, addr]}
+
+# Parse ONE argument for an IS*/N/T/TYPE predicate. A bare cell reference (A1, or
+# A1:B2 → top-left) comes back as {kind:"ref",addr} so the predicate sees
+# blank/error/kind directly; anything else is evaluated as a value expression,
+# capturing (and swallowing) any error as {kind:"val",v,err}.
+define _arg_ref_or_val(st) as:
+    local save is st.i
+    if (_peek of st) != null and (_peek of st).t == "cell":
+        local addr is (_peek of st).v
+        st.i is st.i + 1
+        if (_peek of st) != null and (_peek of st).t == "colon" and (st.i + 1) < (len of st.toks) and st.toks[st.i + 1].t == "cell":
+            st.i is st.i + 2
+        if (_peek of st) != null and ((_peek of st).t == "rp" or (_peek of st).t == "comma"):
+            return {"kind": "ref", "addr": addr}
+        st.i is save
+    local pre is st.err
+    st.err is ""
+    local v is _eval_cmp of st
+    local e is st.err
+    st.err is pre
+    return {"kind": "val", "v": v, "err": e}
+
 define _eval_factor(st) as:
     local tk is _peek of st
     if tk == null:
@@ -1232,6 +1265,141 @@ define _eval_factor(st) as:
                 st.err is "#REF!"
                 return 0
             return lvec[lp - 1]
+        # information / type predicates (#8) — introspect a cell's kind. A bare
+        # cell ref is inspected directly (so ISBLANK/ISNUMBER see blank vs 0 and
+        # errored cells), otherwise the arg is evaluated and its value/error
+        # inspected. All IS* predicates SWALLOW a referenced error (an error is
+        # not a number/text) — only the IS*ERR* trio reports it.
+        if fname == "ISBLANK" or fname == "ISNUMBER" or fname == "ISTEXT" or fname == "ISLOGICAL" or fname == "ISERROR" or fname == "ISERR" or fname == "ISNA" or fname == "N" or fname == "T" or fname == "TYPE":
+            local a is _arg_ref_or_val of st
+            if (_peek of st) != null and (_peek of st).t == "rp":
+                st.i is st.i + 1
+            local blank is 0
+            local iserr is 0
+            local emsg is ""
+            local hasval is 0
+            local val is 0
+            if a.kind == "ref":
+                local ck is _cell_kind of [st, a.addr]
+                if ck.k == "blank":
+                    blank is 1
+                elif ck.k == "err":
+                    iserr is 1
+                    emsg is ck.e
+                else:
+                    hasval is 1
+                    val is ck.v
+            else:
+                if a.err != "":
+                    iserr is 1
+                    emsg is a.err
+                else:
+                    hasval is 1
+                    val is a.v
+            local isnum is 0
+            local istext is 0
+            local islog is 0
+            if hasval == 1:
+                if (_is_bool of val) == 1:
+                    islog is 1
+                elif (type of val) == "num":
+                    isnum is 1
+                elif (type of val) == "str":
+                    istext is 1
+            if fname == "ISBLANK":
+                return _mk_bool of blank
+            if fname == "ISNUMBER":
+                return _mk_bool of isnum
+            if fname == "ISTEXT":
+                return _mk_bool of istext
+            if fname == "ISLOGICAL":
+                return _mk_bool of islog
+            if fname == "ISERROR":
+                return _mk_bool of iserr
+            if fname == "ISERR":
+                if iserr == 1 and emsg != "#N/A":
+                    return _mk_bool of 1
+                return _mk_bool of 0
+            if fname == "ISNA":
+                if iserr == 1 and emsg == "#N/A":
+                    return _mk_bool of 1
+                return _mk_bool of 0
+            if fname == "TYPE":
+                # 1 number, 2 text, 4 logical, 16 error; a blank counts as 1
+                if iserr == 1:
+                    return 16
+                if istext == 1:
+                    return 2
+                if islog == 1:
+                    return 4
+                return 1
+            if fname == "N":
+                # number->itself, logical->1/0, else 0; an error propagates
+                if iserr == 1:
+                    st.err is emsg
+                    return 0
+                if isnum == 1:
+                    return val
+                if islog == 1:
+                    return val.b
+                return 0
+            # T: text->itself, else "" (an error propagates)
+            if iserr == 1:
+                st.err is emsg
+                return 0
+            if istext == 1:
+                return val
+            return ""
+        # ISEVEN / ISODD — parity of a number (truncated toward zero, Calc's rule)
+        if fname == "ISEVEN" or fname == "ISODD":
+            local ev is _to_num of [st, _eval_cmp of st]
+            if (_peek of st) != null and (_peek of st).t == "rp":
+                st.i is st.i + 1
+            local iv is floor of ev
+            if ev < 0:
+                iv is 0 - (floor of (0 - ev))
+            local par is iv % 2
+            if par < 0:
+                par is 0 - par
+            if fname == "ISEVEN":
+                return _mk_bool of (1 - par)
+            return _mk_bool of par
+        # CELL(info, [ref]) — a subset of Calc's cell introspection: row, col,
+        # address, contents, type ("b" blank / "l" label / "v" value). Format/
+        # color codes are out of scope (v1).
+        if fname == "CELL":
+            local info is str_lower of (_to_text of (_eval_cmp of st))
+            local caddr is _cell_addr of [st.self_col, st.self_row]
+            if (_peek of st) != null and (_peek of st).t == "comma":
+                st.i is st.i + 1
+                if (_peek of st) != null and (_peek of st).t == "cell":
+                    caddr is (_peek of st).v
+                    st.i is st.i + 1
+                    if (_peek of st) != null and (_peek of st).t == "colon" and (st.i + 1) < (len of st.toks) and st.toks[st.i + 1].t == "cell":
+                        st.i is st.i + 2
+            if (_peek of st) != null and (_peek of st).t == "rp":
+                st.i is st.i + 1
+            local cp is _addr_parts of caddr
+            if info == "row":
+                return cp.row
+            if info == "col":
+                return _col_to_num of cp.col
+            if info == "address":
+                return "$" + cp.col + "$" + (str of cp.row)
+            if info == "contents":
+                local ck2 is _cell_kind of [st, caddr]
+                if ck2.k == "val":
+                    return ck2.v
+                return 0
+            if info == "type":
+                local ck3 is _cell_kind of [st, caddr]
+                if ck3.k == "blank":
+                    return "b"
+                if ck3.k == "val" and (type of ck3.v) == "str":
+                    return "l"
+                return "v"
+            st.err is "#VALUE!"
+            return 0
         # criterion & mixed-arg functions — all use the scalar-or-range arg
         # parser (#32). Criterion family: a criteria range + a criterion (+ an
         # optional/leading value range); the *IFS variants take parallel
