@@ -38,7 +38,7 @@ print of (sheet.get of [s, "A4"])           # -> 16
 
 Importable surface: `new_sheet`, `set_cell`, `define_name`, `set_format`,
 `register_udf`, `set_style`, `set_validation` / `is_valid`, `recalc`, `get`, `display`,
-`save` / `load`, `to_csv` / `from_csv`, `to_xlsx`, `sort_range`,
+`save` / `load`, `to_csv` / `from_csv`, `to_xlsx` / `from_xlsx`, `sort_range`,
 `find_cells` / `replace_cells`, `filter_rows`, `pivot`, `goal_seek`, `register_udf`, and
 `draw_grid` (the gfx front-end;
 `run` opens a window but is never called on import, so `import sheet` is
@@ -148,10 +148,13 @@ is true), and number↔text coercion (non-numeric text in arithmetic is
 format — the whole sheet, incl. named ranges and number formats, as JSON; the
 raw cell contents *are* the replayable edit stream, so loading replays them and
 recalc rebuilds the grid), `to_csv` / `from_csv`
-(RFC-4180, with quoting and round-trip) and `to_xlsx` (writes a real
+(RFC-4180, with quoting and round-trip), `to_xlsx` (writes a real
 `.xlsx` — a stored-ZIP of OOXML built by hand with a hand-rolled CRC32, since
 EigenScript has byte I/O and bitwise ops but no zip library; opens in Excel
-and LibreOffice). **Data:** `sort_range` (stable sort
+and LibreOffice) and `from_xlsx` (reads a real `.xlsx` back — walks the ZIP
+central directory, `inflate`s DEFLATE-compressed parts via EigenScript's zlib
+builtin, resolves the shared-string table, and imports formula cells as live
+formulas so the sheet stays a sheet). **Data:** `sort_range` (stable sort
 of a range by a key column, ascending/descending, numbers before text),
 `find_cells` / `replace_cells` (literal, case-sensitive or not, over raw
 cell content), `filter_rows` (select the data rows of a range matching
