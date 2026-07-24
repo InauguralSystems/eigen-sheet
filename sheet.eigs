@@ -2613,9 +2613,10 @@ define from_csv(sheet, text, c0, r0) as:
 
 # ---- xlsx export (stored ZIP of OOXML, no compression) -------------
 # An .xlsx is a ZIP of XML parts. EigenScript has byte I/O (write_bytes over a
-# list of 0-255) and bitwise ops (for CRC32) but no deflate — a valid ZIP may
-# use STORED (uncompressed) entries, which LibreOffice/Excel open fine. So we
-# assemble the ZIP by hand. (Reading real .xlsx needs inflate — an upstream gap.)
+# list of 0-255) and bitwise ops (for CRC32), so we assemble the ZIP by hand
+# using STORED (uncompressed) entries, which LibreOffice/Excel open fine.
+# (Reading real .xlsx — which DEFLATE their entries — is from_xlsx below, via the
+# upstream `inflate` builtin; EigenScript #693.)
 
 define _crc32(bytes) as:
     local crc is 4294967295
@@ -2774,6 +2775,241 @@ define to_xlsx(sheet, path, c0, r0, c1, r1) as:
     append of [entries, {"name": "xl/worksheets/sheet1.xml", "data": _sbytes of (_sheet_xml of [sheet, clo, rlo, chi, rhi])}]
     write_bytes of [path, _zip_store of entries]
     return path
+
+# ---- xlsx import (read a real .xlsx: ZIP + DEFLATE via upstream inflate) -----
+# The dual of to_xlsx. A real Excel/LibreOffice .xlsx DEFLATE-compresses its
+# entries and stores text in a shared-string table, so importing needs `inflate`
+# (EigenScript #693, built with `make zlib`) and a sharedStrings pass — both
+# handled here. We walk the ZIP central directory (robust to streaming/data-
+# descriptor entries), then scan the worksheet XML for cells. Formula cells
+# import as LIVE formulas (eigen-sheet recomputes them), so an imported workbook
+# stays a workbook; a cell with no <f> imports its stored value. Text is decoded
+# as Latin-1/ASCII per byte (OOXML markup is ASCII; non-ASCII cell text is a
+# known v1 limitation).
+
+# little-endian integer readers over a byte list
+define _rd16(b, o) as:
+    return b[o] + b[o + 1] * 256
+
+define _rd32(b, o) as:
+    return b[o] + b[o + 1] * 256 + b[o + 2] * 65536 + b[o + 3] * 16777216
+
+# a byte list -> a string (one char per byte; XML/markup is ASCII)
+define _btext(b) as:
+    local out is ""
+    for i in range of (len of b):
+        out is out + (chr of b[i])
+    return out
+
+# first index of `needle` in `hay` at or after `start`, or -1
+define _sfind(hay, needle, start) as:
+    local hl is len of hay
+    local nl is len of needle
+    local i is start
+    loop while i <= hl - nl:
+        if (substr of [hay, i, nl]) == needle:
+            return i
+        i is i + 1
+    return 0 - 1
+
+# reverse of _xml_esc: turn &amp;/&lt;/&gt;/&quot;/&apos; back into characters
+define _xml_unesc(s) as:
+    local out is ""
+    local i is 0
+    local n is len of s
+    loop while i < n:
+        local ch is char_at of [s, i]
+        if ch == "&":
+            local rem is n - i
+            if rem >= 5 and (substr of [s, i, 5]) == "&amp;":
+                out is out + "&"
+                i is i + 5
+            elif rem >= 4 and (substr of [s, i, 4]) == "&lt;":
+                out is out + "<"
+                i is i + 4
+            elif rem >= 4 and (substr of [s, i, 4]) == "&gt;":
+                out is out + ">"
+                i is i + 4
+            elif rem >= 6 and (substr of [s, i, 6]) == "&quot;":
+                out is out + "\""
+                i is i + 6
+            elif rem >= 6 and (substr of [s, i, 6]) == "&apos;":
+                out is out + "'"
+                i is i + 6
+            else:
+                out is out + "&"
+                i is i + 1
+        else:
+            out is out + ch
+            i is i + 1
+    return out
+
+# unzip a .xlsx byte list -> {entry name: data byte list}. Walks the End-Of-
+# Central-Directory record + central directory (correct sizes even when the
+# local header used a data descriptor); inflates method-8 entries, passes
+# method-0 (stored) through unchanged.
+define _unzip(b) as:
+    local n is len of b
+    local eocd is 0 - 1
+    local i is n - 22
+    loop while i >= 0 and eocd < 0:
+        if b[i] == 80 and b[i + 1] == 75 and b[i + 2] == 5 and b[i + 3] == 6:
+            eocd is i
+        else:
+            i is i - 1
+    local out is {}
+    if eocd < 0:
+        return out
+    local ne is _rd16 of [b, eocd + 10]
+    local p is _rd32 of [b, eocd + 16]
+    for e in range of ne:
+        # central directory record: PK\01\02 at p
+        local method is _rd16 of [b, p + 10]
+        local csize is _rd32 of [b, p + 20]
+        local nlen is _rd16 of [b, p + 28]
+        local elen is _rd16 of [b, p + 30]
+        local clen is _rd16 of [b, p + 32]
+        local lho is _rd32 of [b, p + 42]
+        local name is _btext of (_slice of [b, p + 46, nlen])
+        # local file header at lho: fixed 30 bytes + its own name & extra fields
+        local lnlen is _rd16 of [b, lho + 26]
+        local lelen is _rd16 of [b, lho + 28]
+        local dstart is lho + 30 + lnlen + lelen
+        local comp is _slice of [b, dstart, csize]
+        local data is comp
+        if method == 8:
+            data is inflate of comp
+        dict_set of [out, name, data]
+        p is p + 46 + nlen + elen + clen
+    return out
+
+# copy n bytes of list b starting at o
+define _slice(b, o, n) as:
+    local out is []
+    for i in range of n:
+        append of [out, b[o + i]]
+    return out
+
+# sharedStrings.xml -> ordered list of strings. Each <si> is one entry; rich-text
+# runs (<r><t>..</t></r>) are concatenated into a single string.
+define _sst_parse(xml) as:
+    local out is []
+    local p is _sfind of [xml, "<si", 0]
+    loop while p >= 0:
+        local siend is _sfind of [xml, "</si>", p]
+        if siend < 0:
+            siend is len of xml
+        local s is ""
+        local tp is _sfind of [xml, "<t", p]
+        loop while tp >= 0 and tp < siend:
+            local gt is _sfind of [xml, ">", tp]
+            if gt > 0 and (char_at of [xml, gt - 1]) == "/":
+                tp is _sfind of [xml, "<t", gt]
+            else:
+                local tend is _sfind of [xml, "</t>", gt]
+                s is s + (_xml_unesc of (substr of [xml, gt + 1, tend - gt - 1]))
+                tp is _sfind of [xml, "<t", tend]
+        append of [out, s]
+        p is _sfind of [xml, "<si", siend]
+    return out
+
+# value of attribute `name` in an opening tag string, or "" if absent
+define _attr(tag, name) as:
+    local key is name + "=\""
+    local i is _sfind of [tag, key, 0]
+    if i < 0:
+        return ""
+    local start is i + (len of key)
+    local endq is _sfind of [tag, "\"", start]
+    return substr of [tag, start, endq - start]
+
+# unescaped text of the first <tag ...>..</tag> inside `inner`, or null if none
+define _tag_text(inner, tag) as:
+    local i is _sfind of [inner, "<" + tag, 0]
+    if i < 0:
+        return null
+    local gt is _sfind of [inner, ">", i]
+    if (char_at of [inner, gt - 1]) == "/":
+        return ""
+    local endt is _sfind of [inner, "</" + tag + ">", gt]
+    return _xml_unesc of (substr of [inner, gt + 1, endt - gt - 1])
+
+# the raw cell content (as set_cell would receive it) for one <c> body, given
+# its type attribute `ct` and the shared-string table `sst`. null = skip.
+# A formula cell imports as a LIVE formula ("=" + <f>) so the sheet stays a sheet
+# — eigen-sheet recomputes it, which also recovers files (like openpyxl's) that
+# write <f> with no cached <v>. Falls back to the cached value when there is no
+# <f> (e.g. eigen-sheet's own values-only export). Shared/array-formula
+# followers (an <f> that is empty, carrying only a si= reference) fall through to
+# their cached value — a known v1 limitation.
+define _cell_raw(inner, ct, sst) as:
+    local f is _tag_text of [inner, "f"]
+    if f != null and f != "":
+        return "=" + f
+    if ct == "inlineStr":
+        local t is _tag_text of [inner, "t"]
+        if t == null:
+            return ""
+        return t
+    local v is _tag_text of [inner, "v"]
+    if v == null:
+        return null
+    if ct == "s":
+        local idx is floor of (num of v)
+        if idx >= 0 and idx < (len of sst):
+            return sst[idx]
+        return ""
+    if ct == "b":
+        if v == "1":
+            return "TRUE"
+        return "FALSE"
+    # "str" (cached formula string), "e" (error text), or a number: use v as-is
+    return v
+
+# worksheet XML -> list of {addr, raw}. Skips empty (self-closing) cells.
+define _ws_cells(xml, sst) as:
+    local out is []
+    local p is _sfind of [xml, "<c ", 0]
+    loop while p >= 0:
+        local gt is _sfind of [xml, ">", p]
+        local tag is substr of [xml, p, gt - p + 1]
+        local addr is _attr of [tag, "r"]
+        local ct is _attr of [tag, "t"]
+        if (char_at of [xml, gt - 1]) == "/":
+            p is _sfind of [xml, "<c ", gt]
+        else:
+            local cend is _sfind of [xml, "</c>", gt]
+            local inner is substr of [xml, gt + 1, cend - gt - 1]
+            local raw is _cell_raw of [inner, ct, sst]
+            if addr != "" and raw != null:
+                append of [out, {"addr": addr, "raw": raw}]
+            p is _sfind of [xml, "<c ", cend]
+    return out
+
+# Read `path` (a real .xlsx) into `sheet`, then recalc. Handles DEFLATE-
+# compressed entries and shared strings; formula cells arrive as their cached
+# values. Returns the sheet.
+define from_xlsx(sheet, path) as:
+    local raw is read_bytes of path
+    local files is _unzip of raw
+    local sst is []
+    if (has_key of [files, "xl/sharedStrings.xml"]) == 1:
+        sst is _sst_parse of (_btext of files["xl/sharedStrings.xml"])
+    local wsname is ""
+    if (has_key of [files, "xl/worksheets/sheet1.xml"]) == 1:
+        wsname is "xl/worksheets/sheet1.xml"
+    else:
+        local ks is keys of files
+        for i in range of (len of ks):
+            if wsname == "" and (starts_with of [ks[i], "xl/worksheets/"]) == 1:
+                wsname is ks[i]
+    if wsname == "":
+        return sheet
+    local cells is _ws_cells of [(_btext of files[wsname]), sst]
+    for i in range of (len of cells):
+        set_cell of [sheet, cells[i].addr, cells[i].raw]
+    recalc of sheet
+    return sheet
 
 # Keyboard scancode name (+ shift) -> the character it types, for cell entry.
 _KEYSHIFT is {"1": "!", "2": "@", "3": "#", "4": "$", "5": "%", "6": "^", "7": "&", "8": "*", "9": "(", "0": ")", "-": "_", "=": "+", ";": ":", "'": "\"", ",": "<", ".": ">", "/": "?", "[": "{", "]": "}", "\\": "|", "`": "~"}

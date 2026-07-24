@@ -47,14 +47,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install LibreOffice Calc + openpyxl
+      - name: Install LibreOffice Calc + openpyxl + zlib headers
         run: |
           sudo apt-get update
-          sudo apt-get install -y libreoffice-calc python3-openpyxl
-      - name: Build EigenScript from source
+          sudo apt-get install -y libreoffice-calc python3-openpyxl zlib1g-dev
+      - name: Build EigenScript from source (with zlib for xlsx import inflate)
         run: |
           git clone --depth 1 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"
-          make -C "$RUNNER_TEMP/eigs" -s
+          make -C "$RUNNER_TEMP/eigs" -s zlib
           echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
       - name: Differential oracle vs LibreOffice Calc (numeric)
         run: |
@@ -70,7 +70,7 @@ jobs:
           if [ $rc -eq 2 ]; then echo "string oracle skipped in CI — that's a gap"; exit 1; fi
           exit $rc
 
-      - name: xlsx export oracle (openpyxl + LibreOffice read eigen's .xlsx)
+      - name: xlsx export + import oracle (openpyxl/LibreOffice; from_xlsx DEFLATE + shared strings)
         run: |
           python3 tests/diff_vs_xlsx.py; rc=$?
           if [ $rc -eq 2 ]; then echo "xlsx oracle skipped in CI — that's a gap"; exit 1; fi
