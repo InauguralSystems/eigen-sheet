@@ -200,6 +200,34 @@ CELLS = {
     "AW8": "=CELL(\"row\",A3)",          # 3
     "AW9": "=CELL(\"col\",I1)",          # 9   (col I)
     "AW10": "=CELL(\"contents\",A1)",    # 5
+    # ---- financial library (#7) ----
+    # closed-form (exact vs LibreOffice); a 25000 loan at 5%/yr over 60 months.
+    "AX1": "=PMT(0.05/12,60,25000)",         # -471.78
+    "AX2": "=FV(0.05/12,60,-471.78,25000)",  # ~0 (loan retired)
+    "AX3": "=PV(0.05/12,60,-471.78)",        # ~25000
+    "AX4": "=NPER(0.05/12,-471.78,25000)",   # ~60
+    "AX5": "=NPV(0.1,200,300,400)",          # 730.28
+    "AX6": "=IPMT(0.05/12,1,60,25000)",      # -104.17 (month-1 interest)
+    "AX7": "=PPMT(0.05/12,1,60,25000)",      # -367.61 (month-1 principal)
+    "AX8": "=PMT(0.05/12,60,25000,0,1)",     # -469.82 (payments at period start)
+    "AX9": "=FV(0.06/12,120,-200)",          # 32775.87 ($200/mo, 10y, 6%)
+    "AX10": "=IPMT(0.05/12,12,60,25000)",    # a later-period interest split
+    "AX11": "=PPMT(0.05/12,12,60,25000)",
+    "AX12": "=PV(0.08,10,-1000)",            # annuity PV
+    "AX13": "=NPER(0.08,-1000,8000)",        # periods to amortize 8000
+    "AZ1": "-1000", "AZ2": "300", "AZ3": "400", "AZ4": "500", "AZ5": "600",
+    "AX14": "=NPV(0.1,AZ2:AZ5)",             # NPV over a RANGE
+    # iterative (Newton) — pinned with a looser tolerance (see TOL).
+    "AY1": "=RATE(60,-471.78,25000)",        # ~0.004167 (monthly)
+    "AY2": "=IRR(AZ1:AZ5)",                  # internal rate of return
+}
+
+# Per-cell comparison tolerance (default 1e-9). The iterative financial
+# functions (RATE/IRR) converge to their own epsilon in each engine, so pin a
+# looser — but still tight — bound rather than demanding bit-equality.
+TOL = {
+    "AY1": 1e-6,
+    "AY2": 1e-6,
 }
 
 # Named ranges/expressions: name -> definition (a range, cell, or constant).
@@ -322,7 +350,13 @@ def calc_values():
             if not raw.startswith("="):
                 continue
             col, row = addr_parts(a)
-            out[a] = float(grid[row - 1][col_to_num(col) - 1])
+            cell = grid[row - 1][col_to_num(col) - 1]
+            # LibreOffice auto-formats some results (e.g. RATE) as a percentage
+            # string in CSV ("0.4166%"); normalize back to the plain fraction.
+            if cell.endswith("%"):
+                out[a] = float(cell[:-1]) / 100.0
+            else:
+                out[a] = float(cell)
         return out
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -342,7 +376,7 @@ def main():
         if not CELLS[a].startswith("="):
             continue
         m, r = mine.get(a), ref.get(a)
-        if m is None or r is None or abs(m - r) > 1e-9:
+        if m is None or r is None or abs(m - r) > TOL.get(a, 1e-9):
             failures += 1
             print("FAIL %-4s eigen-sheet=%r  libreoffice=%r  (%s)" % (a, m, r, CELLS[a]))
         else:

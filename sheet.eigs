@@ -891,6 +891,92 @@ define _crit_reduce(keys, vals, crit, agg) as:
         return total
     return {"total": total, "count": count}
 
+# ---- financial library (#7) -------------------------------------------------
+# Standard annuity math (Excel/Calc sign convention: money you receive is
+# positive, money you pay is negative). type 0 = payment at period end, 1 = start.
+define _fin_pmt(rate, nper, pv, fv, typ) as:
+    if rate == 0:
+        return 0 - (pv + fv) / nper
+    local p is pow of [1 + rate, nper]
+    return 0 - (pv * p + fv) * rate / ((p - 1) * (1 + rate * typ))
+
+define _fin_fv(rate, nper, pmt, pv, typ) as:
+    if rate == 0:
+        return 0 - (pv + pmt * nper)
+    local p is pow of [1 + rate, nper]
+    return 0 - (pv * p + pmt * (1 + rate * typ) * (p - 1) / rate)
+
+define _fin_pv(rate, nper, pmt, fv, typ) as:
+    if rate == 0:
+        return 0 - (fv + pmt * nper)
+    local p is pow of [1 + rate, nper]
+    return 0 - (fv + pmt * (1 + rate * typ) * (p - 1) / rate) / p
+
+define _fin_nper(rate, pmt, pv, fv, typ) as:
+    if rate == 0:
+        return 0 - (pv + fv) / pmt
+    local a is pmt * (1 + rate * typ)
+    return (log of ((a - fv * rate) / (a + pv * rate))) / (log of (1 + rate))
+
+# NPV of cashflows discounted from period 1 (Calc's NPV convention).
+define _fin_npv(rate, cf) as:
+    local acc is 0
+    for i in range of (len of cf):
+        acc is acc + cf[i] / (pow of [1 + rate, i + 1])
+    return acc
+
+# f(rate) for RATE's root-find: 0 = pv·(1+r)^n + pmt·(1+r·type)·((1+r)^n-1)/r + fv
+define _rate_f(r, nper, pmt, pv, fv, typ) as:
+    if r == 0:
+        return pv + pmt * nper + fv
+    local p is pow of [1 + r, nper]
+    return pv * p + pmt * (1 + r * typ) * (p - 1) / r + fv
+
+# RATE via Newton with a numerical derivative. Returns {ok, r}.
+define _fin_rate(nper, pmt, pv, fv, typ, guess) as:
+    local r is guess
+    local iter is 0
+    loop while iter < 128:
+        local f is _rate_f of [r, nper, pmt, pv, fv, typ]
+        local h is 0.000001
+        local fp is ((_rate_f of [r + h, nper, pmt, pv, fv, typ]) - f) / h
+        if fp == 0:
+            return {"ok": 0}
+        local rn is r - f / fp
+        local diff is rn - r
+        if diff < 0:
+            diff is 0 - diff
+        r is rn
+        if diff < 0.00000001:
+            return {"ok": 1, "r": r}
+        iter is iter + 1
+    return {"ok": 0}
+
+# IRR: rate where NPV (period 0 = first cashflow) is 0. Newton from `guess`;
+# returns {ok, r}. ok=0 on non-convergence (caller raises #NUM!).
+define _fin_irr(cf, guess) as:
+    local r is guess
+    local iter is 0
+    local n is len of cf
+    loop while iter < 128:
+        local npv is 0
+        local d is 0
+        for i in range of n:
+            npv is npv + cf[i] / (pow of [1 + r, i])
+            if i > 0:
+                d is d - i * cf[i] / (pow of [1 + r, i + 1])
+        if d == 0:
+            return {"ok": 0}
+        local rn is r - npv / d
+        local diff is rn - r
+        if diff < 0:
+            diff is 0 - diff
+        r is rn
+        if diff < 0.0000001:
+            return {"ok": 1, "r": r}
+        iter is iter + 1
+    return {"ok": 0}
+
 # ---- information / type predicates (#8) -------------------------------------
 # Introspect a cell by address: blank, errored, or holding a value.
 define _cell_kind(st, addr) as:
@@ -1265,6 +1351,89 @@ define _eval_factor(st) as:
                 st.err is "#REF!"
                 return 0
             return lvec[lp - 1]
+        # financial library (#7) — annuity math + iterative IRR/RATE. All use the
+        # scalar-or-range arg parser; NPV/IRR take a cashflow range (or scalars),
+        # the rest take scalar args with fv/type defaulting to 0.
+        if fname == "PMT" or fname == "FV" or fname == "PV" or fname == "NPER" or fname == "NPV" or fname == "IRR" or fname == "RATE" or fname == "IPMT" or fname == "PPMT":
+            local fa is _parse_args2 of st
+            local nfa is len of fa
+            # helper: the k-th arg as a number (default d when absent)
+            if fname == "NPV":
+                local rate is _to_num of [st, _arg_scalar of [st, fa[0]]]
+                local cf is []
+                local ai is 1
+                loop while ai < nfa:
+                    if fa[ai].r == 1:
+                        local rv is _range_values of [st, fa[ai]]
+                        for j in range of (len of rv):
+                            append of [cf, _numor0 of rv[j]]
+                    else:
+                        append of [cf, _to_num of [st, fa[ai].v]]
+                    ai is ai + 1
+                return _fin_npv of [rate, cf]
+            if fname == "IRR":
+                local icf is _num_only of (_range_values of [st, fa[0]])
+                local guess is 0.1
+                if nfa >= 2:
+                    guess is _to_num of [st, _arg_scalar of [st, fa[1]]]
+                local ir is _fin_irr of [icf, guess]
+                if ir.ok == 0:
+                    st.err is "#NUM!"
+                    return 0
+                return ir.r
+            # scalar-arg functions: read positional numbers with defaults
+            local r0 is _to_num of [st, _arg_scalar of [st, fa[0]]]
+            local r1 is 0
+            if nfa >= 2:
+                r1 is _to_num of [st, _arg_scalar of [st, fa[1]]]
+            local r2 is 0
+            if nfa >= 3:
+                r2 is _to_num of [st, _arg_scalar of [st, fa[2]]]
+            local r3 is 0
+            if nfa >= 4:
+                r3 is _to_num of [st, _arg_scalar of [st, fa[3]]]
+            local r4 is 0
+            if nfa >= 5:
+                r4 is _to_num of [st, _arg_scalar of [st, fa[4]]]
+            if fname == "PMT":
+                return _fin_pmt of [r0, r1, r2, r3, r4]
+            if fname == "FV":
+                return _fin_fv of [r0, r1, r2, r3, r4]
+            if fname == "PV":
+                return _fin_pv of [r0, r1, r2, r3, r4]
+            if fname == "NPER":
+                return _fin_nper of [r0, r1, r2, r3, r4]
+            if fname == "RATE":
+                # RATE(nper, pmt, pv, [fv], [type], [guess])
+                local rg is 0.1
+                if nfa >= 6:
+                    rg is _to_num of [st, _arg_scalar of [st, fa[5]]]
+                local rr is _fin_rate of [r0, r1, r2, r3, r4, rg]
+                if rr.ok == 0:
+                    st.err is "#NUM!"
+                    return 0
+                return rr.r
+            # IPMT / PPMT(rate, per, nper, pv, [fv], [type]) — interest & principal
+            # split of the period-`per` payment (numpy-financial formulation).
+            local frate is r0
+            local fper is r1
+            local fnper is r2
+            local fpv is r3
+            local ffv is 0
+            if nfa >= 5:
+                ffv is _to_num of [st, _arg_scalar of [st, fa[4]]]
+            local ftyp is 0
+            if nfa >= 6:
+                ftyp is _to_num of [st, _arg_scalar of [st, fa[5]]]
+            local tot is _fin_pmt of [frate, fnper, fpv, ffv, ftyp]
+            local ip is (_fin_fv of [frate, fper - 1, tot, fpv, ftyp]) * frate
+            if ftyp == 1:
+                ip is ip / (1 + frate)
+                if fper == 1:
+                    ip is 0
+            if fname == "IPMT":
+                return ip
+            return tot - ip
         # information / type predicates (#8) — introspect a cell's kind. A bare
         # cell ref is inspected directly (so ISBLANK/ISNUMBER see blank vs 0 and
         # errored cells), otherwise the arg is evaluated and its value/error
