@@ -97,6 +97,30 @@ CELLS = {
     "E12": '=TEXT(DATE(2020,3,9),"D/M/YYYY")',    # 9/3/2020
     "E13": '=TEXT(0,"0.00")',              # 0.00
     "E14": '=TEXT(2.5,"0")',               # 3 (half away)
+    # ---- information predicates with TEXT results (#8) ----
+    # (B1="hi" text, B3="5" numeric-looking text, B4="World".)
+    "F1": '=T(B1)',                        # hi   (text -> itself)
+    "F2": '=T(5)',                         # ""   (a number -> empty)
+    "F3": '=CELL("type",B1)',              # l    (label/text)
+    "F4": '=CELL("type",Z9)',              # b    (blank)
+    # boolean-returning IS*/ISEVEN/ISODD — display TRUE/FALSE, so tested as text.
+    # Number-requiring predicates use numeric LITERALS (the string oracle stores
+    # every input cell as text, so a cell holding "42" is text here). B1="hi"
+    # text, Z9 blank.
+    "F5": "=ISNUMBER(42)",                 # TRUE
+    "F6": "=ISNUMBER(B1)",                 # FALSE (text)
+    "F7": "=ISTEXT(B1)",                   # TRUE
+    "F8": "=ISBLANK(Z9)",                  # TRUE
+    "F9": "=ISBLANK(B1)",                  # FALSE (text is not blank)
+    "F10": "=ISLOGICAL(1>0)",              # TRUE
+    "F11": "=ISERROR(1/0)",                # TRUE
+    "F12": "=ISERR(1/0)",                  # TRUE  (not #N/A)
+    "F13": "=ISNA(NA())",                  # TRUE
+    "F14": "=ISNA(1/0)",                   # FALSE (#DIV/0! not #N/A)
+    "F15": "=ISERR(NA())",                 # FALSE (#N/A excluded)
+    "F16": "=ISNUMBER(1/0)",               # FALSE (error swallowed)
+    "F17": "=ISEVEN(42)",                  # TRUE
+    "F18": "=ISODD(7)",                    # TRUE
 }
 
 

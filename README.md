@@ -130,6 +130,10 @@ date & time functions `DATE` / `YEAR` / `MONTH` / `DAY` / `WEEKDAY` /
 `SECOND` / `TODAY` / `NOW` (a serial-date model on LibreOffice's epoch; the
 `TODAY`/`NOW` clock read is snapshotted once per recalc and flows through
 EigenScript's trace tape, so a recorded recalc replays identically),
+the information / type predicates `ISBLANK` / `ISNUMBER` / `ISTEXT` /
+`ISLOGICAL` / `ISERROR` / `ISERR` / `ISNA` / `N` / `T` / `TYPE` / `CELL` /
+`ISEVEN` / `ISODD` / `NA` (introspect a cell's kind — a natural fit for the
+observer framing, a predicate over an observed cell),
 named ranges / expressions (`define_name` — `=SUM(revenue)`, `=taxrate*100`;
 alpha names, resolved before recalc so dependencies are captured),
 dependency-ordered recalc (an O(V+E) in-degree topological pass; a reused

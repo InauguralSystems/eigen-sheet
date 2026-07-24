@@ -185,6 +185,21 @@ CELLS = {
     "AU2": '=SUMIFS(AS1:AS6,AQ1:AQ6,">=12")',              # 130  (single-crit IFS)
     "AU3": "=PERCENTILE(AQ1:AQ6,0.25)",                     # 5.75 (lower quartile)
     "AU4": '=AVERAGEIF(AR1:AR6,"cherry",AS1:AS6)',          # 40   (single match)
+    # ---- information / type predicates (#8), NUMERIC results ----
+    # (boolean-returning predicates — IS*/ISEVEN/ISODD — display TRUE/FALSE and
+    # so live in the string oracle diff_vs_calc_str.py. A1=5, A2=3, A3=8, A4=-2
+    # numbers; I1="note" text.)
+    "AW1": "=N(A1)",                     # 5
+    "AW2": "=N(I1)",                     # 0   (text -> 0)
+    "AW3": "=N(A1>0)",                   # 1   (TRUE -> 1)
+    "AW4": "=TYPE(A1)",                  # 1   (number)
+    "AW5": "=TYPE(I1)",                  # 2   (text)
+    # TYPE of a logical is pinned in the model oracle: eigen returns 4 (Excel), but
+    # LibreOffice reports a comparison result as a number, so it can't oracle it.
+    "AW7": "=TYPE(1/0)",                 # 16  (error)
+    "AW8": "=CELL(\"row\",A3)",          # 3
+    "AW9": "=CELL(\"col\",I1)",          # 9   (col I)
+    "AW10": "=CELL(\"contents\",A1)",    # 5
 }
 
 # Named ranges/expressions: name -> definition (a range, cell, or constant).
