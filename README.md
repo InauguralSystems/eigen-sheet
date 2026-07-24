@@ -120,7 +120,9 @@ branch is never evaluated), the logical functions `AND` / `OR` / `NOT` /
 `ABS` / `INT` / `TRUNC` / `ROUND` / `ROUNDUP` / `ROUNDDOWN` / `SIGN` / `SQRT`
 / `MOD` / `POWER` / `CEILING` / `FLOOR`, the statistical functions `COUNT` /
 `COUNTA` / `COUNTBLANK` / `MEDIAN` / `MODE` / `STDEV` / `STDEVP` / `VAR` /
-`VARP`, the criterion & mixed-arg functions `SUMIF` / `COUNTIF` / `AVERAGEIF`
+`VARP`, the financial functions `PMT` / `FV` / `PV` / `NPER` / `NPV` / `IPMT` /
+`PPMT` / `RATE` / `IRR` (annuity math; `RATE`/`IRR` solve iteratively via
+Newton's method), the criterion & mixed-arg functions `SUMIF` / `COUNTIF` / `AVERAGEIF`
 (+ the `…IFS` multi-criteria variants, with a `>`/`<`/`<>`/`=` criterion
 mini-language and `*`/`?` wildcards) / `SUMPRODUCT` / `RANK` / `PERCENTILE`,
 the lookup & reference functions `VLOOKUP` / `HLOOKUP` / `LOOKUP` /
