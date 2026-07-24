@@ -120,7 +120,10 @@ branch is never evaluated), the logical functions `AND` / `OR` / `NOT` /
 `ABS` / `INT` / `TRUNC` / `ROUND` / `ROUNDUP` / `ROUNDDOWN` / `SIGN` / `SQRT`
 / `MOD` / `POWER` / `CEILING` / `FLOOR`, the statistical functions `COUNT` /
 `COUNTA` / `COUNTBLANK` / `MEDIAN` / `MODE` / `STDEV` / `STDEVP` / `VAR` /
-`VARP`, the lookup & reference functions `VLOOKUP` / `HLOOKUP` / `LOOKUP` /
+`VARP`, the criterion & mixed-arg functions `SUMIF` / `COUNTIF` / `AVERAGEIF`
+(+ the `…IFS` multi-criteria variants, with a `>`/`<`/`<>`/`=` criterion
+mini-language and `*`/`?` wildcards) / `SUMPRODUCT` / `RANK` / `PERCENTILE`,
+the lookup & reference functions `VLOOKUP` / `HLOOKUP` / `LOOKUP` /
 `XLOOKUP` / `INDEX` / `MATCH` / `ROW` / `COLUMN` / `ROWS` / `COLUMNS`, the
 date & time functions `DATE` / `YEAR` / `MONTH` / `DAY` / `WEEKDAY` /
 `EDATE` / `EOMONTH` / `DATEVALUE` / `DATEDIF` / `TIME` / `HOUR` / `MINUTE` /

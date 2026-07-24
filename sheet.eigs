@@ -781,6 +781,116 @@ define _match(st, lookup, vals, mtype) as:
             best2 is i + 1
     return best2
 
+# ---- criterion & mixed-arg helpers (SUMIF/COUNTIF/…, SUMPRODUCT, RANK, …) ----
+# glob match with `*` (any run) and `?` (one char); both args already lowercased.
+define _wild_match(s, p) as:
+    local sl is len of s
+    local pl is len of p
+    local si is 0
+    local pi is 0
+    local star is 0 - 1
+    local ss is 0
+    loop while si < sl:
+        if pi < pl and ((char_at of [p, pi]) == "?" or (char_at of [p, pi]) == (char_at of [s, si])):
+            si is si + 1
+            pi is pi + 1
+        elif pi < pl and (char_at of [p, pi]) == "*":
+            star is pi
+            ss is si
+            pi is pi + 1
+        elif star >= 0:
+            pi is star + 1
+            ss is ss + 1
+            si is ss
+        else:
+            return 0
+    loop while pi < pl and (char_at of [p, pi]) == "*":
+        pi is pi + 1
+    if pi == pl:
+        return 1
+    return 0
+
+# a value as a number, or 0 for anything non-numeric (no error — SUMIF etc. just
+# skip text in the sum range).
+define _numor0(v) as:
+    if (type of v) == "num":
+        return v
+    if (_is_bool of v) == 1:
+        return v.b
+    return 0
+
+# keep only the numeric values of a flat range list (for PERCENTILE / RANK).
+define _num_only(vals) as:
+    local out is []
+    for i in range of (len of vals):
+        local v is vals[i]
+        if (type of v) == "num":
+            append of [out, v]
+        elif (_is_bool of v) == 1:
+            append of [out, v.b]
+    return out
+
+# Test a cell value against a Calc criterion. `crit` is a number/bool (equality)
+# or a string: a leading comparison operator (>= <= <> > < =) applies to the
+# rest, and a numeric rest compares numerically; an operator-less or `=`/`<>`
+# text criterion matches case-insensitively with `*`/`?` wildcards. Returns 1/0.
+define _crit_test(cellval, crit) as:
+    if (type of crit) != "str":
+        return _compare of [cellval, crit, "="]
+    local op is "="
+    local rest is crit
+    local n is len of crit
+    if n >= 2 and (substr of [crit, 0, 2]) == ">=":
+        op is ">="
+        rest is substr of [crit, 2, n - 2]
+    elif n >= 2 and (substr of [crit, 0, 2]) == "<=":
+        op is "<="
+        rest is substr of [crit, 2, n - 2]
+    elif n >= 2 and (substr of [crit, 0, 2]) == "<>":
+        op is "<>"
+        rest is substr of [crit, 2, n - 2]
+    elif n >= 1 and (char_at of [crit, 0]) == ">":
+        op is ">"
+        rest is substr of [crit, 1, n - 1]
+    elif n >= 1 and (char_at of [crit, 0]) == "<":
+        op is "<"
+        rest is substr of [crit, 1, n - 1]
+    elif n >= 1 and (char_at of [crit, 0]) == "=":
+        op is "="
+        rest is substr of [crit, 1, n - 1]
+    if (_is_number of rest) == 1:
+        local rn is num of rest
+        if (type of cellval) == "num":
+            return _compare of [cellval, rn, op]
+        if (_is_bool of cellval) == 1:
+            return _compare of [cellval.b, rn, op]
+        # a text cell never equals a numeric criterion (only <> is true)
+        if op == "<>":
+            return 1
+        return 0
+    if op == "=" or op == "<>":
+        local m is _wild_match of [str_lower of (_to_text of cellval), str_lower of rest]
+        if op == "=":
+            return m
+        return 1 - m
+    return _compare of [cellval, rest, op]
+
+# sum/count/avg of a value list under a single criterion applied to `keys`
+# (keys[i] decides whether vals[i] is included). agg 0=count,1=sum,2=avg.
+define _crit_reduce(keys, vals, crit, agg) as:
+    local total is 0
+    local count is 0
+    for i in range of (len of keys):
+        if (_crit_test of [keys[i], crit]) == 1:
+            count is count + 1
+            if i < (len of vals):
+                total is total + (_numor0 of vals[i])
+    if agg == 0:
+        return count
+    if agg == 1:
+        return total
+    return {"total": total, "count": count}
+
 define _eval_factor(st) as:
     local tk is _peek of st
     if tk == null:
@@ -1122,6 +1232,122 @@ define _eval_factor(st) as:
                 st.err is "#REF!"
                 return 0
             return lvec[lp - 1]
+        # criterion & mixed-arg functions — all use the scalar-or-range arg
+        # parser (#32). Criterion family: a criteria range + a criterion (+ an
+        # optional/leading value range); the *IFS variants take parallel
+        # (range, criterion) pairs ANDed per cell. SUMPRODUCT multiplies equal-
+        # shaped ranges element-wise then sums. RANK/PERCENTILE mix a scalar with
+        # a range.
+        if fname == "SUMIF" or fname == "COUNTIF" or fname == "AVERAGEIF" or fname == "SUMIFS" or fname == "COUNTIFS" or fname == "AVERAGEIFS" or fname == "SUMPRODUCT" or fname == "RANK" or fname == "PERCENTILE":
+            local ca is _parse_args2 of st
+            local nca is len of ca
+            if fname == "COUNTIF":
+                return _crit_reduce of [_range_values of [st, ca[0]], [], _arg_scalar of [st, ca[1]], 0]
+            if fname == "SUMIF":
+                local keys is _range_values of [st, ca[0]]
+                local svr is ca[0]
+                if nca >= 3:
+                    svr is ca[2]
+                return _crit_reduce of [keys, _range_values of [st, svr], _arg_scalar of [st, ca[1]], 1]
+            if fname == "AVERAGEIF":
+                local akeys is _range_values of [st, ca[0]]
+                local avr is ca[0]
+                if nca >= 3:
+                    avr is ca[2]
+                local ar is _crit_reduce of [akeys, _range_values of [st, avr], _arg_scalar of [st, ca[1]], 2]
+                if ar.count == 0:
+                    st.err is "#DIV/0!"
+                    return 0
+                return ar.total / ar.count
+            if fname == "COUNTIFS" or fname == "SUMIFS" or fname == "AVERAGEIFS":
+                # SUMIFS/AVERAGEIFS lead with the value range; COUNTIFS has none.
+                local vvals is []
+                local first is 0
+                if fname != "COUNTIFS":
+                    vvals is _range_values of [st, ca[0]]
+                    first is 1
+                # gather parallel (criteria range, criterion) pairs
+                local kranges is []
+                local krits is []
+                local pi is first
+                loop while pi + 1 < nca:
+                    append of [kranges, _range_values of [st, ca[pi]]]
+                    append of [krits, _arg_scalar of [st, ca[pi + 1]]]
+                    pi is pi + 2
+                local nlen is 0
+                if (len of kranges) > 0:
+                    nlen is len of kranges[0]
+                local tot is 0
+                local cnt is 0
+                for ix in range of nlen:
+                    local ok is 1
+                    for ki in range of (len of kranges):
+                        if ok == 1 and (_crit_test of [kranges[ki][ix], krits[ki]]) == 0:
+                            ok is 0
+                    if ok == 1:
+                        cnt is cnt + 1
+                        if fname != "COUNTIFS" and ix < (len of vvals):
+                            tot is tot + (_numor0 of vvals[ix])
+                if fname == "COUNTIFS":
+                    return cnt
+                if fname == "SUMIFS":
+                    return tot
+                if cnt == 0:
+                    st.err is "#DIV/0!"
+                    return 0
+                return tot / cnt
+            if fname == "SUMPRODUCT":
+                local vlists is []
+                for ai in range of nca:
+                    append of [vlists, _range_values of [st, ca[ai]]]
+                if nca == 0:
+                    return 0
+                local m is len of vlists[0]
+                local acc is 0
+                for ix in range of m:
+                    local prod is 1
+                    for li in range of (len of vlists):
+                        if ix < (len of vlists[li]):
+                            prod is prod * (_numor0 of vlists[li][ix])
+                        else:
+                            prod is 0
+                    acc is acc + prod
+                return acc
+            if fname == "RANK":
+                local rnum is _to_num of [st, _arg_scalar of [st, ca[0]]]
+                local rvals is _num_only of (_range_values of [st, ca[1]])
+                local desc is 1
+                if nca >= 3 and (_to_num of [st, _arg_scalar of [st, ca[2]]]) != 0:
+                    desc is 0
+                local better is 0
+                local seen is 0
+                for i in range of (len of rvals):
+                    if rvals[i] == rnum:
+                        seen is 1
+                    if desc == 1 and rvals[i] > rnum:
+                        better is better + 1
+                    if desc == 0 and rvals[i] < rnum:
+                        better is better + 1
+                if seen == 0:
+                    st.err is "#N/A"
+                    return 0
+                return better + 1
+            # PERCENTILE(range, k) — inclusive (Calc PERCENTILE / .INC), linear
+            # interpolation between sorted order statistics.
+            local pvals is sort of (_num_only of (_range_values of [st, ca[0]]))
+            local k is _to_num of [st, _arg_scalar of [st, ca[1]]]
+            local pn is len of pvals
+            if pn == 0 or k < 0 or k > 1:
+                st.err is "#NUM!"
+                return 0
+            if pn == 1:
+                return pvals[0]
+            local pos is k * (pn - 1)
+            local lo is floor of pos
+            local frac is pos - lo
+            if lo + 1 >= pn:
+                return pvals[pn - 1]
+            return pvals[lo] + frac * (pvals[lo + 1] - pvals[lo])
         # text functions: scalar comma-separated args (not ranges).
         if fname == "LEN" or fname == "UPPER" or fname == "LOWER" or fname == "TRIM" or fname == "LEFT" or fname == "RIGHT" or fname == "MID" or fname == "CONCATENATE" or fname == "FIND" or fname == "SEARCH" or fname == "SUBSTITUTE" or fname == "REPLACE" or fname == "REPT" or fname == "PROPER" or fname == "EXACT" or fname == "CHAR" or fname == "CODE" or fname == "VALUE" or fname == "TEXTJOIN" or fname == "TEXT":
             local targs is []
