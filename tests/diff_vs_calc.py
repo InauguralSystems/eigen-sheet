@@ -159,6 +159,32 @@ CELLS = {
     "AO4": "=MAX(revenue)+taxrate",      # 8.2
     "AP1": "=SUM(revenue)*taxrate",      # 2.8
     "AP2": "=VLOOKUP(8,revenue,1,0)",    # 8   (a name used as a range arg)
+    # ---- criterion & mixed-arg functions (#32) ----
+    # A gap-free data block (AQ numbers, AR category text, AS amounts parallel to
+    # AR) so the empty-cell/0 ambiguity never arises. LibreOffice is the oracle;
+    # comments are sanity checks only.
+    "AQ1": "5", "AQ2": "12", "AQ3": "8", "AQ4": "3", "AQ5": "12", "AQ6": "20",
+    "AR1": "apple", "AR2": "banana", "AR3": "apple",
+    "AR4": "cherry", "AR5": "apple", "AR6": "banana",
+    "AS1": "10", "AS2": "20", "AS3": "30", "AS4": "40", "AS5": "50", "AS6": "60",
+    "AT1": '=COUNTIF(AQ1:AQ6,">8")',                        # 3   (12,12,20)
+    "AT2": '=COUNTIF(AR1:AR6,"apple")',                     # 3
+    "AT3": '=SUMIF(AQ1:AQ6,">8")',                          # 44
+    "AT4": '=SUMIF(AR1:AR6,"apple",AS1:AS6)',               # 90  (10+30+50)
+    "AT5": '=AVERAGEIF(AQ1:AQ6,">=12")',                    # 14.6667
+    "AT6": '=COUNTIFS(AR1:AR6,"apple",AQ1:AQ6,">4")',       # 3
+    "AT7": '=SUMIFS(AS1:AS6,AR1:AR6,"apple",AQ1:AQ6,">4")', # 90
+    "AT8": '=AVERAGEIFS(AS1:AS6,AR1:AR6,"banana")',         # 40  ((20+60)/2)
+    "AT9": "=SUMPRODUCT(AQ1:AQ3,AS1:AS3)",                  # 530 (5*10+12*20+8*30)
+    "AT10": "=RANK(12,AQ1:AQ6)",                            # 2   (descending)
+    "AT11": "=RANK(12,AQ1:AQ6,1)",                          # 4   (ascending)
+    "AT12": "=PERCENTILE(AQ1:AQ6,0.5)",                     # 10  (median)
+    "AT13": '=COUNTIF(AR1:AR6,"a*")',                       # 3   (wildcard)
+    "AT14": '=SUMIF(AQ1:AQ6,"<>12")',                       # 36
+    "AU1": "=SUMPRODUCT(AQ1:AQ6,AS1:AS6)",                  # 2450 (all six)
+    "AU2": '=SUMIFS(AS1:AS6,AQ1:AQ6,">=12")',              # 130  (single-crit IFS)
+    "AU3": "=PERCENTILE(AQ1:AQ6,0.25)",                     # 5.75 (lower quartile)
+    "AU4": '=AVERAGEIF(AR1:AR6,"cherry",AS1:AS6)',          # 40   (single match)
 }
 
 # Named ranges/expressions: name -> definition (a range, cell, or constant).
