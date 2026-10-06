@@ -243,7 +243,7 @@ define _peek(st) as:
     return null
 
 define _cellval(st, addr) as:
-    if (has_key of [st.vals, addr]) == 1:
+    if (has_key of [st.vals, addr]):
         return st.vals[addr]
     return 0
 
@@ -251,7 +251,7 @@ define _cellval(st, addr) as:
 # text literals do not count — aggregates (AVERAGE/MIN/MAX) must skip them so
 # they match a real spreadsheet (an empty cell is not a 0).
 define _cell_is_num(cells, addr) as:
-    if (has_key of [cells, addr]) == 0:
+    if not (has_key of [cells, addr]):
         return 0
     local raw is cells[addr]
     if (len of raw) > 0 and (char_at of [raw, 0]) == "=":
@@ -304,7 +304,7 @@ define _mk_bool(n) as:
     return {"b": 1}
 
 define _is_bool(v) as:
-    if (type of v) == "dict" and (has_key of [v, "b"]) == 1:
+    if (type of v) == "dict" and (has_key of [v, "b"]):
         return 1
     return 0
 
@@ -711,7 +711,7 @@ define _mk_range(a, b) as:
 # Value at a 1-based (col,row) cell; an errored cell propagates its error.
 define _ref_val(st, col, row) as:
     local addr is _cell_addr of [col, row]
-    if (has_key of [st.errs, addr]) == 1:
+    if (has_key of [st.errs, addr]):
         st.err is st.errs[addr]
         return 0
     return _cellval of [st, addr]
@@ -981,11 +981,11 @@ define _fin_irr(cf, guess) as:
 # Introspect a cell by address: blank, errored, or holding a value.
 define _cell_kind(st, addr) as:
     local raw is ""
-    if (has_key of [st.cells, addr]) == 1:
+    if (has_key of [st.cells, addr]):
         raw is st.cells[addr]
     if (len of raw) == 0:
         return {"k": "blank"}
-    if (has_key of [st.errs, addr]) == 1:
+    if (has_key of [st.errs, addr]):
         return {"k": "err", "e": st.errs[addr]}
     return {"k": "val", "v": _cellval of [st, addr]}
 
@@ -1039,7 +1039,7 @@ define _eval_factor(st) as:
         # user-defined function: call the registered EigenScript fn with the
         # evaluated args (a range arg becomes a value list). Checked before the
         # builtins, so a UDF shadows a builtin of the same name.
-        if (has_key of [st.udfs, fname]) == 1:
+        if (has_key of [st.udfs, fname]):
             local uargs is _parse_args2 of st
             local callargs is []
             for ui in range of (len of uargs):
@@ -1997,9 +1997,9 @@ define _eval_factor(st) as:
                 local ad is cells[j]
                 # an error anywhere in the range propagates (SUM over a #DIV/0!
                 # cell is #DIV/0!, like a spreadsheet)
-                if (has_key of [st.errs, ad]) == 1:
+                if (has_key of [st.errs, ad]):
                     st.err is st.errs[ad]
-                if (has_key of [st.cells, ad]) == 1 and (len of st.cells[ad]) > 0:
+                if (has_key of [st.cells, ad]) and (len of st.cells[ad]) > 0:
                     n_nonempty is n_nonempty + 1
                 else:
                     n_empty is n_empty + 1
@@ -2054,7 +2054,7 @@ define _eval_factor(st) as:
         st.i is st.i + 1
         # an error in a referenced cell propagates (=A1+1 with A1 #DIV/0! is
         # #DIV/0!, not 1). errs is populated for deps first by topological order.
-        if (has_key of [st.errs, tk.v]) == 1:
+        if (has_key of [st.errs, tk.v]):
             st.err is st.errs[tk.v]
             return 0
         return _cellval of [st, tk.v]
@@ -2179,7 +2179,7 @@ define _cond_match(val, rule) as:
 
 # The style from the first matching conditional rule for a cell, or null.
 define _cond_style(sheet, addr) as:
-    if (has_key of [sheet.conditionals, addr]) == 0:
+    if not (has_key of [sheet.conditionals, addr]):
         return null
     local val is get of [sheet, addr]
     local rules is sheet.conditionals[addr]
@@ -2193,7 +2193,7 @@ define _cond_style(sheet, addr) as:
 define effective_style(sheet, addr) as:
     local a is _upper of addr
     local base is null
-    if (has_key of [sheet.styles, a]) == 1:
+    if (has_key of [sheet.styles, a]):
         base is sheet.styles[a]
     local cond is _cond_style of [sheet, a]
     if cond == null:
@@ -2233,7 +2233,7 @@ define set_validation(sheet, addr, rule) as:
 # case-insensitive text).
 define is_valid(sheet, addr, value) as:
     local a is _upper of addr
-    if (has_key of [sheet.validations, a]) == 0:
+    if not (has_key of [sheet.validations, a]):
         return 1
     local rule is sheet.validations[a]
     local t is rule.type
@@ -2304,7 +2304,7 @@ define _expand_names(toks, names) as:
     loop while i < n:
         local tk is toks[i]
         local is_name is 0
-        if tk.t == "func" and (has_key of [names, tk.v]) == 1:
+        if tk.t == "func" and (has_key of [names, tk.v]):
             if (i + 1) >= n or toks[i + 1].t != "lp":
                 is_name is 1
         if is_name == 1:
@@ -2381,7 +2381,7 @@ define recalc(sheet) as:
             local d is deps[j]
             # only a dep that is itself a formula can block us; a self-reference
             # counts (its in-degree never reaches 0 -> #CYCLE)
-            if (has_key of [formula_toks, d]) == 1 and (has_key of [seen, d]) == 0:
+            if (has_key of [formula_toks, d]) and not (has_key of [seen, d]):
                 dict_set of [seen, d, 1]
                 dict_set of [indeg, addr, indeg[addr] + 1]
                 append of [dependents[d], addr]
@@ -2413,14 +2413,14 @@ define recalc(sheet) as:
                 append of [queue, dp]
     # any formula never dequeued is on (or downstream of) a dependency cycle
     for i in range of (len of pending):
-        if (has_key of [done, pending[i]]) == 0:
+        if not (has_key of [done, pending[i]]):
             dict_set of [sheet.err, pending[i], "#CYCLE"]
             dict_set of [sheet.vals, pending[i], 0]
     return sheet
 
 define get(sheet, addr) as:
     local a is _upper of addr
-    if (has_key of [sheet.vals, a]) == 1:
+    if (has_key of [sheet.vals, a]):
         return sheet.vals[a]
     return 0
 
@@ -2445,7 +2445,7 @@ define range_stats(sheet, c0, r0, c1, r1) as:
         local r is rlo
         loop while r <= rhi:
             local addr is _cell_addr of [c + 1, r + 1]
-            if (has_key of [sheet.cells, addr]) == 1:
+            if (has_key of [sheet.cells, addr]):
                 local raw is sheet.cells[addr]
                 local isnum is 0
                 if (len of raw) > 0 and (char_at of [raw, 0]) == "=":
@@ -2559,7 +2559,7 @@ define copy_block(sheet, c0, r0, c1, r1) as:
         loop while cc <= chi:
             local a is _cell_addr of [cc + 1, rr + 1]
             local raw is ""
-            if (has_key of [sheet.cells, a]) == 1:
+            if (has_key of [sheet.cells, a]):
                 raw is sheet.cells[a]
             append of [rowl, raw]
             cc is cc + 1
@@ -2724,9 +2724,9 @@ define _apply_format(value, code) as:
 # Display string for a cell: error token, number, text literal, or "".
 define display(sheet, addr) as:
     local a is _upper of addr
-    if (has_key of [sheet.err, a]) == 1:
+    if (has_key of [sheet.err, a]):
         return sheet.err[a]
-    if (has_key of [sheet.cells, a]) == 0:
+    if not (has_key of [sheet.cells, a]):
         return ""
     local raw is sheet.cells[a]
     if (len of raw) > 0 and (char_at of [raw, 0]) == "=":
@@ -2737,12 +2737,12 @@ define display(sheet, addr) as:
             if v.b == 1:
                 return "TRUE"
             return "FALSE"
-        if (has_key of [sheet.formats, a]) == 1:
+        if (has_key of [sheet.formats, a]):
             return _apply_format of [v, sheet.formats[a]]
         return _fmt of v
     if (_is_number of raw) == 1:
         local nv is num of raw
-        if (has_key of [sheet.formats, a]) == 1:
+        if (has_key of [sheet.formats, a]):
             return _apply_format of [nv, sheet.formats[a]]
         return _fmt of nv
     return raw
@@ -2781,7 +2781,7 @@ define sort_range(sheet, c0, r0, c1, r1, keycol, descending) as:
         loop while c <= chi:
             local addr is _cell_addr of [c + 1, r + 1]
             local raw is ""
-            if (has_key of [sheet.cells, addr]) == 1:
+            if (has_key of [sheet.cells, addr]):
                 raw is sheet.cells[addr]
             append of [raws, raw]
             c is c + 1
@@ -2892,7 +2892,7 @@ define pivot(sheet, c0, r0, c1, r1, row_col, data_col, aggfn, tc, tr) as:
         local k is get of [sheet, _cell_addr of [clo + row_col + 1, r + 1]]
         local v is get of [sheet, _cell_addr of [clo + data_col + 1, r + 1]]
         local kt is _to_text of k
-        if (has_key of [groups, kt]) == 0:
+        if not (has_key of [groups, kt]):
             dict_set of [groups, kt, []]
             append of [keys_order, k]
         append of [groups[kt], v]
@@ -2931,7 +2931,7 @@ define pivot(sheet, c0, r0, c1, r1, row_col, data_col, aggfn, tc, tr) as:
 define _gs_eval(sheet, va, x, fa) as:
     dict_set of [sheet.cells, va, str of x]
     recalc of sheet
-    if (has_key of [sheet.vals, fa]) == 1 and (type of sheet.vals[fa]) == "num":
+    if (has_key of [sheet.vals, fa]) and (type of sheet.vals[fa]) == "num":
         return sheet.vals[fa]
     return 0
 
@@ -2945,7 +2945,7 @@ define goal_seek(sheet, formula_addr, target, var_addr) as:
     local fa is _upper of formula_addr
     local va is _upper of var_addr
     local x0 is 0
-    if (has_key of [sheet.cells, va]) == 1 and (_is_number of sheet.cells[va]) == 1:
+    if (has_key of [sheet.cells, va]) and (_is_number of sheet.cells[va]) == 1:
         x0 is num of sheet.cells[va]
     local x1 is x0 + 1
     if x0 != 0:
@@ -3058,9 +3058,9 @@ define load(sheet, path) as:
     sheet.cells is data.cells
     sheet.names is data.names
     sheet.formats is data.formats
-    if (has_key of [data, "styles"]) == 1:
+    if (has_key of [data, "styles"]):
         sheet.styles is data.styles
-    if (has_key of [data, "conditionals"]) == 1:
+    if (has_key of [data, "conditionals"]):
         sheet.conditionals is data.conditionals
     recalc of sheet
     return sheet
@@ -3294,11 +3294,11 @@ define _sheet_xml(sheet, clo, rlo, chi, rhi) as:
         loop while c <= chi:
             local addr is _cell_addr of [c + 1, r + 1]
             local raw is ""
-            if (has_key of [sheet.cells, addr]) == 1:
+            if (has_key of [sheet.cells, addr]):
                 raw is sheet.cells[addr]
             if (len of raw) > 0:
                 local v is get of [sheet, addr]
-                if (has_key of [sheet.err, addr]) == 1:
+                if (has_key of [sheet.err, addr]):
                     sd is sd + "<c r=\"" + addr + "\" t=\"inlineStr\"><is><t>" + (_xml_esc of sheet.err[addr]) + "</t></is></c>"
                 elif (_is_bool of v) == 1:
                     local bn is 0
@@ -3556,15 +3556,15 @@ define from_xlsx(sheet, path) as:
     local raw is read_bytes of path
     local files is _unzip of raw
     local sst is []
-    if (has_key of [files, "xl/sharedStrings.xml"]) == 1:
+    if (has_key of [files, "xl/sharedStrings.xml"]):
         sst is _sst_parse of (_btext of files["xl/sharedStrings.xml"])
     local wsname is ""
-    if (has_key of [files, "xl/worksheets/sheet1.xml"]) == 1:
+    if (has_key of [files, "xl/worksheets/sheet1.xml"]):
         wsname is "xl/worksheets/sheet1.xml"
     else:
         local ks is keys of files
         for i in range of (len of ks):
-            if wsname == "" and (starts_with of [ks[i], "xl/worksheets/"]) == 1:
+            if wsname == "" and (starts_with of [ks[i], "xl/worksheets/"]):
                 wsname is ks[i]
     if wsname == "":
         return sheet
@@ -3584,11 +3584,11 @@ define _key_char(key, shift) as:
         return ""
     local c is ord of key
     if c >= 97 and c <= 122:
-        if shift == 1:
+        if shift:
             return chr of (c - 32)
         return key
-    if shift == 1:
-        if (has_key of [_KEYSHIFT, key]) == 1:
+    if shift:
+        if (has_key of [_KEYSHIFT, key]):
             return _KEYSHIFT[key]
         return key
     return key
@@ -3644,14 +3644,14 @@ define draw_grid(sheet, ncols, nrows, top) as:
             local addr is _cell_addr of [c + 1, r + 1]
             local sty is effective_style of [sheet, addr]
             # background fill (even for an empty cell), inside the gridlines
-            if sty != null and (has_key of [sty, "bg"]) == 1:
+            if sty != null and (has_key of [sty, "bg"]):
                 gfx_rect of [gx + c * cw + 1, gy + r * rh + 1, cw - 1, rh - 1, sty.bg[0], sty.bg[1], sty.bg[2]]
             local txt is display of [sheet, addr]
             if (len of txt) > 0:
                 # numbers hug the right edge; text (and errors) sit at the left,
                 # like a real spreadsheet.
                 local is_num_disp is 0
-                if (has_key of [sheet.err, addr]) == 0 and (has_key of [sheet.cells, addr]) == 1:
+                if not (has_key of [sheet.err, addr]) and (has_key of [sheet.cells, addr]):
                     local raw2 is sheet.cells[addr]
                     if (len of raw2) > 0 and (char_at of [raw2, 0]) == "=":
                         if (type of sheet.vals[addr]) == "num":
@@ -3662,7 +3662,7 @@ define draw_grid(sheet, ncols, nrows, top) as:
                 if is_num_disp == 1:
                     tx is gx + (c + 1) * cw - (len of txt) * 12
                 # an explicit style alignment overrides the numeric auto-align
-                if sty != null and (has_key of [sty, "align"]) == 1:
+                if sty != null and (has_key of [sty, "align"]):
                     if sty.align == "left":
                         tx is gx + c * cw + 4
                     elif sty.align == "right":
@@ -3672,12 +3672,12 @@ define draw_grid(sheet, ncols, nrows, top) as:
                 local cr is 225
                 local cg is 227
                 local cb is 240
-                if sty != null and (has_key of [sty, "color"]) == 1:
+                if sty != null and (has_key of [sty, "color"]):
                     cr is sty.color[0]
                     cg is sty.color[1]
                     cb is sty.color[2]
                 gfx_text of [tx, gy + r * rh + 4, txt, cr, cg, cb, 2]
-                if sty != null and (has_key of [sty, "bold"]) == 1 and sty.bold == 1:
+                if sty != null and (has_key of [sty, "bold"]) and sty.bold == 1:
                     gfx_text of [tx + 1, gy + r * rh + 4, txt, cr, cg, cb, 2]
             c is c + 1
         r is r + 1
@@ -3746,20 +3746,20 @@ define run() as:
                 if sel_r > cur_r:
                     rlo is cur_r
                     rhi is sel_r
-                if ctrl == 1 and key == "c":
+                if ctrl and key == "c":
                     clip is copy_block of [s, sel_c, sel_r, cur_c, cur_r]
-                elif ctrl == 1 and key == "v":
+                elif ctrl and key == "v":
                     if clip != null:
                         append of [undo_stack, _copy_cells of s.cells]
                         redo_stack is []
                         paste_block of [s, clip, sel_c, sel_r]
-                elif ctrl == 1 and key == "z":
+                elif ctrl and key == "z":
                     if (len of undo_stack) > 0:
                         append of [redo_stack, _copy_cells of s.cells]
                         s.cells is undo_stack[(len of undo_stack) - 1]
                         undo_stack is list_slice of [undo_stack, 0, (len of undo_stack) - 1]
                         recalc of s
-                elif ctrl == 1 and key == "y":
+                elif ctrl and key == "y":
                     if (len of redo_stack) > 0:
                         append of [undo_stack, _copy_cells of s.cells]
                         s.cells is redo_stack[(len of redo_stack) - 1]
@@ -3813,7 +3813,7 @@ define run() as:
                         sel_r is sel_r + 1
                     cur_c is sel_c
                     cur_r is sel_r
-                elif ctrl == 0:
+                elif not ctrl:
                     local ch is _key_char of [key, shift]
                     if (len of ch) > 0:
                         if editing == 0:
@@ -3899,7 +3899,7 @@ define run() as:
         if editing == 1:
             content is buf + "_"
         else:
-            if (has_key of [s.cells, addr]) == 1:
+            if (has_key of [s.cells, addr]):
                 content is s.cells[addr]
         gfx_text of [80, 4, content, 222, 226, 240, 2]
         # status bar: live Sum / Average / Count of the current selection

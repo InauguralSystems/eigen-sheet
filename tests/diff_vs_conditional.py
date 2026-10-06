@@ -108,7 +108,7 @@ def main():
         lines.append("sheet.set_conditional of [s%d, %s, %s]" % (i, eigs_str("A1"), lit(rules)))
         lines.append("sheet.recalc of s%d" % i)
         lines.append("es%d is sheet.effective_style of [s%d, %s]" % (i, i, eigs_str("A1")))
-        lines.append('if es%d != null and (has_key of [es%d, "bg"]) == 1:' % (i, i))
+        lines.append('if es%d != null and (has_key of [es%d, "bg"]):' % (i, i))
         lines.append('    print of (str of es%d.bg)' % i)
         lines.append("else:")
         lines.append('    print of "none"')
