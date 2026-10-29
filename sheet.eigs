@@ -3043,12 +3043,27 @@ define replace_cells(sheet, needle, replacement, cs) as:
 
 # ---- native save / load --------------------------------------------
 
+# Replace `path` only after its complete new contents have been written beside
+# it.  Keeping the temporary in the same directory is what makes the final
+# rename an atomic replacement (rather than a cross-filesystem move).
+# `after_write` is an internal test hook; production callers pass null.
+define _atomic_write(path, data, as_bytes, after_write) as:
+    local tmp is path + ".tmp-" + (random_hex of 24)
+    if as_bytes:
+        write_bytes of [tmp, data]
+    else:
+        write_text of [tmp, data]
+    if after_write != null:
+        after_write of tmp
+    rename of [tmp, path]
+    return path
+
 # Save the whole sheet (raw cell contents + named ranges + number formats) as
 # JSON. The raw cell contents ARE the replayable edit stream — loading replays
 # them and recalc reconstructs the grid. UDFs are runtime functions, not data,
 # so they are NOT saved; re-register them before load.
 define save(sheet, path) as:
-    write_text of [path, json_encode of {"cells": sheet.cells, "names": sheet.names, "formats": sheet.formats, "styles": sheet.styles, "conditionals": sheet.conditionals}]
+    _atomic_write of [path, json_encode of {"cells": sheet.cells, "names": sheet.names, "formats": sheet.formats, "styles": sheet.styles, "conditionals": sheet.conditionals}, false, null]
     return path
 
 # Load a saved sheet into `sheet` (its registered UDFs are preserved), then
@@ -3336,7 +3351,7 @@ define to_xlsx(sheet, path, c0, r0, c1, r1) as:
     append of [entries, {"name": "xl/workbook.xml", "data": _sbytes of wb}]
     append of [entries, {"name": "xl/_rels/workbook.xml.rels", "data": _sbytes of wbrels}]
     append of [entries, {"name": "xl/worksheets/sheet1.xml", "data": _sbytes of (_sheet_xml of [sheet, clo, rlo, chi, rhi])}]
-    write_bytes of [path, _zip_store of entries]
+    _atomic_write of [path, _zip_store of entries, true, null]
     return path
 
 # ---- xlsx import (read a real .xlsx: ZIP + DEFLATE via upstream inflate) -----

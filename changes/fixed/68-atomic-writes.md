@@ -1,0 +1,1 @@
+- Sheet saves and XLSX exports now atomically replace their destination, preventing interrupted writes from corrupting an existing file (#68).
