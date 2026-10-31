@@ -1,0 +1,1 @@
+- `from_xlsx` now rejects structurally truncated worksheet and shared-string XML instead of hanging or partially importing it (#88).

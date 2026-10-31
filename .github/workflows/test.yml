@@ -97,6 +97,8 @@ jobs:
 
       - name: Issue 75 corrupt XLSX and saved-sheet validation
         run: python3 tests/issue_75_bad_input_test.py
+      - name: Issue 88 truncated XLSX XML regression
+        run: python3 tests/issue_88_truncated_xlsx_xml.py
 
   ui-oracle:
     # render oracle: draw_grid pixels decoded back to the model. gfx + xvfb.
