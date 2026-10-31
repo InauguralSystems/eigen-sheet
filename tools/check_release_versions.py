@@ -40,8 +40,10 @@ def self_test(root: Path) -> None:
         for name in ("eigs.json", "sheet.eigs", "README.md"):
             (fixture / name).write_text((root / name).read_text())
         path = fixture / "eigs.json"
-        path.write_text(path.read_text().replace('"version": "0.2.0"',
-                                                  '"version": "9.9.9"'))
+        manifest = json.loads(path.read_text())
+        current = manifest["version"]
+        manifest["version"] = "0.0.0" if current != "0.0.0" else "0.0.1"
+        path.write_text(json.dumps(manifest, indent=2) + "\n")
         try:
             check(fixture)
         except ValueError as error:
