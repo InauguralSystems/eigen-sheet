@@ -31,7 +31,7 @@ def render_styled(edit_path, atlas):
              + '\nsheet.set_conditional of [s, "A2", [{"op": ">", "value": 0, "style": {"bg": [%d,%d,%d]}}]]\n' % (CBG[0], CBG[1], CBG[2])
              + "sheet.recalc of s")
     body = {"setup": setup, "frame": "sheet.draw_grid of [s, %d, %d, 0]" % (U.NCOLS, U.NROWS)}
-    img = U._capture(edit_path, body, "eigen-sheet v0.1.0")
+    img = U._capture(edit_path, body, "eigen-sheet v0.2.0")
     grid = U.decode_grid(img, atlas)
     px = img.load()
     # A1 static-style bg (left region; right-aligned glyph is far right)
