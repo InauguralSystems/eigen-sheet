@@ -21,6 +21,8 @@ jobs:
         run: bash tests/test_smoke.sh
       - name: Issue 78 error-path and recalc oracle
         run: python3 tests/issue_78_error_paths_test.py
+      - name: Issue 70 blank approximate-lookup regression
+        run: python3 tests/issue_70_blank_lookups.py
       - name: CSV differential oracle (vs Python csv module)
         run: python3 tests/diff_vs_csv.py
       - name: Sort differential oracle (vs Python sorted)

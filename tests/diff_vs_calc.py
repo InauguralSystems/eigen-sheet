@@ -251,6 +251,15 @@ CELLS = {
     "BN1": "=SUM(1>0,2)",
     "BN2": '=SUM("5",15,TRUE())',
     "BN3": "=AVERAGE(1>0,3)",
+    # ---- issue #70: approximate lookups ignore blank range positions ----
+    "BQ1": "1", "BQ2": "3", "BQ3": "5",  # BQ4 deliberately blank
+    "BR1": "=VLOOKUP(6,BQ1:BQ4,1)",
+    "BR2": "=MATCH(6,BQ1:BQ4,1)",
+    "BR3": "=LOOKUP(6,BQ1:BQ4)",
+    "BQ6": "1", "BR6": "3", "BS6": "5",  # BT6 deliberately blank
+    "BR4": "=HLOOKUP(6,BQ6:BT6,1)",
+    "BQ8": "5", "BQ9": "3", "BQ10": "1",  # BQ11 deliberately blank
+    "BR5": "=MATCH(-1,BQ8:BQ11,-1)",
 }
 
 # Per-cell comparison tolerance (default 1e-9). The iterative financial
