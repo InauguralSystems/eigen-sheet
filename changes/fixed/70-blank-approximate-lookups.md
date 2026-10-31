@@ -1,0 +1,1 @@
+- Approximate VLOOKUP, HLOOKUP, LOOKUP, and MATCH now skip blank range cells (#70).
