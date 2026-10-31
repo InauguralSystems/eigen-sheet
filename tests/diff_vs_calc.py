@@ -234,7 +234,7 @@ CELLS = {
     # ---- issue #74: comma-separated aggregate arguments ----
     # Every Calc aggregate that supports lists gets both a range-plus-scalar
     # and a two-range case (Calc itself restricts COUNTBLANK to one argument).
-    "BA1": "=SUM(A1:A2,8)",       "BA2": "=SUM(A1:A2,A3:A4)",
+    "CE1": "=SUM(A1:A2,8)",       "CE2": "=SUM(A1:A2,A3:A4)",
     "BB1": "=AVERAGE(A1:A2,8)",   "BB2": "=AVERAGE(A1:A2,A3:A4)",
     "BC1": "=MIN(A1:A2,8)",       "BC2": "=MIN(A1:A2,A3:A4)",
     "BD1": "=MAX(A1:A2,8)",       "BD2": "=MAX(A1:A2,A3:A4)",
@@ -293,9 +293,7 @@ ISSUE_76 = [
     ("=A0", "error"), ("=A1048577", "error"), ("=XFE1", "error"),
     ("=ZZZZZ1", "error"), ("=2^1024", "num"),
     ("=10^308*10", "num"), ("=10^308", "huge"),
-    ("=10^308+10^308/2", "finite_huge"),
-    ("=1.7e308", "finite_huge"), ("=1.79e308*1", "finite_huge"),
-    ("=1e309", "num"),
+    # 1e308..double-limit and =1e309 cases wait for an IEEE-double pin (#84).
     ("=1+", "error"), ("=A1++A2", "three"),
 ]
 
