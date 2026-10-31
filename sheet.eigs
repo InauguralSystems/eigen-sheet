@@ -119,13 +119,19 @@ define _tokenize(s) as:
                 local dstart is k
                 loop while k < n and (_is_digit of (char_at of [s, k])) == 1:
                     k is k + 1
-                append of [toks, {"t": "cell", "v": word + (substr of [s, dstart, k - dstart]), "cabs": cabs, "rabs": rabs}]
+                local row is num of (substr of [s, dstart, k - dstart])
+                local col is _col_to_num of word
+                if row < 1 or row > 1048576 or col < 1 or col > 16384:
+                    append of [toks, {"t": "bad"}]
+                else:
+                    append of [toks, {"t": "cell", "v": word + (substr of [s, dstart, k - dstart]), "cabs": cabs, "rabs": rabs}]
                 i is k
             elif cabs == 0 and rabs == 0 and (len of word) > 0:
                 append of [toks, {"t": "func", "v": word}]
                 i is j
             else:
-                # a stray $ that does not form a cell reference — skip it
+                # Preserve malformed anchors as a token so parsing rejects them.
+                append of [toks, {"t": "bad"}]
                 i is i + 1
         elif ch == "+" or ch == "-" or ch == "*" or ch == "/" or ch == "^":
             append of [toks, {"t": "op", "v": ch}]
@@ -182,8 +188,14 @@ define _tokenize(s) as:
                 else:
                     sval is sval + c2
                     i is i + 1
-            append of [toks, {"t": "str", "v": sval}]
+            if done == 1:
+                append of [toks, {"t": "str", "v": sval}]
+            else:
+                append of [toks, {"t": "bad"}]
         else:
+            # Unknown input must remain visible to the parser, rather than being
+            # silently discarded and changing the formula's meaning.
+            append of [toks, {"t": "bad"}]
             i is i + 1
     return toks
 
@@ -1104,6 +1116,9 @@ define _eval_factor(st) as:
     if tk.t == "op" and tk.v == "-":
         st.i is st.i + 1
         return 0 - (_to_num of [st, _eval_factor of st])
+    if tk.t == "op" and tk.v == "+":
+        st.i is st.i + 1
+        return _to_num of [st, _eval_factor of st]
     if tk.t == "num":
         st.i is st.i + 1
         return tk.v
@@ -2151,6 +2166,10 @@ define _eval_factor(st) as:
             st.err is st.errs[tk.v]
             return 0
         return _cellval of [st, tk.v]
+    if tk.t == "bad":
+        st.i is st.i + 1
+        st.err is "#NAME?"
+        return 0
     # any other token where an operand was expected is malformed
     st.err is "#ERROR"
     return 0
@@ -2164,6 +2183,13 @@ define _eval_power(st) as:
         st.i is st.i + 1
         v is _to_num of [st, v]
         local r is _to_num of [st, _eval_factor of st]
+        local av is v
+        if av < 0:
+            av is 0 - av
+        # Detect before EigenScript applies its finite-number saturation. The
+        # logarithmic comparison keeps the valid boundary 10^308 representable.
+        if av > 1 and r > 0 and (log of av) * r > 709.1962086421661:
+            st.err is "#NUM!"
         v is pow of [v, r]
     return v
 
@@ -2175,6 +2201,14 @@ define _eval_term(st) as:
         v is _to_num of [st, v]
         local r is _to_num of [st, _eval_power of st]
         if op == "*":
+            local av is v
+            local ar is r
+            if av < 0:
+                av is 0 - av
+            if ar < 0:
+                ar is 0 - ar
+            if ar != 0 and av > 1e308 / ar:
+                st.err is "#NUM!"
             v is v * r
         else:
             # check BEFORE dividing — the runtime turns 1/0 into a silent 0
@@ -2182,6 +2216,14 @@ define _eval_term(st) as:
                 st.err is "#DIV/0!"
                 v is 0
             else:
+                local avd is v
+                local ard is r
+                if avd < 0:
+                    avd is 0 - avd
+                if ard < 0:
+                    ard is 0 - ard
+                if ard < avd / 1e308:
+                    st.err is "#NUM!"
                 v is v / r
     return v
 
@@ -2193,8 +2235,12 @@ define _eval_expr(st) as:
         v is _to_num of [st, v]
         local r is _to_num of [st, _eval_term of st]
         if op == "+":
+            if (v > 0 and r > 0 and v > 1e308 - r) or (v < 0 and r < 0 and v < -1e308 - r):
+                st.err is "#NUM!"
             v is v + r
         else:
+            if (v > 0 and r < 0 and v > 1e308 + r) or (v < 0 and r > 0 and v < -1e308 + r):
+                st.err is "#NUM!"
             v is v - r
     return v
 

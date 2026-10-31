@@ -284,6 +284,74 @@ TOL = {
     "BV1": 1e-6,
 }
 
+# Issue #76 includes errors, for which Calc's displayed spelling can differ
+# from eigen-sheet. This table states the shared semantic class; direct error
+# results (rather than IFERROR sentinels) ensure both engines actually reject
+# every malformed/out-of-domain formula.
+ISSUE_76 = [
+    ("=SUM(A1:)", "error"), ('="abc', "error"), ("=$$A1", "error"),
+    ("=A0", "error"), ("=A1048577", "error"), ("=XFE1", "error"),
+    ("=ZZZZZ1", "error"), ("=2^1024", "num"),
+    ("=10^308*10", "num"), ("=10^308", "huge"),
+    ("=1+", "error"), ("=A1++A2", "three"),
+]
+
+
+def issue_76_differential():
+    """Compare every issue-table formula, including direct error results."""
+    import openpyxl
+    tmp = tempfile.mkdtemp(prefix="eigen-sheet-calc-issue-76-")
+    try:
+        wb = openpyxl.Workbook(); ws = wb.active
+        ws["A1"], ws["A2"] = 1, 2
+        for i, (formula, _) in enumerate(ISSUE_76, 1):
+            ws.cell(i, 3).value = formula
+        wb.calculation.fullCalcOnLoad = True
+        xlsx = os.path.join(tmp, "issue76.xlsx"); wb.save(xlsx)
+        profile = "file://" + os.path.join(tmp, "profile")
+        subprocess.run([SOFFICE, "--headless", "--norestore", "--nolockcheck",
+                        "-env:UserInstallation=" + profile, "--convert-to", "csv",
+                        "--outdir", tmp, xlsx], capture_output=True, timeout=180)
+        csvs = glob.glob(os.path.join(tmp, "*.csv"))
+        if not csvs:
+            raise RuntimeError("LibreOffice produced no issue #76 CSV")
+        rows = list(csv.reader(open(csvs[0], newline="")))
+        calc = [rows[i][2] for i in range(len(ISSUE_76))]
+
+        md = os.path.join(tmp, "run", "eigs_modules", "sheet"); os.makedirs(md)
+        shutil.copy(os.path.join(REPO, "sheet.eigs"), md)
+        shutil.copy(os.path.join(REPO, "eigs.json"), md)
+        lines = ["import sheet", "s is sheet.new_sheet of null",
+                 'sheet.set_cell of [s, "A1", "1"]', 'sheet.set_cell of [s, "A2", "2"]']
+        esc = lambda value: value.replace("\\", "\\\\").replace('"', '\\"')
+        for i, (formula, _) in enumerate(ISSUE_76, 1):
+            lines.append('sheet.set_cell of [s, "C%d", "%s"]' % (i, esc(formula)))
+        lines.append("sheet.recalc of s")
+        for i in range(1, len(ISSUE_76) + 1):
+            lines.append('print of (sheet.display of [s, "C%d"])' % i)
+        app = os.path.join(tmp, "run", "app.eigs")
+        open(app, "w").write("\n".join(lines) + "\n")
+        run = subprocess.run([EIGS, app], cwd=os.path.dirname(app), capture_output=True,
+                             text=True, timeout=15, check=True)
+        mine = run.stdout.splitlines()
+
+        failures = 0
+        for (formula, kind), eigen, lo in zip(ISSUE_76, mine, calc):
+            eigen_error = eigen.startswith("#")
+            calc_error = lo.startswith("#") or lo.startswith("Err:")
+            ok = ((kind == "error" and eigen_error and calc_error) or
+                  (kind == "num" and eigen == "#NUM!" and calc_error) or
+                  (kind == "huge" and float(eigen) == float(lo) == 1e308) or
+                  (kind == "three" and eigen == "3" and lo == "3"))
+            if ok:
+                print("PASS issue76 %-13s eigen-sheet=%s libreoffice=%s" % (formula, eigen, lo))
+            else:
+                failures += 1
+                print("FAIL issue76 %-13s eigen-sheet=%s libreoffice=%s" % (formula, eigen, lo))
+        return failures
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
 # Named ranges/expressions: name -> definition (a range, cell, or constant).
 # The eigs side calls define_name; the xlsx side registers a workbook DefinedName
 # so LibreOffice resolves the same names.
@@ -446,6 +514,10 @@ def main():
             print("PASS %-4s %-14s = %g" % (a, CELLS[a], r))
     if failures:
         print("\n%d divergence(s) from LibreOffice" % failures)
+        sys.exit(1)
+    failures += issue_76_differential()
+    if failures:
+        print("\n%d issue #76 divergence(s) from LibreOffice" % failures)
         sys.exit(1)
     print("\neigen-sheet matches LibreOffice on every numeric formula")
 

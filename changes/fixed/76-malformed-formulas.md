@@ -1,0 +1,1 @@
+- Malformed formulas, out-of-range cell references, and arithmetic overflow now report spreadsheet errors instead of plausible values (#76).
