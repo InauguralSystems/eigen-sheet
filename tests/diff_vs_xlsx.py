@@ -119,9 +119,11 @@ def import_prog(xlsx, addrs):
 
 
 def has_zlib(tmp):
-    """True if this EigenScript build has the inflate/deflate (zlib) extension."""
+    """True if this EigenScript build has the inflate (zlib) extension."""
     p = os.path.join(tmp, "zprobe.eigs")
-    open(p, "w").write("print of (str of (len of (deflate of [104, 105])))\n")
+    # EigenScript v0.48 removed the unused compressor-side `deflate` builtin.
+    # Probe the surviving raw-DEFLATE importer with a valid empty stream.
+    open(p, "w").write("print of (str of (len of (inflate of [3, 0])))\n")
     r = subprocess.run([EIGS, p], cwd=tmp, capture_output=True, text=True, timeout=30)
     return r.returncode == 0
 
@@ -169,7 +171,7 @@ def main():
             print("SKIP import: EigenScript built without zlib (inflate)");
             if failures:
                 print("\n%d xlsx divergence(s)" % failures); sys.exit(1)
-            print("\nexport OK; import skipped (no zlib)"); sys.exit(0)
+            print("\nexport OK; import skipped (no zlib)"); sys.exit(2)
 
         # A. round-trip: to_xlsx (from the export above) -> from_xlsx == mine
         rt = parse_kv(run_src(import_prog(xlsx, list(GRID)), tmp))

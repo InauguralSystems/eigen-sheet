@@ -19,6 +19,8 @@ jobs:
           echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
       - name: Model oracle (recalc byte-diff)
         run: bash tests/test_smoke.sh
+      - name: Issue 78 error-path and recalc oracle
+        run: python3 tests/issue_78_error_paths_test.py
       - name: CSV differential oracle (vs Python csv module)
         run: python3 tests/diff_vs_csv.py
       - name: Sort differential oracle (vs Python sorted)
@@ -59,7 +61,9 @@ jobs:
         run: |
           git clone --depth 1 --branch v0.48.0 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"
           make -C "$RUNNER_TEMP/eigs" -s zlib
-          echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
+          # Use the variant artifact directly, rather than the mutable convenience
+          # alias, so the oracle cannot accidentally run a non-zlib profile.
+          echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/build/zlib/eigenscript" >> "$GITHUB_ENV"
       - name: Differential oracle vs LibreOffice Calc (numeric)
         run: |
           python3 tests/diff_vs_calc.py; rc=$?

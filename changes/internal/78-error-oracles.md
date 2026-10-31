@@ -1,0 +1,1 @@
+- CI now checks formula error branches, recalc resilience, and that xlsx import support cannot silently skip (#78).
