@@ -208,9 +208,11 @@ def main():
         wb2 = openpyxl.Workbook(); w2 = wb2.active
         w2["A1"] = 5; w2["A2"] = 3; w2["A3"] = "=A1+A2"
         w2["B1"] = "widget"; w2["B2"] = "=A3*2"; w2["C1"] = 3.14159; w2["C2"] = True
+        # Issue #89: openpyxl serializes this numeric value in exponent form.
+        w2["D1"] = 1e20; w2["D2"] = "=SUM(D1,5)"; w2["D3"] = "=D1*2"
         wb2.save(real)  # openpyxl writes ZIP_DEFLATED
         assert 8 in {i.compress_type for i in zipfile.ZipFile(real).infolist()}, "not deflated"
-        addrs_b = ["A1", "A2", "A3", "B1", "B2", "C1", "C2"]
+        addrs_b = ["A1", "A2", "A3", "B1", "B2", "C1", "C2", "D1", "D2", "D3"]
         eig_b = parse_kv(run_src(import_prog(real, addrs_b), tmp))
         lo_b = libre_csv(real, tmp)
         for a in addrs_b:

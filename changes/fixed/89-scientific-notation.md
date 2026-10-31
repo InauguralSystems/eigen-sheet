@@ -1,0 +1,1 @@
+- Scientific-notation literals are now treated as numbers in typed input and imported files (#89).

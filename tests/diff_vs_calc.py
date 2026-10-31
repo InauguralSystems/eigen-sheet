@@ -273,6 +273,16 @@ CELLS = {
     "BV1": "=IRR(BU1:BU3)",
 }
 
+# Issue #89: typed scientific-notation literals must remain numeric.  Keep the
+# separately keyed addition collision-proof rather than silently overwriting a
+# case in the large literal above.
+EXPONENT_CELLS = {
+    "ZZ1": "1E5", "ZZ2": "2.5E-3", "ZZ3": "-1E5", "ZZ4": "1e+20",
+    "ZY1": "=ZZ1*2", "ZY2": "=ZZ2*2", "ZY3": "=ZZ3*2", "ZY4": "=SUM(ZZ4,5)",
+}
+assert not (set(CELLS) & set(EXPONENT_CELLS)), "duplicate CELLS key"
+CELLS.update(EXPONENT_CELLS)
+
 # Per-cell comparison tolerance (default 1e-9). The iterative financial
 # functions (RATE/IRR) converge to their own epsilon in each engine, so pin a
 # looser — but still tight — bound rather than demanding bit-equality.
