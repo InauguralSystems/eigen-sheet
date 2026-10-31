@@ -276,6 +276,26 @@ CELLS = {
 # Per-cell comparison tolerance (default 1e-9). The iterative financial
 # functions (RATE/IRR) converge to their own epsilon in each engine, so pin a
 # looser — but still tight — bound rather than demanding bit-equality.
+
+# Issue #90 uses fresh columns and a tuple list so duplicate addresses are
+# detectable before insertion into the keyed test grid.
+ISSUE_90_CELLS = [
+    ("CZ4", "0"), ("DA1", "11"), ("DA2", "22"), ("DA3", "33"), ("DA4", "44"),
+    ("DE1", "0"), ("DB2", "11"), ("DC2", "22"), ("DD2", "33"), ("DE2", "44"),
+    ("DF1", "=IFERROR(MATCH(0,CZ1:CZ3,0),9001)"),
+    ("DF2", "=IFERROR(VLOOKUP(0,CZ1:DA3,2,0),9002)"),
+    ("DF3", "=IFERROR(HLOOKUP(0,DB1:DD2,2,0),9003)"),
+    ("DF4", "=IFERROR(XLOOKUP(0,CZ1:CZ3,DA1:DA3),9004)"),
+    ("DG1", "=MATCH(0,CZ1:CZ4,0)"),
+    ("DG2", "=VLOOKUP(0,CZ1:DA4,2,0)"),
+    ("DG3", "=HLOOKUP(0,DB1:DE2,2,0)"),
+    ("DG4", "=XLOOKUP(0,CZ1:CZ4,DA1:DA4)"),
+]
+_issue_90_keys = [key for key, _ in ISSUE_90_CELLS]
+assert len(_issue_90_keys) == len(set(_issue_90_keys)), "duplicate issue #90 cell key"
+assert not set(_issue_90_keys).intersection(CELLS), "issue #90 cell key already used"
+CELLS.update(ISSUE_90_CELLS)
+
 TOL = {
     "AY1": 1e-6,
     "AY2": 1e-6,
@@ -425,7 +445,13 @@ _XLFN = ("XOR", "IFS", "SWITCH", "IFNA")
 # evaluates that particular string/boolean literal combination as #VALUE!.
 # Feed Calc an equivalent numeric expression so it still independently owns
 # the expected result while eigen-sheet receives the exact regression formula.
-CALC_FORMULA_OVERRIDES = {"BN2": "=5+15+1"}
+CALC_FORMULA_OVERRIDES = {
+    "BN2": "=5+15+1",
+    # This Calc OOXML importer does not expose XLOOKUP. INDEX/MATCH gives it
+    # the same exact-lookup question while eigen-sheet receives XLOOKUP.
+    "DF4": "=IFERROR(INDEX(DA1:DA3,MATCH(0,CZ1:CZ3,0)),9004)",
+    "DG4": "=INDEX(DA1:DA4,MATCH(0,CZ1:CZ4,0))",
+}
 
 
 def _ooxml(formula):

@@ -1,0 +1,1 @@
+- Exact-match lookup functions now skip blank cells instead of treating them as numeric zero (#90).
