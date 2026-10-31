@@ -185,6 +185,16 @@ CELLS = {
     "AU2": '=SUMIFS(AS1:AS6,AQ1:AQ6,">=12")',              # 130  (single-crit IFS)
     "AU3": "=PERCENTILE(AQ1:AQ6,0.25)",                     # 5.75 (lower quartile)
     "AU4": '=AVERAGEIF(AR1:AR6,"cherry",AS1:AS6)',          # 40   (single match)
+    # ---- issue #78: engine-neutral error-path sentinels ----
+    # Calc may spell errors differently; IFERROR proves both engines took the error branch.
+    "BA1": "=IFERROR(VLOOKUP(2,AB1:AC2,3,0),7801)",       # return column out of range
+    "BA2": "=IFERROR(HLOOKUP(2,AB1:AD2,3,0),7802)",       # return row out of range
+    "BA3": '=IFERROR(AVERAGEIF(AQ1:AQ6,">99"),7803)',      # no matching values
+    "BA4": '=IFERROR(AVERAGEIFS(AS1:AS6,AQ1:AQ6,">99"),7804)',
+    # Error-producing representatives for the blind spots reported in #70/#71/#76.
+    "BA5": "=IFERROR(VLOOKUP(0,Z1:AA4,2,1),7805)",        # approximate lookup below range (#70)
+    "BA6": "=IFERROR(RATE(10,100,800),7806)",             # iterative no-root failure (#71)
+    "BA7": "=IFERROR(1/0,7807)",                          # malformed/out-of-domain class (#76)
     # ---- information / type predicates (#8), NUMERIC results ----
     # (boolean-returning predicates — IS*/ISEVEN/ISODD — display TRUE/FALSE and
     # so live in the string oracle diff_vs_calc_str.py. A1=5, A2=3, A3=8, A4=-2

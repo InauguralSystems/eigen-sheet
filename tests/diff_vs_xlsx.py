@@ -169,7 +169,7 @@ def main():
             print("SKIP import: EigenScript built without zlib (inflate)");
             if failures:
                 print("\n%d xlsx divergence(s)" % failures); sys.exit(1)
-            print("\nexport OK; import skipped (no zlib)"); sys.exit(0)
+            print("\nexport OK; import skipped (no zlib)"); sys.exit(2)
 
         # A. round-trip: to_xlsx (from the export above) -> from_xlsx == mine
         rt = parse_kv(run_src(import_prog(xlsx, list(GRID)), tmp))
