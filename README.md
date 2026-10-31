@@ -18,10 +18,15 @@ edits in the same order reconstruct the same grid.
 ## Run it standalone
 
 ```sh
-git clone https://github.com/InauguralSystems/EigenScript.git
-make -C EigenScript gfx
-EigenScript/src/eigenscript main.eigs      # opens the grid (demo sheet); Escape quits
+git clone --depth 1 --branch v0.48.0 https://github.com/InauguralSystems/EigenScript.git
+make -C EigenScript zlib
+EigenScript/build/zlib/eigenscript main.eigs  # opens the grid (demo sheet); Escape quits
 ```
+
+The EigenScript version is pinned to the runtime tested by CI. The source of
+truth for that pin is `.github/workflows/test.yml`; update these commands when
+the CI pin is bumped. The `zlib` build also includes gfx and is required by
+`from_xlsx` to inflate the DEFLATE-compressed parts of real `.xlsx` files.
 
 ## Use the engine as a library
 
