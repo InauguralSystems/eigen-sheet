@@ -28,9 +28,23 @@ sheet.set_cell of [s, "C3", "400"]
 sheet.set_cell of [s, "C4", "500"]
 sheet.set_cell of [s, "C5", "600"]
 sheet.set_cell of [s, "D1", "=IRR(C1:C5)"]
+sheet.set_cell of [s, "E1", "-100"]
+sheet.set_cell of [s, "E2", "1000000"]
+sheet.set_cell of [s, "F1", "=IRR(E1:E2)"]
+sheet.set_cell of [s, "G1", "-800"]
+sheet.set_cell of [s, "G2", "-400"]
+sheet.set_cell of [s, "G3", "400"]
+sheet.set_cell of [s, "H1", "=IRR(G1:G3)"]
+sheet.set_cell of [s, "I1", "-100"]
+sheet.set_cell of [s, "I2", "60"]
+sheet.set_cell of [s, "I3", "60"]
+sheet.set_cell of [s, "J1", "=IRR(I1:I3)"]
 sheet.recalc of s
 print of (sheet.display of [s, "B1"])
 print of (sheet.display of [s, "D1"])
+print of (sheet.display of [s, "F1"])
+print of (sheet.display of [s, "H1"])
+print of (sheet.display of [s, "J1"])
 """
         app = os.path.join(tmp, "issue_71.eigs")
         with open(app, "w", encoding="utf-8") as f:
@@ -78,6 +92,20 @@ print of (sheet.display of [s, "B1"])
         failures += 1
         print("FAIL: ordinary IRR -> %s (expected about 0.2488833566)" %
               (got[1] if len(got) >= 2 else "<no output>"))
+    expected = [(2, 9999.0, "large-rate"), (3, -0.5, "damped"),
+                (4, 0.1307, "ordinary two-return")]
+    for index, want, label in expected:
+        try:
+            actual = float(got[index])
+        except (IndexError, ValueError):
+            actual = None
+        if actual is not None and abs(actual - want) < 1e-4:
+            print("PASS: %s IRR converges -> %s" % (label, got[index]))
+        else:
+            failures += 1
+            detail = got[index] if len(got) > index else "<no output>"
+            print("FAIL: %s IRR -> %s (expected about %s)" %
+                  (label, detail, want))
     malformed_lines = malformed_result.stdout.splitlines()
     malformed_display = malformed_lines[-1] if malformed_lines else ""
     if malformed_result.returncode != 0 or malformed_display.startswith("#"):
