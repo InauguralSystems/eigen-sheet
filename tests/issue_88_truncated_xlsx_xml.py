@@ -38,6 +38,11 @@ def run_case(tmp, filename):
     )
 
 
+def imported(output, expected):
+    """Whether a valid control imported and left A1 at expected display text."""
+    return "NOT_CAUGHT" in output and "AFTER " + expected + "\n" in output
+
+
 def main():
     failures = 0
     with tempfile.TemporaryDirectory(prefix="eigen-sheet-issue-88-") as tmp:
@@ -72,6 +77,45 @@ def main():
             "truncated-shared-item.xlsx": (
                 good_ws, '<sst><si><t>shared</t></sst>'
             ),
+            "truncated-formula.xlsx": (
+                '<worksheet><sheetData><row><c r="A1"><f>1+1</c></row>'
+                '</sheetData></worksheet>', None
+            ),
+            "truncated-inline-string.xlsx": (
+                '<worksheet><sheetData><row><c r="A1" t="inlineStr"><is>'
+                '</c></row></sheetData></worksheet>', None
+            ),
+        }
+        valid_controls = {
+            "self-closing-shared-item.xlsx": (
+                '<worksheet><sheetData><row><c r="A1" t="s"><v>0</v></c>'
+                '</row></sheetData></worksheet>', '<sst><si/></sst>', ""
+            ),
+            "self-closing-attributed-shared-item.xlsx": (
+                '<worksheet><sheetData><row><c r="A1" t="s"><v>0</v></c>'
+                '</row></sheetData></worksheet>',
+                '<sst><si xml:space="preserve"/></sst>', ""
+            ),
+            "self-closing-text.xlsx": (
+                '<worksheet><sheetData><row><c r="A1" t="s"><v>0</v></c>'
+                '</row></sheetData></worksheet>', '<sst><si><t/></si></sst>', ""
+            ),
+            "self-closing-cell.xlsx": (
+                '<worksheet><sheetData><row><c r="A1"/></row>'
+                '</sheetData></worksheet>', None, "keep"
+            ),
+            "self-closing-value.xlsx": (
+                '<worksheet><sheetData><row><c r="A1"><v/></c></row>'
+                '</sheetData></worksheet>', None, ""
+            ),
+            "self-closing-formula.xlsx": (
+                '<worksheet><sheetData><row><c r="A1"><f/><v>2</v></c>'
+                '</row></sheetData></worksheet>', None, "2"
+            ),
+            "self-closing-inline-string.xlsx": (
+                '<worksheet><sheetData><row><c r="A1" t="inlineStr"><is/>'
+                '</c></row></sheetData></worksheet>', None, ""
+            ),
         }
         if len(fixtures) != len(set(fixtures)):
             print("FAIL: duplicate fixture keys")
@@ -84,6 +128,17 @@ def main():
             print("FAIL: clean control did not import: %r" % (good.stdout + good.stderr))
         else:
             print("PASS: clean worksheet control imports")
+
+        for name, (worksheet, shared, expected) in valid_controls.items():
+            write_xlsx(os.path.join(tmp, name), worksheet, shared)
+            result = run_case(tmp, name)
+            output = result.stdout + result.stderr
+            if result.returncode or not imported(output, expected) or "CAUGHT " in output:
+                failures += 1
+                print("FAIL: %s valid self-closing XML did not import: %r" %
+                      (name, output))
+            else:
+                print("PASS: %s valid self-closing XML imports" % name)
 
         for name, (worksheet, shared) in fixtures.items():
             write_xlsx(os.path.join(tmp, name), worksheet, shared)

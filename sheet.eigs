@@ -3673,22 +3673,28 @@ define _sst_parse(xml, path) as:
     local out is []
     local p is _sfind of [xml, "<si", 0]
     loop while p >= 0:
-        local siend is _sfind of [xml, "</si>", p]
-        assert of [siend >= 0, "from_xlsx: " + path + ": unterminated <si> element"]
-        local s is ""
-        local tp is _sfind of [xml, "<t", p]
-        loop while tp >= 0 and tp < siend:
-            local gt is _sfind of [xml, ">", tp]
-            assert of [gt >= 0 and gt < siend, "from_xlsx: " + path + ": unterminated <t> opening tag"]
-            if (char_at of [xml, gt - 1]) == "/":
-                tp is _sfind of [xml, "<t", gt]
-            else:
-                local tend is _sfind of [xml, "</t>", gt]
-                assert of [tend >= 0 and tend <= siend, "from_xlsx: " + path + ": unterminated <t> element"]
-                s is s + (_xml_unesc of (substr of [xml, gt + 1, tend - gt - 1]))
-                tp is _sfind of [xml, "<t", tend]
-        append of [out, s]
-        p is _sfind of [xml, "<si", siend]
+        local gt is _sfind of [xml, ">", p]
+        assert of [gt >= 0, "from_xlsx: " + path + ": unterminated <si> opening tag"]
+        if (char_at of [xml, gt - 1]) == "/":
+            append of [out, ""]
+            p is _sfind of [xml, "<si", gt]
+        else:
+            local siend is _sfind of [xml, "</si>", gt]
+            assert of [siend >= 0, "from_xlsx: " + path + ": unterminated <si> element"]
+            local s is ""
+            local tp is _sfind of [xml, "<t", gt]
+            loop while tp >= 0 and tp < siend:
+                local tgt is _sfind of [xml, ">", tp]
+                assert of [tgt >= 0 and tgt < siend, "from_xlsx: " + path + ": unterminated <t> opening tag"]
+                if (char_at of [xml, tgt - 1]) == "/":
+                    tp is _sfind of [xml, "<t", tgt]
+                else:
+                    local tend is _sfind of [xml, "</t>", tgt]
+                    assert of [tend >= 0 and tend <= siend, "from_xlsx: " + path + ": unterminated <t> element"]
+                    s is s + (_xml_unesc of (substr of [xml, tgt + 1, tend - tgt - 1]))
+                    tp is _sfind of [xml, "<t", tend]
+            append of [out, s]
+            p is _sfind of [xml, "<si", siend]
     return out
 
 # value of attribute `name` in an opening tag string, or "" if absent
@@ -3728,7 +3734,17 @@ define _cell_raw(inner, ct, sst, path) as:
     if f != null and f != "":
         return "=" + f
     if ct == "inlineStr":
-        local t is _tag_text of [inner, "t", path]
+        local isp is _sfind of [inner, "<is", 0]
+        if isp < 0:
+            return ""
+        local isgt is _sfind of [inner, ">", isp]
+        assert of [isgt >= 0, "from_xlsx: " + path + ": unterminated <is> opening tag"]
+        if (char_at of [inner, isgt - 1]) == "/":
+            return ""
+        local isend is _sfind of [inner, "</is>", isgt]
+        assert of [isend >= 0, "from_xlsx: " + path + ": unterminated <is> element"]
+        local isinner is substr of [inner, isgt + 1, isend - isgt - 1]
+        local t is _tag_text of [isinner, "t", path]
         if t == null:
             return ""
         return t
