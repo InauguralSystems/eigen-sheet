@@ -3243,13 +3243,31 @@ define save(sheet, path) as:
 # recompute. Returns the sheet.
 define load(sheet, path) as:
     local data is json_decode of (read_text of path)
-    sheet.cells is data.cells
-    sheet.names is data.names
-    sheet.formats is data.formats
+    assert of [(type of data) == "dict", "load: " + path + ": saved sheet must be a JSON object"]
+    assert of [(has_key of [data, "cells"]) and (type of data.cells) == "dict", "load: " + path + ": 'cells' must be a dict"]
+    local cells is data.cells
+    local names is {}
+    local formats is {}
+    local styles is {}
+    local conditionals is {}
+    if (has_key of [data, "names"]):
+        assert of [(type of data.names) == "dict", "load: " + path + ": 'names' must be a dict"]
+        names is data.names
+    if (has_key of [data, "formats"]):
+        assert of [(type of data.formats) == "dict", "load: " + path + ": 'formats' must be a dict"]
+        formats is data.formats
     if (has_key of [data, "styles"]):
-        sheet.styles is data.styles
+        assert of [(type of data.styles) == "dict", "load: " + path + ": 'styles' must be a dict"]
+        styles is data.styles
     if (has_key of [data, "conditionals"]):
-        sheet.conditionals is data.conditionals
+        assert of [(type of data.conditionals) == "dict", "load: " + path + ": 'conditionals' must be a dict"]
+        conditionals is data.conditionals
+    # Commit only after every field has been validated into private locals.
+    sheet.cells is cells
+    sheet.names is names
+    sheet.formats is formats
+    sheet.styles is styles
+    sheet.conditionals is conditionals
     recalc of sheet
     return sheet
 
@@ -3599,7 +3617,7 @@ define _xml_unesc(s) as:
 # Central-Directory record + central directory (correct sizes even when the
 # local header used a data descriptor); inflates method-8 entries, passes
 # method-0 (stored) through unchanged.
-define _unzip(b) as:
+define _unzip(b, path) as:
     local n is len of b
     local eocd is 0 - 1
     local i is n - 22
@@ -3608,30 +3626,38 @@ define _unzip(b) as:
             eocd is i
         else:
             i is i - 1
-    local out is {}
-    if eocd < 0:
-        return out
+    assert of [eocd >= 0, "from_xlsx: " + path + ": missing ZIP end-of-central-directory record"]
+    assert of [eocd + 22 <= n, "from_xlsx: " + path + ": truncated ZIP end record"]
     local ne is _rd16 of [b, eocd + 10]
     local p is _rd32 of [b, eocd + 16]
+    local cdsize is _rd32 of [b, eocd + 12]
+    local cdend is p + cdsize
+    assert of [p <= n and cdend <= eocd and cdend <= n, "from_xlsx: " + path + ": central directory runs past end of file"]
+    local out is {}
     for e in range of ne:
         # central directory record: PK\01\02 at p
+        assert of [p + 46 <= cdend and b[p] == 80 and b[p + 1] == 75 and b[p + 2] == 1 and b[p + 3] == 2, "from_xlsx: " + path + ": invalid or truncated central-directory entry"]
         local method is _rd16 of [b, p + 10]
         local csize is _rd32 of [b, p + 20]
         local nlen is _rd16 of [b, p + 28]
         local elen is _rd16 of [b, p + 30]
         local clen is _rd16 of [b, p + 32]
         local lho is _rd32 of [b, p + 42]
+        local nextp is p + 46 + nlen + elen + clen
+        assert of [nextp <= cdend and nextp <= n, "from_xlsx: " + path + ": central-directory entry runs past end of file"]
         local name is _btext of (_slice of [b, p + 46, nlen])
         # local file header at lho: fixed 30 bytes + its own name & extra fields
+        assert of [lho + 30 <= n and b[lho] == 80 and b[lho + 1] == 75 and b[lho + 2] == 3 and b[lho + 3] == 4, "from_xlsx: " + path + ": invalid or truncated local file header"]
         local lnlen is _rd16 of [b, lho + 26]
         local lelen is _rd16 of [b, lho + 28]
         local dstart is lho + 30 + lnlen + lelen
+        assert of [dstart <= n and dstart + csize <= n, "from_xlsx: " + path + ": ZIP entry data runs past end of file"]
         local comp is _slice of [b, dstart, csize]
         local data is comp
         if method == 8:
             data is inflate of comp
         dict_set of [out, name, data]
-        p is p + 46 + nlen + elen + clen
+        p is nextp
     return out
 
 # copy n bytes of list b starting at o
@@ -3738,11 +3764,11 @@ define _ws_cells(xml, sst) as:
     return out
 
 # Read `path` (a real .xlsx) into `sheet`, then recalc. Handles DEFLATE-
-# compressed entries and shared strings; formula cells arrive as their cached
-# values. Returns the sheet.
+# compressed entries and shared strings. Formula cells import as live formulas
+# and are recomputed by eigen-sheet. Returns the sheet.
 define from_xlsx(sheet, path) as:
     local raw is read_bytes of path
-    local files is _unzip of raw
+    local files is _unzip of [raw, path]
     local sst is []
     if (has_key of [files, "xl/sharedStrings.xml"]):
         sst is _sst_parse of (_btext of files["xl/sharedStrings.xml"])
@@ -3755,7 +3781,7 @@ define from_xlsx(sheet, path) as:
             if wsname == "" and (starts_with of [ks[i], "xl/worksheets/"]):
                 wsname is ks[i]
     if wsname == "":
-        return sheet
+        assert of [false, "from_xlsx: " + path + ": no xl/worksheets/ entry found"]
     local cells is _ws_cells of [(_btext of files[wsname]), sst]
     for i in range of (len of cells):
         set_cell of [sheet, cells[i].addr, cells[i].raw]
