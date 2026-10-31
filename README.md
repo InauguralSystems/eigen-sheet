@@ -143,7 +143,8 @@ dependency-ordered recalc (an O(V+E) in-degree topological pass; a reused
 evaluator state keeps a large sheet from thrashing the allocator), cycle
 detection, and a sparse cell store so the full Calc addressing extent
 (`XFD1048576` = 16384 × 1,048,576) costs nothing until used. **Errors** (`#DIV/0!`, `#VALUE!`,
-`#NAME?`, `#REF!`, `#N/A`, `#NUM!`, `#CYCLE`) propagate through cell
+`#NAME?`, `#REF!`, `#N/A`, `#NUM!`, `#CYCLE`, and `#ERROR` for a formula that
+could not be parsed) propagate through cell
 references and ranges — a formula reading an errored cell yields that error,
 not a silent `0` — and `IFERROR` / `IFNA` / `NA()` catch or raise them.
 **Text:** string literals
