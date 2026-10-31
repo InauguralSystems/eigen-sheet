@@ -79,6 +79,26 @@ def main():
                 print("FAIL round-trip %-3s orig=%r loaded=%r" % (a, orig_d.get(a), load_d.get(a)))
         if not failures:
             print("PASS save -> load reconstructs every value (%d cells, incl. named range + format)" % len(GRID))
+
+        # Issue #75: validate the complete shape before committing any field.
+        for filename, payload in (("missing.json", '{"foo":1}'),
+                                  ("list.json", '[1,2,3]'),
+                                  ("cells.json", '{"cells":5}')):
+            bad_path = os.path.join(tmp, filename)
+            open(bad_path, "w").write(payload)
+            check = ('import sheet\ns is sheet.new_sheet of null\n'
+                     'sheet.set_cell of [s, "A1", "keep"]\ntry:\n'
+                     '    sheet.load of [s, %s]\n    print of "NOT_CAUGHT"\n'
+                     'catch err:\n    print of ("CAUGHT " + (json_encode of err))\n'
+                     'print of ("AFTER " + (sheet.display of [s, "A1"]))\n') % eigs_str(bad_path)
+            check_app = os.path.join(tmp, "bad_load.eigs"); open(check_app, "w").write(check)
+            bad_run = subprocess.run([EIGS, check_app], cwd=tmp, capture_output=True, text=True, timeout=30)
+            output = bad_run.stdout + bad_run.stderr
+            if bad_run.returncode or filename not in output or "AFTER keep" not in output or "NOT_CAUGHT" in output:
+                failures += 1
+                print("FAIL invalid load %s rc=%d output=%r" % (filename, bad_run.returncode, output))
+            else:
+                print("PASS invalid load %s rejected before mutation" % filename)
         if failures:
             sys.exit(1)
         print("\nnative save/load round-trips identically")

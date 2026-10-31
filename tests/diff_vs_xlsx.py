@@ -173,6 +173,27 @@ def main():
                 print("\n%d xlsx divergence(s)" % failures); sys.exit(1)
             print("\nexport OK; import skipped (no zlib)"); sys.exit(2)
 
+        # Issue #75: malformed/non-workbook archives must never look like an
+        # empty successful import.
+        bad_xlsx = {
+            "not.xlsx": b"a,b\n1,2\n",
+            "rand.xlsx": bytes(range(256)) + b"x" * 44,
+            "trunc.xlsx": open(xlsx, "rb").read()[:os.path.getsize(xlsx) // 2],
+        }
+        with zipfile.ZipFile(os.path.join(tmp, "noworksheet.xlsx"), "w") as z:
+            z.writestr("hello.txt", "hi")
+        for name, payload in bad_xlsx.items():
+            open(os.path.join(tmp, name), "wb").write(payload)
+        for name in list(bad_xlsx) + ["noworksheet.xlsx"]:
+            app = os.path.join(tmp, "bad_import.eigs")
+            open(app, "w").write("import sheet\ns is sheet.new_sheet of null\nsheet.from_xlsx of [s, %s]\n" % eigs_str(name))
+            rejected = subprocess.run([EIGS, app], cwd=tmp, capture_output=True, text=True, timeout=30)
+            if rejected.returncode == 0 or name not in rejected.stdout + rejected.stderr:
+                failures += 1
+                print("FAIL reject %-16s rc=%d" % (name, rejected.returncode))
+            else:
+                print("PASS reject %-16s filename-bearing error" % name)
+
         # A. round-trip: to_xlsx (from the export above) -> from_xlsx == mine
         rt = parse_kv(run_src(import_prog(xlsx, list(GRID)), tmp))
         for a in sorted(GRID, key=addr_rc):

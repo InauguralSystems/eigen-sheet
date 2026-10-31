@@ -1,0 +1,1 @@
+- Invalid XLSX and saved-sheet JSON inputs now raise filename-bearing errors instead of succeeding with an empty or damaged sheet (#75).

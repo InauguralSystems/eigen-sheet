@@ -90,6 +90,9 @@ jobs:
           if [ $rc -eq 2 ]; then echo "xlsx oracle skipped in CI — that's a gap"; exit 1; fi
           exit $rc
 
+      - name: Issue 75 corrupt XLSX and saved-sheet validation
+        run: python3 tests/issue_75_bad_input_test.py
+
   ui-oracle:
     # render oracle: draw_grid pixels decoded back to the model. gfx + xvfb.
     runs-on: ubuntu-latest
