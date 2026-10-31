@@ -3,6 +3,7 @@
 
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -25,13 +26,34 @@ def synchronize_version(fixture: Path, version: str) -> None:
     manifest = json.loads(manifest_path.read_text())
     manifest["version"] = version
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
-    for name in ("sheet.eigs", "README.md"):
+    replacements = {
+        "sheet.eigs": (r'(^VERSION is ")[^"]+("$)', rf'\g<1>{version}\g<2>'),
+        "README.md": (
+            r'(--pkg add InauguralSystems/sheet \S+ v)[^\s`]+',
+            rf'\g<1>{version}',
+        ),
+    }
+    for name, (pattern, replacement) in replacements.items():
         path = fixture / name
-        path.write_text(path.read_text().replace("0.2.0", version))
+        updated, count = re.subn(
+            pattern, replacement, path.read_text(), count=1, flags=re.MULTILINE
+        )
+        assert count == 1, f"expected one version reference in {name}"
+        path.write_text(updated)
+
+
+def current_version(root: Path) -> str:
+    return json.loads((root / "eigs.json").read_text())["version"]
+
+
+def next_patch(version: str) -> str:
+    major, minor, patch = (int(part) for part in version.split("."))
+    return f"{major}.{minor}.{patch + 1}"
 
 
 def test_self_test_at_current_and_bumped_versions(tmp: Path) -> None:
-    for version in ("0.2.0", "0.2.1"):
+    current = current_version(ROOT)
+    for version in (current, next_patch(current)):
         fixture = tmp / version
         fixture.mkdir()
         for name in ("eigs.json", "sheet.eigs", "README.md"):
@@ -61,7 +83,8 @@ def test_no_fragments_is_byte_identical(tmp: Path) -> None:
     run("git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
         "commit", "-qm", "fixture", cwd=fixture)
     before = tree_hashes(fixture)
-    result = run("python3", "tools/release.py", "0.2.1", "--date", "2026-10-31",
+    target = next_patch(current_version(fixture))
+    result = run("python3", "tools/release.py", target, "--date", "2026-10-31",
                  cwd=fixture, ok=False)
     assert "no changes/<category> fragments" in result.stderr
     assert tree_hashes(fixture) == before
