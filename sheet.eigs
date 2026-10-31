@@ -17,7 +17,7 @@
 # (LibreOffice) in tests/diff_vs_calc.py — that engine, not our say-so, is
 # what "right" looks like for the operations every spreadsheet agrees on.
 
-VERSION is "0.1.0"
+VERSION is "0.2.0"
 
 # ---- addresses ------------------------------------------------------
 

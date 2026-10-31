@@ -30,6 +30,17 @@ the CI pin is bumped. The `zlib` build also includes gfx and is required by
 
 ## Use the engine as a library
 
+EigenScript **v0.48.0** is required. From your application's directory,
+install the `sheet` package leaf (the leaf must match `import sheet`):
+
+```sh
+eigenscript --pkg add InauguralSystems/sheet https://github.com/InauguralSystems/eigen-sheet.git v0.2.0
+```
+
+If the application uses `from_xlsx`, build the runtime with `make zlib` and
+use `build/zlib/eigenscript`; the plain build does not include the `inflate`
+builtin needed for compressed XLSX parts.
+
 ```eigenscript
 import sheet
 s is sheet.new_sheet of null
