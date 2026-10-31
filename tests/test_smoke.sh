@@ -145,8 +145,9 @@ $PKG_NAME.recalc of s
 rt is $PKG_NAME.copy_block of [s, 24, 0, 24, 0]
 $PKG_NAME.paste_block of [s, rt, 24, 0]
 print of ("roundtrip=" + s.cells["Y1"])
-# error channel: unknown function, div-by-zero, scientific-notation garbage,
-# trailing operator, and an aggregate over a gap (empty cell skipped)
+# error channel: unknown function, div-by-zero, a scientific-notation literal
+# (=1E5 is 100000, as in Calc, since #76), trailing operator, and an aggregate
+# over a gap (empty cell skipped)
 $PKG_NAME.set_cell of [s, "X1", "=FOO(A1:A2)"]
 $PKG_NAME.set_cell of [s, "X2", "=A1/0"]
 $PKG_NAME.set_cell of [s, "X3", "=1E5"]
@@ -181,7 +182,7 @@ prop P2=#DIV/0! P3=#DIV/0!
 fmt Q1=1,234.50 Q2=12.50% val=1234.5
 udf R1=11 R2=98
 roundtrip==IF(A1&"x"="5x",SUM(A1:A3)+1,MIN(A1:A2)*2)
-errs=#NAME?,#DIV/0!,#ERROR,#ERROR gapavg=15
+errs=#NAME?,#DIV/0!,100000,#ERROR gapavg=15
 EOF
 )"
 
