@@ -266,9 +266,9 @@ CELLS = {
     "BP1": "=IFERROR(IRR(BO1:BO3),7101)",
     # Safeguarded IRR cases: a large rate must not stop on scaled residual,
     # and an out-of-domain Newton proposal must be damped back into r > -1.
-    "BQ1": "-100", "BQ2": "1000000", "BR1": "=IRR(BQ1:BQ2)",
-    "BS1": "-800", "BS2": "-400", "BS3": "400",
-    "BT1": "=IRR(BS1:BS3)",
+    "CA1": "-100", "CA2": "1000000", "CB1": "=IRR(CA1:CA2)",
+    "CC1": "-800", "CC2": "-400", "CC3": "400",
+    "CD1": "=IRR(CC1:CC3)",
     "BU1": "-100", "BU2": "60", "BU3": "60",
     "BV1": "=IRR(BU1:BU3)",
 }
@@ -279,8 +279,8 @@ CELLS = {
 TOL = {
     "AY1": 1e-6,
     "AY2": 1e-6,
-    "BR1": 1e-6,
-    "BT1": 1e-6,
+    "CB1": 1e-6,
+    "CD1": 1e-6,
     "BV1": 1e-6,
 }
 
