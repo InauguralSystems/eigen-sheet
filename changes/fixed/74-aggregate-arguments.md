@@ -1,0 +1,1 @@
+- Spreadsheet aggregates now accept comma-separated ranges, cells, numbers, and expressions (#74).

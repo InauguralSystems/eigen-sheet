@@ -230,6 +230,27 @@ CELLS = {
     # iterative (Newton) — pinned with a looser tolerance (see TOL).
     "AY1": "=RATE(60,-471.78,25000)",        # ~0.004167 (monthly)
     "AY2": "=IRR(AZ1:AZ5)",                  # internal rate of return
+
+    # ---- issue #74: comma-separated aggregate arguments ----
+    # Every Calc aggregate that supports lists gets both a range-plus-scalar
+    # and a two-range case (Calc itself restricts COUNTBLANK to one argument).
+    "BA1": "=SUM(A1:A2,8)",       "BA2": "=SUM(A1:A2,A3:A4)",
+    "BB1": "=AVERAGE(A1:A2,8)",   "BB2": "=AVERAGE(A1:A2,A3:A4)",
+    "BC1": "=MIN(A1:A2,8)",       "BC2": "=MIN(A1:A2,A3:A4)",
+    "BD1": "=MAX(A1:A2,8)",       "BD2": "=MAX(A1:A2,A3:A4)",
+    "BE1": "=PRODUCT(A1:A2,8)",   "BE2": "=PRODUCT(A1:A2,A3:A4)",
+    "BF1": "=COUNT(A1:A2,8)",     "BF2": "=COUNT(A1:A2,A3:A4)",
+    "BG1": "=COUNTA(A1:A2,8)",    "BG2": "=COUNTA(A1:A2,A3:A4)",
+    "BH1": "=MEDIAN(A1:A2,8)",    "BH2": "=MEDIAN(A1:A2,A3:A4)",
+    "BI1": "=STDEV(A1:A2,8)",     "BI2": "=STDEV(A1:A2,A3:A4)",
+    "BJ1": "=VAR(A1:A2,8)",       "BJ2": "=VAR(A1:A2,A3:A4)",
+    "BK1": "=STDEVP(A1:A2,8)",    "BK2": "=STDEVP(A1:A2,A3:A4)",
+    "BL1": "=VARP(A1:A2,8)",      "BL2": "=VARP(A1:A2,A3:A4)",
+    "BM1": "=MODE(P1:P2,4)",      "BM2": "=MODE(P1:P2,P3:P4)",
+    # Direct aggregate scalars are coerced, unlike text/booleans in ranges.
+    "BN1": "=SUM(1>0,2)",
+    "BN2": '=SUM("5",15,TRUE())',
+    "BN3": "=AVERAGE(1>0,3)",
 }
 
 # Per-cell comparison tolerance (default 1e-9). The iterative financial
@@ -307,6 +328,12 @@ def eigs_values():
 # the .xlsx handed to LibreOffice carries the prefix, so both compute the same fn.
 _XLFN = ("XOR", "IFS", "SWITCH", "IFNA")
 
+# Calc applies native direct-argument coercion to BN2, but its OOXML importer
+# evaluates that particular string/boolean literal combination as #VALUE!.
+# Feed Calc an equivalent numeric expression so it still independently owns
+# the expected result while eigen-sheet receives the exact regression formula.
+CALC_FORMULA_OVERRIDES = {"BN2": "=5+15+1"}
+
 
 def _ooxml(formula):
     import re
@@ -322,7 +349,7 @@ def write_xlsx(path):
     ws.title = "Sheet1"
     for a, raw in CELLS.items():
         if raw.startswith("="):
-            ws[a] = _ooxml(raw)
+            ws[a] = _ooxml(CALC_FORMULA_OVERRIDES.get(a, raw))
         else:
             try:
                 ws[a] = float(raw)
@@ -366,7 +393,10 @@ def calc_values():
             if cell.endswith("%"):
                 out[a] = float(cell[:-1]) / 100.0
             else:
-                out[a] = float(cell)
+                try:
+                    out[a] = float(cell)
+                except ValueError:
+                    raise ValueError("Calc returned %r for %s (%s)" % (cell, a, raw))
         return out
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
