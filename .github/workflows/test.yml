@@ -23,6 +23,8 @@ jobs:
         run: python3 tests/issue_78_error_paths_test.py
       - name: Issue 70 blank approximate-lookup regression
         run: python3 tests/issue_70_blank_lookups.py
+      - name: Issue 71 IRR no-root regression
+        run: python3 tests/issue_71_irr_no_root.py
       - name: CSV differential oracle (vs Python csv module)
         run: python3 tests/diff_vs_csv.py
       - name: Sort differential oracle (vs Python sorted)

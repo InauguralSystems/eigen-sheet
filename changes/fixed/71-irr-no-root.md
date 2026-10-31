@@ -1,0 +1,1 @@
+- `IRR` now returns `#NUM!` for same-sign cashflows and failed root searches (#71).

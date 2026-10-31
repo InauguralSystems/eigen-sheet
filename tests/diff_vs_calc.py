@@ -260,6 +260,17 @@ CELLS = {
     "BR4": "=HLOOKUP(6,BQ6:BT6,1)",
     "BQ8": "5", "BQ9": "3", "BQ10": "1",  # BQ11 deliberately blank
     "BR5": "=MATCH(-1,BQ8:BQ11,-1)",
+    # Issue #71: both engines must reject same-sign cashflows. IFERROR makes
+    # Calc's Err:523 and eigen-sheet's #NUM! comparable as a numeric sentinel.
+    "BO1": "100", "BO2": "200", "BO3": "300",
+    "BP1": "=IFERROR(IRR(BO1:BO3),7101)",
+    # Safeguarded IRR cases: a large rate must not stop on scaled residual,
+    # and an out-of-domain Newton proposal must be damped back into r > -1.
+    "CA1": "-100", "CA2": "1000000", "CB1": "=IRR(CA1:CA2)",
+    "CC1": "-800", "CC2": "-400", "CC3": "400",
+    "CD1": "=IRR(CC1:CC3)",
+    "BU1": "-100", "BU2": "60", "BU3": "60",
+    "BV1": "=IRR(BU1:BU3)",
 }
 
 # Per-cell comparison tolerance (default 1e-9). The iterative financial
@@ -268,6 +279,9 @@ CELLS = {
 TOL = {
     "AY1": 1e-6,
     "AY2": 1e-6,
+    "CB1": 1e-6,
+    "CD1": 1e-6,
+    "BV1": 1e-6,
 }
 
 # Named ranges/expressions: name -> definition (a range, cell, or constant).
