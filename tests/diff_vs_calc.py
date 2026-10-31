@@ -220,6 +220,23 @@ CELLS = {
     # iterative (Newton) — pinned with a looser tolerance (see TOL).
     "AY1": "=RATE(60,-471.78,25000)",        # ~0.004167 (monthly)
     "AY2": "=IRR(AZ1:AZ5)",                  # internal rate of return
+
+    # ---- issue #74: comma-separated aggregate arguments ----
+    # Every Calc aggregate that supports lists gets both a range-plus-scalar
+    # and a two-range case (Calc itself restricts COUNTBLANK to one argument).
+    "BA1": "=SUM(A1:A2,8)",       "BA2": "=SUM(A1:A2,A3:A4)",
+    "BB1": "=AVERAGE(A1:A2,8)",   "BB2": "=AVERAGE(A1:A2,A3:A4)",
+    "BC1": "=MIN(A1:A2,8)",       "BC2": "=MIN(A1:A2,A3:A4)",
+    "BD1": "=MAX(A1:A2,8)",       "BD2": "=MAX(A1:A2,A3:A4)",
+    "BE1": "=PRODUCT(A1:A2,8)",   "BE2": "=PRODUCT(A1:A2,A3:A4)",
+    "BF1": "=COUNT(A1:A2,8)",     "BF2": "=COUNT(A1:A2,A3:A4)",
+    "BG1": "=COUNTA(A1:A2,8)",    "BG2": "=COUNTA(A1:A2,A3:A4)",
+    "BH1": "=MEDIAN(A1:A2,8)",    "BH2": "=MEDIAN(A1:A2,A3:A4)",
+    "BI1": "=STDEV(A1:A2,8)",     "BI2": "=STDEV(A1:A2,A3:A4)",
+    "BJ1": "=VAR(A1:A2,8)",       "BJ2": "=VAR(A1:A2,A3:A4)",
+    "BK1": "=STDEVP(A1:A2,8)",    "BK2": "=STDEVP(A1:A2,A3:A4)",
+    "BL1": "=VARP(A1:A2,8)",      "BL2": "=VARP(A1:A2,A3:A4)",
+    "BM1": "=MODE(P1:P2,4)",      "BM2": "=MODE(P1:P2,P3:P4)",
 }
 
 # Per-cell comparison tolerance (default 1e-9). The iterative financial

@@ -737,6 +737,7 @@ define _parse_args2(st) as:
     loop while (_peek of st) != null and (_peek of st).t != "rp":
         local tk is _peek of st
         if tk.t == "cell":
+            local save is st.i
             local aa is tk.v
             st.i is st.i + 1
             local bb is aa
@@ -744,7 +745,13 @@ define _parse_args2(st) as:
                 st.i is st.i + 1
                 bb is (_peek of st).v
                 st.i is st.i + 1
-            append of [args, _mk_range of [aa, bb]]
+            # A cell is a reference argument only when it ends here (or forms a
+            # range). In A1+1 it is the start of a scalar expression instead.
+            if (_peek of st) == null or (_peek of st).t == "comma" or (_peek of st).t == "rp":
+                append of [args, _mk_range of [aa, bb]]
+            else:
+                st.i is save
+                append of [args, {"r": 0, "v": _eval_cmp of st}]
         else:
             append of [args, {"r": 0, "v": _eval_cmp of st}]
         if (_peek of st) != null and (_peek of st).t == "comma":
@@ -1977,40 +1984,38 @@ define _eval_factor(st) as:
             if fname == "MINUTE":
                 return (floor of (totsec / 60)) % 60
             return totsec % 60
-        # aggregate over a range: SUM / AVG / AVERAGE / MIN / MAX. Only cells
-        # that actually hold a number contribute — empty and text cells are
-        # skipped, so AVERAGE/MIN/MAX are not skewed by gaps.
+        # Aggregate arguments may be ranges, cells, numbers, or expressions.
+        # Range text/blanks are skipped by numeric reducers, while direct
+        # numeric values participate just as they do in Calc.
         local vals is []
         local n_nonempty is 0        # cells with content (COUNTA)
         local n_empty is 0           # empty cells (COUNTBLANK)
-        if (_peek of st) != null and (_peek of st).t == "cell":
-            local a is (_peek of st).v
-            st.i is st.i + 1
-            local b is a
-            if (_peek of st) != null and (_peek of st).t == "colon":
-                st.i is st.i + 1
-                if (_peek of st) != null and (_peek of st).t == "cell":
-                    b is (_peek of st).v
-                    st.i is st.i + 1
-            local cells is _range_cells of [a, b]
-            for j in range of (len of cells):
-                local ad is cells[j]
-                # an error anywhere in the range propagates (SUM over a #DIV/0!
-                # cell is #DIV/0!, like a spreadsheet)
-                if (has_key of [st.errs, ad]):
-                    st.err is st.errs[ad]
-                if (has_key of [st.cells, ad]) and (len of st.cells[ad]) > 0:
-                    n_nonempty is n_nonempty + 1
-                else:
-                    n_empty is n_empty + 1
-                if (_cell_is_num of [st.cells, ad]) == 1:
-                    local cv is _cellval of [st, ad]
-                    # a formula can now evaluate to text; a spreadsheet's
-                    # numeric aggregates ignore text, so skip non-numbers.
-                    if (type of cv) == "num":
-                        append of [vals, cv]
-        if (_peek of st) != null and (_peek of st).t == "rp":
-            st.i is st.i + 1
+        local aggregate_args is _parse_args2 of st
+        for ai in range of (len of aggregate_args):
+            local aggregate_arg is aggregate_args[ai]
+            if aggregate_arg.r == 0:
+                n_nonempty is n_nonempty + 1
+                if (type of aggregate_arg.v) == "num":
+                    append of [vals, aggregate_arg.v]
+            else:
+                local ar is aggregate_arg.r1
+                loop while ar <= aggregate_arg.r2:
+                    local ac is aggregate_arg.c1
+                    loop while ac <= aggregate_arg.c2:
+                        local ad is _cell_addr of [ac, ar]
+                        # An error anywhere in a range propagates.
+                        if (has_key of [st.errs, ad]):
+                            st.err is st.errs[ad]
+                        if (has_key of [st.cells, ad]) and (len of st.cells[ad]) > 0:
+                            n_nonempty is n_nonempty + 1
+                        else:
+                            n_empty is n_empty + 1
+                        if (_cell_is_num of [st.cells, ad]) == 1:
+                            local cv is _cellval of [st, ad]
+                            if (type of cv) == "num":
+                                append of [vals, cv]
+                        ac is ac + 1
+                    ar is ar + 1
         if fname == "SUM" or fname == "AVG" or fname == "AVERAGE" or fname == "MIN" or fname == "MAX" or fname == "PRODUCT":
             return _aggregate of [fname, vals]
         # statistical reducers. COUNT counts numbers; COUNTA counts non-empty

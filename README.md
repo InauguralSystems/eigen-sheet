@@ -113,8 +113,9 @@ precedence, comparisons (`> < >= <= = <>`, yielding first-class `TRUE`/`FALSE` t
 display as such but coerce to `1`/`0` in arithmetic and `"1"`/`"0"` in
 concatenation, like Calc), cell references (relative and `$`-anchored
 absolute / mixed — `$A$1`, `$A1`, `A$1`), multi-letter
-columns, range aggregates `SUM` / `AVERAGE` (`AVG`) / `MIN` / `MAX` /
-`PRODUCT`, `IF(cond, then, else)` (nestable, short-circuiting — the untaken
+columns, aggregates `SUM` / `AVERAGE` (`AVG`) / `MIN` / `MAX` / `PRODUCT`
+over comma-separated mixtures of ranges, cells, numbers, and expressions,
+`IF(cond, then, else)` (nestable, short-circuiting — the untaken
 branch is never evaluated), the logical functions `AND` / `OR` / `NOT` /
 `XOR` / `TRUE` / `FALSE` / `IFS` / `SWITCH`, the scalar math functions
 `ABS` / `INT` / `TRUNC` / `ROUND` / `ROUNDUP` / `ROUNDDOWN` / `SIGN` / `SQRT`
