@@ -1000,6 +1000,24 @@ define _fin_rate(nper, pmt, pv, fv, typ, guess) as:
 # IRR: rate where NPV (period 0 = first cashflow) is 0. Newton from `guess`;
 # returns {ok, r}. ok=0 on non-convergence (caller raises #NUM!).
 define _fin_irr(cf, guess) as:
+    # A real IRR needs cashflows on both sides of zero. Besides rejecting an
+    # impossible root early, this prevents Newton from walking to the numeric
+    # clamp and mistaking a tiny step there for convergence.
+    local has_pos is 0
+    local has_neg is 0
+    local scale is 0
+    for v in cf:
+        if v > 0:
+            has_pos is 1
+        if v < 0:
+            has_neg is 1
+        local av is v
+        if av < 0:
+            av is 0 - av
+        if av > scale:
+            scale is av
+    if has_pos == 0 or has_neg == 0:
+        return {"ok": 0}
     local r is guess
     local iter is 0
     local n is len of cf
@@ -1010,15 +1028,17 @@ define _fin_irr(cf, guess) as:
             npv is npv + cf[i] / (pow of [1 + r, i])
             if i > 0:
                 d is d - i * cf[i] / (pow of [1 + r, i + 1])
+        local residual is npv
+        if residual < 0:
+            residual is 0 - residual
+        if residual < 0.0000001 * scale:
+            return {"ok": 1, "r": r}
         if d == 0:
             return {"ok": 0}
         local rn is r - npv / d
-        local diff is rn - r
-        if diff < 0:
-            diff is 0 - diff
+        if rn <= -1:
+            return {"ok": 0}
         r is rn
-        if diff < 0.0000001:
-            return {"ok": 1, "r": r}
         iter is iter + 1
     return {"ok": 0}
 

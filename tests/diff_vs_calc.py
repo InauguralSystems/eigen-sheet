@@ -260,6 +260,10 @@ CELLS = {
     "BR4": "=HLOOKUP(6,BQ6:BT6,1)",
     "BQ8": "5", "BQ9": "3", "BQ10": "1",  # BQ11 deliberately blank
     "BR5": "=MATCH(-1,BQ8:BQ11,-1)",
+    # Issue #71: both engines must reject same-sign cashflows. IFERROR makes
+    # Calc's Err:523 and eigen-sheet's #NUM! comparable as a numeric sentinel.
+    "BO1": "100", "BO2": "200", "BO3": "300",
+    "BP1": "=IFERROR(IRR(BO1:BO3),7101)",
 }
 
 # Per-cell comparison tolerance (default 1e-9). The iterative financial
