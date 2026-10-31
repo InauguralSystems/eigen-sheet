@@ -28,8 +28,23 @@ FORMULAS = [
     ("VAR(A1:A2,3+1)", "2.3333"),
     ("STDEVP(A1:A2,3+1)", "1.2472"),
     ("SUM(A1+1,2)", "4"),
+    # Direct scalar arguments use Calc coercion rules. Values read through a
+    # range retain the existing behavior of skipping text and booleans.
+    ('SUM("5",15,TRUE())', "21"),
+    ("AVERAGE(1>0,3)", "2"),
     # COUNTBLANK shares the parser even though Calc itself only accepts one arg.
     ("COUNTBLANK(A1:A2,B1:B1)", "0"),
+]
+
+
+ERROR_FORMULAS = [
+    "SUM(A1:)",
+    "SUM(A1::A2)",
+    "SUM(,)",
+    "SUM(A1,)",
+    "AVERAGE(:)",
+    "SUM()",
+    'SUM("abc",1)',
 ]
 
 
@@ -66,7 +81,8 @@ def main():
         ]
         for row, (formula, _) in enumerate(FORMULAS, 1):
             setup.append(
-                'sheet.set_cell of [s, "C%d", "=%s"]' % (row, formula)
+                'sheet.set_cell of [s, "C%d", %s]'
+                % (row, eigs_string("=" + formula))
             )
         setup.append("sheet.recalc of s")
         for row in range(1, len(FORMULAS) + 1):
@@ -79,6 +95,31 @@ def main():
             else:
                 failures += 1
                 print("FAIL: =%s -> %s (expected %s)" % (formula, got, expected))
+
+        # Run malformed formulas separately: a regression in the parser's
+        # progress guard must time out as a test failure rather than hanging
+        # this entire suite.
+        for formula in ERROR_FORMULAS:
+            program = (
+                "import sheet\n"
+                "s is sheet.new_sheet of null\n"
+                'sheet.set_cell of [s, "A1", "1"]\n'
+                'sheet.set_cell of [s, "B1", %s]\n'
+                "sheet.recalc of s\n"
+                'print of (sheet.display of [s, "B1"])\n' % eigs_string("=" + formula)
+            )
+            try:
+                got_lines = run_program(program, tmp)
+            except subprocess.TimeoutExpired:
+                failures += 1
+                print("FAIL: =%s timed out" % formula)
+                continue
+            got = got_lines[-1] if got_lines else "<no output>"
+            if got.startswith("#"):
+                print("PASS: =%s -> %s" % (formula, got))
+            else:
+                failures += 1
+                print("FAIL: =%s -> %s (expected an error)" % (formula, got))
 
         try:
             import openpyxl

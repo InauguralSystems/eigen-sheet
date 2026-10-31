@@ -735,6 +735,10 @@ define _range_values(st, rg) as:
 define _parse_args2(st) as:
     local args is []
     loop while (_peek of st) != null and (_peek of st).t != "rp":
+        # Every pass must either consume a complete argument or stop with an
+        # error. Without this guard, a malformed token (for example the
+        # dangling colon in SUM(A1:)) can leave st.i unchanged forever.
+        local arg_start is st.i
         local tk is _peek of st
         if tk.t == "cell":
             local save is st.i
@@ -754,8 +758,19 @@ define _parse_args2(st) as:
                 append of [args, {"r": 0, "v": _eval_cmp of st}]
         else:
             append of [args, {"r": 0, "v": _eval_cmp of st}]
+        if st.err != "" or st.i <= arg_start:
+            if st.err == "":
+                st.err is "#ERROR"
+            return args
         if (_peek of st) != null and (_peek of st).t == "comma":
             st.i is st.i + 1
+            # A comma must be followed by another argument.
+            if (_peek of st) == null or (_peek of st).t == "rp":
+                st.err is "#ERROR"
+                return args
+        elif (_peek of st) != null and (_peek of st).t != "rp":
+            st.err is "#ERROR"
+            return args
     if (_peek of st) != null and (_peek of st).t == "rp":
         st.i is st.i + 1
     return args
@@ -1991,12 +2006,22 @@ define _eval_factor(st) as:
         local n_nonempty is 0        # cells with content (COUNTA)
         local n_empty is 0           # empty cells (COUNTBLANK)
         local aggregate_args is _parse_args2 of st
+        if (len of aggregate_args) == 0 and st.err == "":
+            st.err is "#ERROR"
         for ai in range of (len of aggregate_args):
             local aggregate_arg is aggregate_args[ai]
             if aggregate_arg.r == 0:
                 n_nonempty is n_nonempty + 1
+                # Calc coerces direct booleans and numeric text, but does not
+                # coerce the same values when they arrive through a range.
                 if (type of aggregate_arg.v) == "num":
                     append of [vals, aggregate_arg.v]
+                elif (_is_bool of aggregate_arg.v) == 1:
+                    append of [vals, aggregate_arg.v.b]
+                elif (type of aggregate_arg.v) == "str" and (_is_number of aggregate_arg.v) == 1:
+                    append of [vals, num of aggregate_arg.v]
+                elif fname != "COUNT" and fname != "COUNTA" and fname != "COUNTBLANK":
+                    st.err is "#VALUE!"
             else:
                 local ar is aggregate_arg.r1
                 loop while ar <= aggregate_arg.r2:
