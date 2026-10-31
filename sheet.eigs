@@ -3669,21 +3669,22 @@ define _slice(b, o, n) as:
 
 # sharedStrings.xml -> ordered list of strings. Each <si> is one entry; rich-text
 # runs (<r><t>..</t></r>) are concatenated into a single string.
-define _sst_parse(xml) as:
+define _sst_parse(xml, path) as:
     local out is []
     local p is _sfind of [xml, "<si", 0]
     loop while p >= 0:
         local siend is _sfind of [xml, "</si>", p]
-        if siend < 0:
-            siend is len of xml
+        assert of [siend >= 0, "from_xlsx: " + path + ": unterminated <si> element"]
         local s is ""
         local tp is _sfind of [xml, "<t", p]
         loop while tp >= 0 and tp < siend:
             local gt is _sfind of [xml, ">", tp]
-            if gt > 0 and (char_at of [xml, gt - 1]) == "/":
+            assert of [gt >= 0 and gt < siend, "from_xlsx: " + path + ": unterminated <t> opening tag"]
+            if (char_at of [xml, gt - 1]) == "/":
                 tp is _sfind of [xml, "<t", gt]
             else:
                 local tend is _sfind of [xml, "</t>", gt]
+                assert of [tend >= 0 and tend <= siend, "from_xlsx: " + path + ": unterminated <t> element"]
                 s is s + (_xml_unesc of (substr of [xml, gt + 1, tend - gt - 1]))
                 tp is _sfind of [xml, "<t", tend]
         append of [out, s]
@@ -3691,24 +3692,27 @@ define _sst_parse(xml) as:
     return out
 
 # value of attribute `name` in an opening tag string, or "" if absent
-define _attr(tag, name) as:
+define _attr(tag, name, path) as:
     local key is name + "=\""
     local i is _sfind of [tag, key, 0]
     if i < 0:
         return ""
     local start is i + (len of key)
     local endq is _sfind of [tag, "\"", start]
+    assert of [endq >= 0, "from_xlsx: " + path + ": unterminated " + name + " attribute"]
     return substr of [tag, start, endq - start]
 
 # unescaped text of the first <tag ...>..</tag> inside `inner`, or null if none
-define _tag_text(inner, tag) as:
+define _tag_text(inner, tag, path) as:
     local i is _sfind of [inner, "<" + tag, 0]
     if i < 0:
         return null
     local gt is _sfind of [inner, ">", i]
+    assert of [gt >= 0, "from_xlsx: " + path + ": unterminated <" + tag + "> opening tag"]
     if (char_at of [inner, gt - 1]) == "/":
         return ""
     local endt is _sfind of [inner, "</" + tag + ">", gt]
+    assert of [endt >= 0, "from_xlsx: " + path + ": unterminated <" + tag + "> element"]
     return _xml_unesc of (substr of [inner, gt + 1, endt - gt - 1])
 
 # the raw cell content (as set_cell would receive it) for one <c> body, given
@@ -3719,16 +3723,16 @@ define _tag_text(inner, tag) as:
 # <f> (e.g. eigen-sheet's own values-only export). Shared/array-formula
 # followers (an <f> that is empty, carrying only a si= reference) fall through to
 # their cached value — a known v1 limitation.
-define _cell_raw(inner, ct, sst) as:
-    local f is _tag_text of [inner, "f"]
+define _cell_raw(inner, ct, sst, path) as:
+    local f is _tag_text of [inner, "f", path]
     if f != null and f != "":
         return "=" + f
     if ct == "inlineStr":
-        local t is _tag_text of [inner, "t"]
+        local t is _tag_text of [inner, "t", path]
         if t == null:
             return ""
         return t
-    local v is _tag_text of [inner, "v"]
+    local v is _tag_text of [inner, "v", path]
     if v == null:
         return null
     if ct == "s":
@@ -3744,20 +3748,22 @@ define _cell_raw(inner, ct, sst) as:
     return v
 
 # worksheet XML -> list of {addr, raw}. Skips empty (self-closing) cells.
-define _ws_cells(xml, sst) as:
+define _ws_cells(xml, sst, path) as:
     local out is []
     local p is _sfind of [xml, "<c ", 0]
     loop while p >= 0:
         local gt is _sfind of [xml, ">", p]
+        assert of [gt >= 0, "from_xlsx: " + path + ": unterminated <c> opening tag"]
         local tag is substr of [xml, p, gt - p + 1]
-        local addr is _attr of [tag, "r"]
-        local ct is _attr of [tag, "t"]
+        local addr is _attr of [tag, "r", path]
+        local ct is _attr of [tag, "t", path]
         if (char_at of [xml, gt - 1]) == "/":
             p is _sfind of [xml, "<c ", gt]
         else:
             local cend is _sfind of [xml, "</c>", gt]
+            assert of [cend >= 0, "from_xlsx: " + path + ": unterminated <c> element"]
             local inner is substr of [xml, gt + 1, cend - gt - 1]
-            local raw is _cell_raw of [inner, ct, sst]
+            local raw is _cell_raw of [inner, ct, sst, path]
             if addr != "" and raw != null:
                 append of [out, {"addr": addr, "raw": raw}]
             p is _sfind of [xml, "<c ", cend]
@@ -3771,7 +3777,7 @@ define from_xlsx(sheet, path) as:
     local files is _unzip of [raw, path]
     local sst is []
     if (has_key of [files, "xl/sharedStrings.xml"]):
-        sst is _sst_parse of (_btext of files["xl/sharedStrings.xml"])
+        sst is _sst_parse of [(_btext of files["xl/sharedStrings.xml"]), path]
     local wsname is ""
     if (has_key of [files, "xl/worksheets/sheet1.xml"]):
         wsname is "xl/worksheets/sheet1.xml"
@@ -3782,7 +3788,7 @@ define from_xlsx(sheet, path) as:
                 wsname is ks[i]
     if wsname == "":
         assert of [false, "from_xlsx: " + path + ": no xl/worksheets/ entry found"]
-    local cells is _ws_cells of [(_btext of files[wsname]), sst]
+    local cells is _ws_cells of [(_btext of files[wsname]), sst, path]
     for i in range of (len of cells):
         set_cell of [sheet, cells[i].addr, cells[i].raw]
     recalc of sheet
