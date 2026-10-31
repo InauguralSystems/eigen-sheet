@@ -1,0 +1,1 @@
+- The standalone setup now uses CI's pinned, zlib-enabled EigenScript runtime so XLSX imports work (#72).

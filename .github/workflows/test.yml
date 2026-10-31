@@ -78,6 +78,9 @@ jobs:
           if [ $rc -eq 2 ]; then echo "external oracle skipped in CI — that's a gap"; exit 1; fi
           exit $rc
 
+      - name: Issue 72 documented standalone runtime regression
+        run: python3 tests/issue_72_readme_standalone.py
+
       - name: Differential oracle vs LibreOffice Calc (strings)
         run: |
           python3 tests/diff_vs_calc_str.py; rc=$?
