@@ -61,7 +61,9 @@ jobs:
         run: |
           git clone --depth 1 --branch v0.48.0 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"
           make -C "$RUNNER_TEMP/eigs" -s zlib
-          echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
+          # Use the variant artifact directly, rather than the mutable convenience
+          # alias, so the oracle cannot accidentally run a non-zlib profile.
+          echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/build/zlib/eigenscript" >> "$GITHUB_ENV"
       - name: Differential oracle vs LibreOffice Calc (numeric)
         run: |
           python3 tests/diff_vs_calc.py; rc=$?
