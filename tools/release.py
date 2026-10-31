@@ -90,15 +90,20 @@ old = changelog_path.read_text() if changelog_path.exists() else "# Changelog\n"
 if re.search(rf"^## \[{re.escape(args.version)}\]", old, re.MULTILINE):
     raise SystemExit(f"CHANGELOG.md already contains v{args.version}")
 entry = f"## [{args.version}] - {args.date}\n\n" + "\n\n".join(sections) + "\n"
+first_release = re.search(r"^## \[", old, re.MULTILINE)
+if first_release:
+    changelog = old[:first_release.start()] + entry + "\n" + old[first_release.start():]
+else:
+    changelog = old.rstrip() + "\n\n" + entry
 
 # All validation and input reads above must succeed before the first mutation.
 manifest["version"] = args.version
 manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 source_path.write_text(source)
 readme_path.write_text(readme)
-changelog_path.write_text(old.rstrip() + "\n\n" + entry)
+changelog_path.write_text(changelog)
 for path, category in fragment_files:
     destination = archive / category
     destination.mkdir(parents=True, exist_ok=True)
     shutil.move(path, destination / path.name)
-print(f"prepared v{args.version}; archived {sum(s.count(chr(10) + '-') for s in sections)} fragments")
+print(f"prepared v{args.version}; archived {len(fragment_files)} fragments")

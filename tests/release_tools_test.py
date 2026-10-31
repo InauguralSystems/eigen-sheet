@@ -91,8 +91,29 @@ def test_no_fragments_is_byte_identical(tmp: Path) -> None:
     assert run("git", "status", "--porcelain", cwd=fixture).stdout == ""
 
 
+def test_release_prepends_changelog_and_counts_fragment_files(tmp: Path) -> None:
+    fixture = tmp / "successful-release"
+    shutil.copytree(ROOT, fixture, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+    changes = fixture / "changes"
+    for category in ("breaking", "added", "changed", "fixed", "internal"):
+        shutil.rmtree(changes / category, ignore_errors=True)
+        (changes / category).mkdir(parents=True)
+    (changes / "fixed" / "plain.md").write_text("A plain-text release note.\n")
+
+    previous = current_version(fixture)
+    target = next_patch(previous)
+    result = run("python3", "tools/release.py", target, "--date", "2026-10-31",
+                 cwd=fixture)
+
+    assert f"prepared v{target}; archived 1 fragments" in result.stdout
+    changelog = (fixture / "CHANGELOG.md").read_text()
+    assert changelog.index(f"## [{target}]") < changelog.index(f"## [{previous}]")
+    assert (changes / "archive" / f"v{target}" / "fixed" / "plain.md").is_file()
+
+
 with tempfile.TemporaryDirectory() as directory:
     temp = Path(directory)
     test_self_test_at_current_and_bumped_versions(temp)
     test_no_fragments_is_byte_identical(temp)
+    test_release_prepends_changelog_and_counts_fragment_files(temp)
 print("PASS: release tools preflight without mutations")
