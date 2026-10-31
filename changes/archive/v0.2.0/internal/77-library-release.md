@@ -1,0 +1,1 @@
+- Documented a reproducible library install, synchronized release metadata, and added release automation (#77).

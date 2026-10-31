@@ -219,7 +219,7 @@ def render_grid(edit_path, atlas):
                       + "\n".join('sheet.set_cell of [s, "%s", "%s"]' % (a, v) for a, v in CELLS.items())
                       + "\nsheet.recalc of s"),
             "frame": "sheet.draw_grid of [s, %d, %d, 0]" % (NCOLS, NROWS)}
-    return decode_grid(_capture(edit_path, body, "eigen-sheet v0.1.0"), atlas)
+    return decode_grid(_capture(edit_path, body, "eigen-sheet v0.2.0"), atlas)
 
 
 def main():

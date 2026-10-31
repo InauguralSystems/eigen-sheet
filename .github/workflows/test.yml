@@ -17,6 +17,8 @@ jobs:
           git clone --depth 1 --branch v0.48.0 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"
           make -C "$RUNNER_TEMP/eigs" -s
           echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
+      - name: Release metadata agrees
+        run: python3 tools/check_release_versions.py --self-test
       - name: Model oracle (recalc byte-diff)
         run: bash tests/test_smoke.sh
       - name: Issue 78 error-path and recalc oracle
