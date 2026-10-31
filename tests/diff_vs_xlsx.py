@@ -208,9 +208,24 @@ def main():
         wb2 = openpyxl.Workbook(); w2 = wb2.active
         w2["A1"] = 5; w2["A2"] = 3; w2["A3"] = "=A1+A2"
         w2["B1"] = "widget"; w2["B2"] = "=A3*2"; w2["C1"] = 3.14159; w2["C2"] = True
+        # Issue #89: use ordinary magnitudes so this parsing regression is not
+        # coupled to the pre-existing large-number display divergence with
+        # Calc. The OOXML values are changed to equivalent exponent spellings
+        # below, and SUM proves they participate in arithmetic rather than text.
+        w2["D1"] = 100000; w2["D2"] = 2500; w2["D3"] = "=SUM(D1:D2)"
         wb2.save(real)  # openpyxl writes ZIP_DEFLATED
+        with zipfile.ZipFile(real) as zin:
+            parts = {info.filename: zin.read(info.filename) for info in zin.infolist()}
+        sheet_name = "xl/worksheets/sheet1.xml"
+        parts[sheet_name] = parts[sheet_name].replace(b"<v>100000</v>", b"<v>1E5</v>")
+        parts[sheet_name] = parts[sheet_name].replace(b"<v>2500</v>", b"<v>2.5E3</v>")
+        with zipfile.ZipFile(real, "w", zipfile.ZIP_DEFLATED) as zout:
+            for name, data in parts.items():
+                zout.writestr(name, data)
         assert 8 in {i.compress_type for i in zipfile.ZipFile(real).infolist()}, "not deflated"
-        addrs_b = ["A1", "A2", "A3", "B1", "B2", "C1", "C2"]
+        sheet_xml = zipfile.ZipFile(real).read("xl/worksheets/sheet1.xml")
+        assert b"<v>1E5</v>" in sheet_xml and b"<v>2.5E3</v>" in sheet_xml, "values not exponent-encoded"
+        addrs_b = ["A1", "A2", "A3", "B1", "B2", "C1", "C2", "D1", "D2", "D3"]
         eig_b = parse_kv(run_src(import_prog(real, addrs_b), tmp))
         lo_b = libre_csv(real, tmp)
         for a in addrs_b:

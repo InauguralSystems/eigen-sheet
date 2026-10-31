@@ -2491,18 +2491,31 @@ define _is_number(s) as:
     local i is 0
     local seen is 0
     local saw_dot is 0
+    local saw_exp is 0
+    local exp_digits is 0
     loop while i < (len of s):
         local ch is char_at of [s, i]
         if i == 0 and ch == "-":
             i is i + 1
-        elif ch == "." and saw_dot == 0:
+        elif ch == "." and saw_dot == 0 and saw_exp == 0:
             saw_dot is 1
             i is i + 1
+        elif (ch == "e" or ch == "E") and saw_exp == 0 and seen == 1:
+            saw_exp is 1
+            i is i + 1
+            if i < (len of s):
+                local exp_sign is char_at of [s, i]
+                if exp_sign == "+" or exp_sign == "-":
+                    i is i + 1
         elif (_is_digit of ch) == 1:
             seen is 1
+            if saw_exp == 1:
+                exp_digits is 1
             i is i + 1
         else:
             return 0
+    if saw_exp == 1:
+        return exp_digits
     return seen
 
 # Recompute every cell. Literals resolve immediately; formulas evaluate in

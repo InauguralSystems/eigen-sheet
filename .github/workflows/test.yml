@@ -95,6 +95,9 @@ jobs:
           if [ $rc -eq 2 ]; then echo "xlsx oracle skipped in CI — that's a gap"; exit 1; fi
           exit $rc
 
+      - name: Issue 89 scientific-notation regression
+        run: python3 tests/issue_89_scientific_notation.py
+
       - name: Issue 75 corrupt XLSX and saved-sheet validation
         run: python3 tests/issue_75_bad_input_test.py
       - name: Issue 88 truncated XLSX XML regression
