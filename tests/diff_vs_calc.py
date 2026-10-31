@@ -293,6 +293,9 @@ ISSUE_76 = [
     ("=A0", "error"), ("=A1048577", "error"), ("=XFE1", "error"),
     ("=ZZZZZ1", "error"), ("=2^1024", "num"),
     ("=10^308*10", "num"), ("=10^308", "huge"),
+    ("=10^308+10^308/2", "finite_huge"),
+    ("=1.7e308", "finite_huge"), ("=1.79e308*1", "finite_huge"),
+    ("=1e309", "num"),
     ("=1+", "error"), ("=A1++A2", "three"),
 ]
 
@@ -342,6 +345,7 @@ def issue_76_differential():
             ok = ((kind == "error" and eigen_error and calc_error) or
                   (kind == "num" and eigen == "#NUM!" and calc_error) or
                   (kind == "huge" and float(eigen) == float(lo) == 1e308) or
+                  (kind == "finite_huge" and float(eigen) == float(lo)) or
                   (kind == "three" and eigen == "3" and lo == "3"))
             if ok:
                 print("PASS issue76 %-13s eigen-sheet=%s libreoffice=%s" % (formula, eigen, lo))

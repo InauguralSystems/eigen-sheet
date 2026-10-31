@@ -19,10 +19,16 @@ CASES = [
     ("=ZZZZZ1", "#NAME?"),
     ("=2^1024", "#NUM!"),
     ("=10^308*10", "#NUM!"),
+    ("=10^308+10^308/2", "1.5e+308"),
     ("=10^308", "1e+308"),
+    ("=1.7e308", "1.7e+308"),
+    ("=1.79e308*1", "1.79e+308"),
+    ("=1e309", "#NUM!"),
     ("=1+", "#ERROR"),
     ("=A1++A2", "3"),
 ]
+
+INVALID_REFS = ["=XFE1+1", "=A0", "=ZZZZZ1", "=2680922A1"]
 
 
 def quote(value):
@@ -43,6 +49,11 @@ def main():
         lines.append("sheet.recalc of s")
         for i in range(1, len(CASES) + 1):
             lines.append('print of ("C%d\\t" + (sheet.display of [s, "C%d"]))' % (i, i))
+        for i, formula in enumerate(INVALID_REFS, 1):
+            lines.append("sheet.set_cell of [s, %s, %s]" % (quote("E%d" % i), quote(formula)))
+            lines.append("clip is sheet.copy_block of [s, 4, %d, 4, %d]" % (i - 1, i - 1))
+            lines.append("sheet.paste_block of [s, clip, 5, %d]" % (i - 1))
+            lines.append('print of ("P%d\\t" + s.cells["F%d"] + "\\t" + (sheet.display of [s, "F%d"]))' % (i, i, i))
         app = os.path.join(tmp, "app.eigs")
         with open(app, "w") as f:
             f.write("\n".join(lines) + "\n")
@@ -60,6 +71,13 @@ def main():
                 print("FAIL: %s -> %r, expected %r" % (formula, actual, expected))
             else:
                 print("PASS: %s -> %s" % (formula, actual))
+        for i, formula in enumerate(INVALID_REFS, 1):
+            actual = got.get("P%d" % i, "").split("\t")
+            if actual != [formula, "#NAME?"]:
+                failures += 1
+                print("FAIL: copy/paste %s -> %r, expected unchanged #NAME?" % (formula, actual))
+            else:
+                print("PASS: copy/paste preserved %s" % formula)
         if failures:
             print("FAIL: %d issue #76 case(s) diverged" % failures)
             return 1
