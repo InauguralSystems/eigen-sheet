@@ -1,0 +1,8 @@
+# Test entry points (tests/*.py, tests/*.sh) that deliberately do NOT run in
+# CI. tools/check_ci_wiring.py fails on any test file that no workflow step
+# invokes unless it is listed here, one per line, with a reason:
+#
+#   tests/<file>  # <why it is not a CI step, and how it is run instead>
+#
+# An entry without a reason, for a missing file, or for a file a workflow
+# already runs is itself a failure. Adding an entry is a review decision.

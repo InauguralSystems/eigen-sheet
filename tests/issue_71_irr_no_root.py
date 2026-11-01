@@ -58,17 +58,19 @@ print of (sheet.display of [s, "J1"])
             raise SystemExit(1)
         got = result.stdout.splitlines()
 
-        # Malformed ranges may be rejected by recalc or stored as a cell error;
-        # either outcome is valid, but the timeout makes failure to progress a
-        # hard regression rather than hanging the suite.
+        # A malformed range is a cell error, never an interpreter abort: an
+        # abort takes the whole sheet's recalc down with it (#78 "recalc never
+        # raises"). C1 is a sentinel that only prints if recalc completed.
         malformed = os.path.join(tmp, "issue_71_malformed.eigs")
         with open(malformed, "w", encoding="utf-8") as f:
             f.write("""import sheet
 s is sheet.new_sheet of null
 sheet.set_cell of [s, "A1", "1"]
 sheet.set_cell of [s, "B1", "=IRR(A1:)"]
+sheet.set_cell of [s, "C1", "=A1+41"]
 sheet.recalc of s
 print of (sheet.display of [s, "B1"])
+print of (sheet.display of [s, "C1"])
 """)
         malformed_result = subprocess.run(
             [EIGS, malformed], cwd=tmp, capture_output=True, text=True, timeout=60
@@ -107,15 +109,19 @@ print of (sheet.display of [s, "B1"])
             print("FAIL: %s IRR -> %s (expected about %s)" %
                   (label, detail, want))
     malformed_lines = malformed_result.stdout.splitlines()
-    malformed_display = malformed_lines[-1] if malformed_lines else ""
-    if malformed_result.returncode != 0 or malformed_display.startswith("#"):
-        detail = ("interpreter error" if malformed_result.returncode != 0
-                  else malformed_display)
-        print("PASS: malformed IRR stops with error -> %s" % detail)
+    if malformed_result.returncode != 0:
+        failures += 1
+        print("FAIL: malformed IRR aborted recalc (rc=%d): %s" %
+              (malformed_result.returncode,
+               (malformed_result.stderr.strip().splitlines() or [""])[0]))
+    elif (len(malformed_lines) == 2 and malformed_lines[0].startswith("#")
+          and malformed_lines[1] == "42"):
+        print("PASS: malformed IRR is a cell error -> %s, recalc completed "
+              "(sentinel C1=42)" % malformed_lines[0])
     else:
         failures += 1
-        print("FAIL: malformed IRR -> %s (expected an error)" %
-              (malformed_display or "<no output>"))
+        print("FAIL: malformed IRR -> %r (expected [error token, '42'])" %
+              malformed_lines)
     if failures:
         raise SystemExit(1)
 

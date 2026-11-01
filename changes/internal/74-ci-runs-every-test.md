@@ -1,0 +1,1 @@
+- CI now runs the aggregate-argument regression from #74, which no workflow step invoked, and fails when any `tests/*.py` or `tests/*.sh` file is neither run by a workflow nor listed with a reason in `tests/NOT_IN_CI.txt` (#74).
