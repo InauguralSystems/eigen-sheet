@@ -27,8 +27,8 @@ jobs:
         run: bash tests/test_smoke.sh
       - name: Issue 78 error-path and recalc oracle
         run: python3 tests/issue_78_error_paths_test.py
-      - name: Issue 78 every dispatcher function x malformed arguments recalcs
-        run: python3 tests/issue_78_incomplete_range_recalc.py
+      - name: Issue 98 every dispatcher function x malformed arguments recalcs
+        run: python3 tests/issue_98_malformed_args_recalc.py
       - name: Issue 70 blank approximate-lookup regression
         run: python3 tests/issue_70_blank_lookups.py
       - name: Issue 90 blank exact-lookup regression
@@ -109,8 +109,8 @@ jobs:
       - name: Issue 74 aggregate argument lists (from_xlsx half needs this zlib build)
         run: python3 tests/issue_74_aggregate_args.py
 
-      - name: Issue 78 malformed-argument error classes agree with LibreOffice
-        run: python3 tests/issue_78_incomplete_range_recalc.py --calc
+      - name: Issue 98 malformed-argument error classes agree with LibreOffice
+        run: python3 tests/issue_98_malformed_args_recalc.py --calc
 
       - name: Issue 75 corrupt XLSX and saved-sheet validation
         run: python3 tests/issue_75_bad_input_test.py

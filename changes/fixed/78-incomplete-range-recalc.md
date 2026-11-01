@@ -1,1 +1,0 @@
-- A formula with an incomplete range (`=IRR(A1:)`, `=IFERROR(A1:)`), a missing required argument, text where a number is needed, or a scalar where a range is read now displays an error instead of aborting the whole sheet's recalc or (for `SWITCH`) hanging it; `IFERROR`, `IFNA` and `IFS` no longer turn an incomplete range into a value (#78).

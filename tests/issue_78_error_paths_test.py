@@ -6,7 +6,7 @@ EIGS = os.environ.get("EIGENSCRIPT", "eigenscript")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # A hand-picked sample of the dispatcher's error branches (`git grep -n
 # 'st.err is' sheet.eigs`), each checked for its error token. The derived,
-# every-function population lives in tests/issue_78_incomplete_range_recalc.py.
+# every-function population lives in tests/issue_98_malformed_args_recalc.py.
 CASES = {
     "D1": "=VLOOKUP(2,A1:B2,3,0)",
     "D2": "=HLOOKUP(10,A1:C2,3,0)",

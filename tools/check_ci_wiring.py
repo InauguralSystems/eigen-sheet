@@ -11,6 +11,15 @@ Allowlist format, one entry per line:  tests/<file>  # <reason>
 An entry with no reason, for a file that does not exist, or for a file that is
 already wired is itself a failure, so the list cannot rot.
 
+What "invoked" means, and its limits: a test counts as wired when its path
+`tests/<file>` appears in the non-comment text of any workflow file. It is a
+text match, so it does NOT see that a step is disabled (`if: false`), that its
+failure is swallowed (`continue-on-error: true`, `|| true`), or that its
+workflow never runs on pull_request. None of these occur in the workflows
+today; review a workflow change for them. It fails closed on spellings it does
+not recognise: `./tests/x.py` and `cd tests && python3 x.py` read as unwired,
+because the path must start at `tests/` and not follow a '/'.
+
   python3 tools/check_ci_wiring.py              # check this repository
   python3 tools/check_ci_wiring.py --self-test  # prove each failure mode fires
 """
