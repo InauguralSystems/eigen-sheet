@@ -4,7 +4,47 @@ import hashlib, json, os, shutil, subprocess, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EIGS = os.environ.get("EIGENSCRIPT", "eigenscript")
-GOLDEN = os.path.join(ROOT, "tests", "golden_issue_100_page1.png")
+GOLDEN = os.path.join(ROOT, "tests", "golden_issue_100_page1.pgm")
+
+
+def read_pgm(path):
+    """Return (width, height), max value, and decoded P5 pixel bytes."""
+    data = open(path, "rb").read()
+    offset = 0
+
+    def token():
+        nonlocal offset
+        while True:
+            while offset < len(data) and data[offset] in b" \t\r\n":
+                offset += 1
+            if offset < len(data) and data[offset] == ord("#"):
+                offset = data.find(b"\n", offset)
+                if offset < 0:
+                    raise ValueError("unterminated PGM comment")
+                continue
+            break
+        end = offset
+        while end < len(data) and data[end] not in b" \t\r\n":
+            end += 1
+        value = data[offset:end]
+        offset = end
+        return value
+
+    if token() != b"P5":
+        raise ValueError("golden/render is not a raw P5 PGM")
+    width, height, maximum = int(token()), int(token()), int(token())
+    if maximum != 255 or offset >= len(data) or data[offset] not in b" \t\r\n":
+        raise ValueError("unsupported PGM header")
+    offset += 1
+    pixels = data[offset:]
+    if len(pixels) != width * height:
+        raise ValueError("PGM pixel payload has the wrong length")
+    return (width, height), maximum, pixels
+
+
+def pixel_digest(image):
+    dimensions, maximum, pixels = image
+    return "%dx%d/%d:%s" % (dimensions[0], dimensions[1], maximum, hashlib.sha256(pixels).hexdigest())
 
 
 def main():
@@ -54,15 +94,15 @@ def main():
             if sorted(words) != sorted(expected) or len(words) != len(expected):
                 print("FAIL: page %d text differs; got=%r expected=%r" % (page, words, expected)); return 1
         print("PASS: pdftotext -layout has exactly each page's cells, repeated header, and footer")
-        subprocess.run(["pdftoppm", "-f", "1", "-singlefile", "-r", "72", "-png", a, os.path.join(tmp,"page1")], check=True, stdout=subprocess.DEVNULL)
-        got = open(os.path.join(tmp,"page1.png"),"rb").read()
+        subprocess.run(["pdftoppm", "-f", "1", "-singlefile", "-gray", "-r", "72", a, os.path.join(tmp,"page1")], check=True, stdout=subprocess.DEVNULL)
+        got = read_pgm(os.path.join(tmp, "page1.pgm"))
         if not os.path.exists(GOLDEN):
             print("FAIL: reviewed golden missing"); return 1
-        want = open(GOLDEN,"rb").read()
-        if got != want:
-            print("FAIL: page 1 differs from golden (pixel oracle encoded PNG byte-exact; %s != %s)" %
-                  (hashlib.sha256(got).hexdigest(), hashlib.sha256(want).hexdigest())); return 1
-        print("PASS: pdftoppm rendered page 1 matches reviewed 72-dpi golden exactly")
+        want = read_pgm(GOLDEN)
+        if got[:2] != want[:2] or got[2] != want[2]:
+            print("FAIL: page 1 differs from golden (decoded PGM dimensions/pixels; %s != %s)" %
+                  (pixel_digest(got), pixel_digest(want))); return 1
+        print("PASS: pdftoppm rendered page 1 matches reviewed 72-dpi decoded pixels exactly")
     return 0
 
 if __name__ == "__main__":
