@@ -135,7 +135,20 @@ jobs:
       - name: Issue 100 freestanding shared PDF library
         run: python3 tests/issue_100_pdf_library.py
       - name: Issue 100 PDF validity, pagination, text, render, and reproducibility
+        env:
+          ISSUE100_KEEP_RENDER: ${{ runner.temp }}/issue100-page1.pgm
         run: python3 tests/issue_100_pdf_export.py
+      # The pinned-container render is the source of truth for the golden:
+      # keep it so a reviewer can inspect it and, when the golden must change,
+      # commit exactly what CI rendered (binary goldens are regenerated, never
+      # hand-edited).
+      - name: Keep the page-1 render
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue100-page1-render
+          path: ${{ runner.temp }}/issue100-page1.pgm
+          if-no-files-found: ignore
 
   ui-oracle:
     # render oracle: draw_grid pixels decoded back to the model. gfx + xvfb.
