@@ -7,6 +7,12 @@ EIGS = os.environ.get("EIGENSCRIPT", "eigenscript")
 GOLDEN = os.path.join(ROOT, "tests", "golden_issue_100_page1.pgm")
 
 
+# Decoded-pixel tolerance: antialiasing differs across poppler versions by
+# small per-pixel amounts. 0.05% of pixels (242 at 612x792) catches one lost
+# row of text (~430 px); lost text inside a cell is the pdftotext oracle's job.
+PIXEL_DELTA = 64
+PIXEL_FRACTION = 0.0005
+
 def read_pgm(path):
     """Return (width, height), max value, and decoded P5 pixel bytes."""
     data = open(path, "rb").read()
@@ -99,10 +105,21 @@ def main():
         if not os.path.exists(GOLDEN):
             print("FAIL: reviewed golden missing"); return 1
         want = read_pgm(GOLDEN)
-        if got[:2] != want[:2] or got[2] != want[2]:
-            print("FAIL: page 1 differs from golden (decoded PGM dimensions/pixels; %s != %s)" %
-                  (pixel_digest(got), pixel_digest(want))); return 1
-        print("PASS: pdftoppm rendered page 1 matches reviewed 72-dpi decoded pixels exactly")
+        got = read_pgm(os.path.join(tmp, "page1.pgm"))
+        keep = os.environ.get("ISSUE100_KEEP_RENDER")
+        if keep:
+            shutil.copy(os.path.join(tmp, "page1.pgm"), keep)
+        # Decoded-pixel comparison with a stated tolerance: poppler versions
+        # antialias glyph edges differently, so exact bytes would tie the gate
+        # to one poppler build. A real layout fault (a lost or moved row or
+        # column) changes thousands of pixels by far more than the threshold.
+        if got[0] != want[0] or got[1] != want[1]:
+            print("FAIL: page 1 differs from golden (dimensions %s != %s)" % (got[0], want[0])); return 1
+        big = sum(1 for a, b in zip(got[2], want[2]) if abs(a - b) > PIXEL_DELTA)
+        limit = int(len(want[2]) * PIXEL_FRACTION)
+        if big > limit:
+            print("FAIL: page 1 differs from golden (%d pixels differ by more than %d; limit %d)" % (big, PIXEL_DELTA, limit)); return 1
+        print("PASS: pdftoppm page 1 matches the reviewed golden (%d pixels beyond +/-%d; limit %d)" % (big, PIXEL_DELTA, limit))
     return 0
 
 if __name__ == "__main__":
