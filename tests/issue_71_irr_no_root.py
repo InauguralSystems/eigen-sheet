@@ -15,6 +15,7 @@ def main():
         module_dir = os.path.join(tmp, "eigs_modules", "sheet")
         os.makedirs(module_dir)
         shutil.copy(os.path.join(REPO, "sheet.eigs"), module_dir)
+        shutil.copy(os.path.join(REPO, "pdf.eigs"), module_dir)
         shutil.copy(os.path.join(REPO, "eigs.json"), module_dir)
         source = """import sheet
 s is sheet.new_sheet of null

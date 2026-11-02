@@ -36,6 +36,7 @@ def launch():
     tmp = tempfile.mkdtemp()
     md = os.path.join(tmp, "eigs_modules", "sheet"); os.makedirs(md)
     shutil.copy(os.path.join(REPO, "sheet.eigs"), os.path.join(md, "sheet.eigs"))
+    shutil.copy(os.path.join(REPO, "pdf.eigs"), os.path.join(md, "pdf.eigs"))
     shutil.copy(os.path.join(REPO, "eigs.json"), os.path.join(md, "eigs.json"))
     shutil.copy(os.path.join(REPO, "main.eigs"), os.path.join(tmp, "main.eigs"))
     proc = subprocess.Popen([EIGS, "main.eigs"], cwd=tmp, env=ENV,

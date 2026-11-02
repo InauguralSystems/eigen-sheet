@@ -54,7 +54,7 @@ print of (sheet.get of [s, "A4"])           # -> 16
 
 Importable surface: `new_sheet`, `set_cell`, `define_name`, `set_format`,
 `register_udf`, `set_style`, `set_validation` / `is_valid`, `recalc`, `get`, `display`,
-`save` / `load`, `to_csv` / `from_csv`, `to_xlsx` / `from_xlsx`, `sort_range`,
+`save` / `load`, `save_as` / `to_pdf`, `to_csv` / `from_csv`, `to_xlsx` / `from_xlsx`, `sort_range`,
 `find_cells` / `replace_cells`, `filter_rows`, `pivot`, `goal_seek`, `register_udf`, and
 `draw_grid` (the gfx front-end;
 `run` opens a window but is never called on import, so `import sheet` is
@@ -121,6 +121,38 @@ xvfb-run -a python3 tests/mouse_oracle.py              # mouse: same deps
 
 CI runs `test` (model + the Python data-op differentials), `calc-oracle`
 (numeric + string vs LibreOffice), and `ui-oracle` (render + mouse).
+
+## Save As PDF
+
+PDF is a Save As format rather than a printer path. `sheet.save_as` accepts
+`"pdf"` plus `"Letter"` or `"A4"`; it paginates the used range down then
+across, repeats row 1 on every page, clips text to cell columns, and adds page
+numbers. `sheet.to_pdf` is the in-memory entry point and returns PDF bytes,
+the deterministic page breaks, and the count of characters replaced because
+Helvetica's WinAnsi encoding cannot represent them.
+
+```eigenscript
+made is sheet.save_as of [s, "report.pdf", "pdf", "A4"]
+print of ("wrote " + (str of made.page_count) + " pages")
+```
+
+The renderer itself is the separate `pdf.eigs` pure-core module. It accepts
+pages of positioned text, line, and rectangle primitives and returns bytes in
+memory; it performs no filesystem, gfx, clock, random, or host calls, so the
+same module can be consumed unchanged by eigen-edit, DeslanStudio, and
+EigenOS. It uses the standard Helvetica font with embedded AFM widths and a
+deterministic uncompressed-stream fallback on runtimes without `deflate`.
+
+The page-image oracle deliberately does not use the host's Poppler or fonts:
+`tools/render_golden.sh` renders inside a digest-pinned Ubuntu container with
+Poppler and the URW standard-14 font substitutes. This avoids machine-specific
+Helvetica substitution while retaining the decoded-pixel tolerance of 64 at
+0.05% (small antialiasing changes pass, while the ~430-pixel missing-row plant
+fails). Regenerate the reviewed PGM with the same environment as the test:
+
+```sh
+EIGENSCRIPT=/path/to/eigenscript tools/render_golden.sh
+```
 
 ## Scope
 

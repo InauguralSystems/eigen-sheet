@@ -79,6 +79,7 @@ def _run(edit_path, prog):
     try:
         md = os.path.join(tmp, "eigs_modules", "sheet"); os.makedirs(md)
         shutil.copy(edit_path, os.path.join(md, "sheet.eigs"))
+        shutil.copy(os.path.join(REPO, "pdf.eigs"), os.path.join(md, "pdf.eigs"))
         shutil.copy(os.path.join(REPO, "eigs.json"), os.path.join(md, "eigs.json"))
         app = os.path.join(tmp, "app.eigs"); open(app, "w").write(prog)
         r = subprocess.run([EIGS, app], cwd=tmp, env=ENV, capture_output=True, text=True, timeout=60)
@@ -94,6 +95,7 @@ def _capture(edit_path, render_body, title, w=720, h=480):
     try:
         md = os.path.join(tmp, "eigs_modules", "sheet"); os.makedirs(md)
         shutil.copy(edit_path, os.path.join(md, "sheet.eigs"))
+        shutil.copy(os.path.join(REPO, "pdf.eigs"), os.path.join(md, "pdf.eigs"))
         shutil.copy(os.path.join(REPO, "eigs.json"), os.path.join(md, "eigs.json"))
         app = os.path.join(tmp, "r.eigs")
         prog = ('import sheet\n%s\n'

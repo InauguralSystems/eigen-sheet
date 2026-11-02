@@ -17,6 +17,8 @@
 # (LibreOffice) in tests/diff_vs_calc.py — that engine, not our say-so, is
 # what "right" looks like for the operations every spreadsheet agrees on.
 
+import pdf
+
 VERSION is "0.2.0"
 
 # ---- addresses ------------------------------------------------------
@@ -3684,6 +3686,105 @@ define to_xlsx(sheet, path, c0, r0, c1, r1) as:
     append of [entries, {"name": "xl/worksheets/sheet1.xml", "data": _sbytes of (_sheet_xml of [sheet, clo, rlo, chi, rhi])}]
     _atomic_write of [path, _zip_store of entries, true, null]
     return path
+
+# ---- PDF export -----------------------------------------------------
+# Pagination is deliberately a model-building operation.  The reusable pdf
+# module knows nothing about sheets, files, gfx, or hosts; it only turns these
+# positioned primitives into bytes.  Pages run down through all row bands
+# before moving right to the next column band.
+
+define _pdf_used_max(sheet) as:
+    local maxc is 0
+    local maxr is 0
+    local ks is keys of sheet.cells
+    for i in range of (len of ks):
+        if (len of sheet.cells[ks[i]]) > 0:
+            local p is _addr_parts of ks[i]
+            local c is _col_to_num of p.col
+            if c > maxc:
+                maxc is c
+            if p.row > maxr:
+                maxr is p.row
+    return {"cols": maxc, "rows": maxr}
+
+# Return {bytes, replaced, page_count, breaks}. `replaced` is the number of
+# cell/footer characters outside WinAnsi that the PDF core replaced with '?'.
+# Break records are half-open zero-based source ranges and make pagination
+# directly testable without parsing the PDF.
+define to_pdf(sheet, paper) as:
+    local pw is 612
+    local ph is 792
+    if paper == "A4":
+        pw is 595
+        ph is 842
+    else:
+        assert of [paper == "Letter", "to_pdf: paper must be Letter or A4"]
+    local margin is 36
+    local footer is 24
+    local cw is 90
+    local rh is 18
+    local cols_per is floor of ((pw - margin * 2) / cw)
+    local rows_per is (floor of ((ph - margin * 2 - footer) / rh)) - 1
+    local used is _pdf_used_max of sheet
+    local pages is []
+    local breaks is []
+    if used.cols == 0:
+        used.cols is 1
+        used.rows is 1
+    local c0 is 0
+    loop while c0 < used.cols:
+        local c1 is c0 + cols_per
+        if c1 > used.cols:
+            c1 is used.cols
+        local r0 is 1
+        # A header-only sheet still emits one page.
+        loop while r0 < used.rows or (used.rows <= 1 and r0 == 1):
+            local r1 is r0 + rows_per
+            if r1 > used.rows:
+                r1 is used.rows
+            local items is []
+            local top is ph - margin
+            local band_rows is 1 + (r1 - r0)
+            # Grid rectangle and internal rules.
+            append of [items, {"type": "rect", "x": margin, "y": top - band_rows * rh, "width": (c1 - c0) * cw, "height": band_rows * rh, "line_width": 0.5}]
+            for cc in range of ((c1 - c0) + 1):
+                append of [items, {"type": "line", "x1": margin + cc * cw, "y1": top, "x2": margin + cc * cw, "y2": top - band_rows * rh, "width": 0.5}]
+            for rr in range of (band_rows + 1):
+                append of [items, {"type": "line", "x1": margin, "y1": top - rr * rh, "x2": margin + (c1 - c0) * cw, "y2": top - rr * rh, "width": 0.5}]
+            # Header row (source row zero) is repeated on every page.
+            for cc in range of (c1 - c0):
+                local htxt is display of [sheet, _cell_addr of [c0 + cc + 1, 1]]
+                append of [items, {"type": "text", "x": margin + cc * cw + 3, "y": top - 13, "size": 10, "text": htxt, "max_width": cw - 6, "clip_height": rh - 2}]
+            local sr is r0
+            loop while sr < r1:
+                for cc in range of (c1 - c0):
+                    local txt is display of [sheet, _cell_addr of [c0 + cc + 1, sr + 1]]
+                    append of [items, {"type": "text", "x": margin + cc * cw + 3, "y": top - (sr - r0 + 1) * rh - 13, "size": 10, "text": txt, "max_width": cw - 6, "clip_height": rh - 2}]
+                sr is sr + 1
+            append of [breaks, {"c0": c0, "c1": c1, "r0": r0, "r1": r1}]
+            append of [pages, {"width": pw, "height": ph, "items": items}]
+            if used.rows <= 1:
+                r0 is 2
+            else:
+                r0 is r1
+        c0 is c1
+    # Add page numbers only after page count/order is final.
+    for i in range of (len of pages):
+        local label is "Page " + (str of (i + 1)) + " of " + (str of (len of pages))
+        append of [pages[i].items, {"type": "text", "x": (pw - (pdf.text_width of [label, 9])) / 2, "y": 24, "size": 9, "text": label}]
+    local made is pdf.render of {"pages": pages}
+    return {"bytes": made.bytes, "replaced": made.replaced, "page_count": len of pages, "breaks": breaks}
+
+# Save As dispatch: front-end file I/O remains here, never in the PDF core.
+define save_as(sheet, path, format, paper) as:
+    if format == "pdf" or format == "PDF":
+        local made is to_pdf of [sheet, paper]
+        _atomic_write of [path, made.bytes, true, null]
+        return made
+    if format == "eigs" or format == "json":
+        save of [sheet, path]
+        return {"path": path}
+    assert of [false, "save_as: format must be pdf or eigs"]
 
 # ---- xlsx import (read a real .xlsx: ZIP + DEFLATE via upstream inflate) -----
 # The dual of to_xlsx. A real Excel/LibreOffice .xlsx DEFLATE-compresses its

@@ -49,6 +49,7 @@ def main():
         module = os.path.join(tmp, "eigs_modules", "sheet")
         os.makedirs(module)
         shutil.copy(os.path.join(ROOT, "sheet.eigs"), module)
+        shutil.copy(os.path.join(ROOT, "pdf.eigs"), module)
         shutil.copy(os.path.join(ROOT, "eigs.json"), module)
         lines = ["import sheet", "s is sheet.new_sheet of null"]
         # A1:A4 is the issue repro; A1:A5 moves that blank inside the range.
