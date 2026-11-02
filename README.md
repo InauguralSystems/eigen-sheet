@@ -143,6 +143,17 @@ same module can be consumed unchanged by eigen-edit, DeslanStudio, and
 EigenOS. It uses the standard Helvetica font with embedded AFM widths and a
 deterministic uncompressed-stream fallback on runtimes without `deflate`.
 
+The page-image oracle deliberately does not use the host's Poppler or fonts:
+`tools/render_golden.sh` renders inside a digest-pinned Ubuntu container with
+Poppler and the URW standard-14 font substitutes. This avoids machine-specific
+Helvetica substitution while retaining the decoded-pixel tolerance of 64 at
+0.05% (small antialiasing changes pass, while the ~430-pixel missing-row plant
+fails). Regenerate the reviewed PGM with the same environment as the test:
+
+```sh
+EIGENSCRIPT=/path/to/eigenscript tools/render_golden.sh
+```
+
 ## Scope
 
 Numbers, `+ - * /`, `^` (exponent, left-associative like Calc), parens and

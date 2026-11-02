@@ -19,13 +19,51 @@ define encode_text(text) as:
     local clean is ""
     local bytes is []
     local replaced is 0
-    for i in range of (len of text):
+    local i is 0
+    loop while i < (len of text):
         local n is ord of (char_at of [text, i])
-        if n < 32 or n > 255 or (n >= 127 and n <= 159):
+        local cp is n
+        local used is 1
+        if n >= 194 and n <= 223 and (i + 1) < (len of text):
+            local b1 is ord of (char_at of [text, i + 1])
+            if b1 >= 128 and b1 <= 191:
+                cp is (n - 192) * 64 + (b1 - 128)
+                used is 2
+        elif n >= 224 and n <= 239 and (i + 2) < (len of text):
+            local b1 is ord of (char_at of [text, i + 1])
+            local b2 is ord of (char_at of [text, i + 2])
+            if b1 >= 128 and b1 <= 191 and b2 >= 128 and b2 <= 191:
+                cp is (n - 224) * 4096 + (b1 - 128) * 64 + (b2 - 128)
+                used is 3
+        elif n >= 240 and n <= 244 and (i + 3) < (len of text):
+            local b1 is ord of (char_at of [text, i + 1])
+            local b2 is ord of (char_at of [text, i + 2])
+            local b3 is ord of (char_at of [text, i + 3])
+            if b1 >= 128 and b1 <= 191 and b2 >= 128 and b2 <= 191 and b3 >= 128 and b3 <= 191:
+                cp is (n - 240) * 262144 + (b1 - 128) * 4096 + (b2 - 128) * 64 + (b3 - 128)
+                used is 4
+        n is cp
+        # WinAnsi is cp1252, not ISO-8859-1. Map its printable 0x80-0x9f
+        # Unicode characters explicitly; unrepresentable code points become ?.
+        local win_unicode is [8364,8218,402,8222,8230,8224,8225,710,8240,352,8249,338,381,8216,8217,8220,8221,8226,8211,8212,732,8482,353,8250,339,382,376]
+        local win_bytes is [128,130,131,132,133,134,135,136,137,138,139,140,142,145,146,147,148,149,150,151,152,153,154,155,156,158,159]
+        if cp >= 160 and cp <= 255:
+            n is cp
+        elif cp >= 32 and cp <= 126:
+            n is cp
+        else:
+            n is 63
+            for j in range of (len of win_unicode):
+                if cp == win_unicode[j]:
+                    n is win_bytes[j]
+            if n == 63 and cp != 63:
+                replaced is replaced + 1
+        if cp < 32 or cp == 127:
             n is 63
             replaced is replaced + 1
         append of [bytes, n]
         clean is clean + (chr of n)
+        i is i + used
     return {"text": clean, "bytes": bytes, "replaced": replaced}
 
 # Width in points using the embedded standard Helvetica AFM metrics.
@@ -56,15 +94,22 @@ define _ascii(s) as:
 # Fixed decimal spelling: integers have no decimal point; fractional values
 # have exactly three places. Layout created by eigen-sheet uses integer points.
 define _num(n) as:
-    if n == (floor of n):
-        return str of (floor of n)
-    local scaled is floor of (n * 1000 + 0.5)
+    local negative is n < 0
+    local magnitude is abs of n
+    if magnitude == (floor of magnitude):
+        if negative:
+            return "-" + (str of (floor of magnitude))
+        return str of (floor of magnitude)
+    local scaled is floor of (magnitude * 1000 + 0.5)
     local whole is floor of (scaled / 1000)
     local frac is scaled - whole * 1000
     local fs is str of frac
     loop while (len of fs) < 3:
         fs is "0" + fs
-    return (str of whole) + "." + fs
+    local out is (str of whole) + "." + fs
+    if negative:
+        out is "-" + out
+    return out
 
 define _pdf_string(s) as:
     local out is "("

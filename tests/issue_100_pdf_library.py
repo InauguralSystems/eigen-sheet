@@ -17,9 +17,9 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         shutil.copy(os.path.join(ROOT, "pdf.eigs"), tmp)
         program = r'''import pdf
-d is {"pages": [{"width": 200, "height": 100, "items": [
- {"type":"text", "x":10, "y":70, "size":12, "text":"A (B) \\\\ snowman: ☃"},
- {"type":"line", "x1":10, "y1":50, "x2":190, "y2":50},
+d is {"pages": [{"width": 123456789, "height": (0 - 0), "items": [
+ {"type":"text", "x":10, "y":70, "size":12, "text":"café A (B) \\\\ snowman: ☃"},
+ {"type":"line", "x1":-0.5, "y1":-1.25, "x2":-0.001, "y2":0},
  {"type":"rect", "x":10, "y":10, "width":180, "height":30}]}]}
 a is pdf.render of d
 b is pdf.render of d
@@ -38,18 +38,23 @@ print of (str of (pdf.text_width of ["Hello", 10]))
         a, b = json.loads(lines[0]), json.loads(lines[1])
         if a != b or a.get("bytes") != b.get("bytes"):
             print("FAIL: two in-memory renders differ"); return 1
-        if a.get("replaced") != 2:
-            print("FAIL: unsupported character count is %r, expected 2 EigenScript character units" % a.get("replaced")); return 1
+        if a.get("replaced") != 1:
+            print("FAIL: unsupported character count is %r, expected one Unicode character" % a.get("replaced")); return 1
         blob = bytes(a["bytes"])
+        if b"caf\xe9" not in blob or b"caf??" in blob:
+            print("FAIL: UTF-8 text was not mapped to WinAnsi"); return 1
         if b"A \\(B\\) \\\\\\" not in blob:
             print("FAIL: PDF literal metacharacters were not escaped"); return 1
         if not blob.startswith(b"%PDF-1.4") or b"/CreationDate" in blob:
             print("FAIL: header or timestamp invariant"); return 1
         if lines[2] != "22.78":
             print("FAIL: Helvetica AFM width expected 22.78, got " + lines[2]); return 1
+        if b"-0.500 -1.250 m -0.001 0 l S" not in blob or b"/MediaBox [0 0 123456789 0]" not in blob:
+            print("FAIL: negative fractional, negative-zero, or large coordinate formatting"); return 1
         print("PASS: freestanding in-memory render loads and returns identical bytes")
         print("PASS: backslash/parentheses escape; unsupported character becomes '?' and is counted")
         print("PASS: embedded Helvetica AFM metrics measure Hello at 22.78pt/10pt")
+        print("PASS: negative fractions, negative zero, and large coordinates serialize exactly")
     return 0
 
 if __name__ == "__main__":

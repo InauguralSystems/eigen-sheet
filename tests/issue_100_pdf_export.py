@@ -54,7 +54,7 @@ def pixel_digest(image):
 
 
 def main():
-    for tool in ("qpdf", "pdftotext", "pdftoppm"):
+    for tool in ("qpdf", "pdftotext", "docker"):
         if not shutil.which(tool):
             print("FAIL: required oracle tool missing: " + tool); return 1
     with tempfile.TemporaryDirectory() as tmp:
@@ -100,7 +100,11 @@ def main():
             if sorted(words) != sorted(expected) or len(words) != len(expected):
                 print("FAIL: page %d text differs; got=%r expected=%r" % (page, words, expected)); return 1
         print("PASS: pdftotext -layout has exactly each page's cells, repeated header, and footer")
-        subprocess.run(["pdftoppm", "-f", "1", "-singlefile", "-gray", "-r", "72", a, os.path.join(tmp,"page1")], check=True, stdout=subprocess.DEVNULL)
+        rendered = os.path.join(tmp, "page1.pgm")
+        subprocess.run([os.path.join(ROOT, "tools", "render_golden.sh"), "--render", a, rendered], check=True)
+        if os.environ.get("ISSUE100_UPDATE_GOLDEN"):
+            shutil.copy(rendered, GOLDEN)
+            print("PASS: regenerated reviewed golden with pinned Poppler/font container")
         got = read_pgm(os.path.join(tmp, "page1.pgm"))
         if not os.path.exists(GOLDEN):
             print("FAIL: reviewed golden missing"); return 1
