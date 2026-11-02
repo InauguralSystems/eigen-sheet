@@ -26,6 +26,11 @@ b is pdf.render of d
 print of (json_encode of a)
 print of (json_encode of b)
 print of (str of (pdf.text_width of ["Hello", 10]))
+c is pdf.encode_text of "a\tb\nc"
+print of (json_encode of [c.replaced, c.text])
+print of (json_encode of [pdf.text_width of ["—", 10], pdf.text_width of ["…", 10], pdf.text_width of ["“", 10]])
+big is pdf.render of {"pages": [{"width": 200, "height": 200, "items": [{"type":"text", "x":10, "y":100, "size":40, "text":"gyp", "max_width":180}]}]}
+print of (json_encode of big)
 '''
         app = os.path.join(tmp, "app.eigs")
         open(app, "w", encoding="utf-8").write(program)
@@ -33,7 +38,7 @@ print of (str of (pdf.text_width of ["Hello", 10]))
         if run.returncode:
             print("FAIL: freestanding load/run\n" + run.stdout + run.stderr); return 1
         lines = run.stdout.splitlines()
-        if len(lines) != 3:
+        if len(lines) != 6:
             print("FAIL: unexpected output " + repr(run.stdout)); return 1
         a, b = json.loads(lines[0]), json.loads(lines[1])
         if a != b or a.get("bytes") != b.get("bytes"):
@@ -51,6 +56,16 @@ print of (str of (pdf.text_width of ["Hello", 10]))
             print("FAIL: Helvetica AFM width expected 22.78, got " + lines[2]); return 1
         if b"-0.500 -1.250 m -0.001 0 l S" not in blob or b"/MediaBox [0 0 123456789 0]" not in blob:
             print("FAIL: negative fractional, negative-zero, or large coordinate formatting"); return 1
+        ctl = json.loads(lines[3])
+        if ctl != [2, "a?b?c"]:
+            print("FAIL: control characters must be one '?' and one count each, got %r" % (ctl,)); return 1
+        widths = json.loads(lines[4])
+        if widths != [10, 10, 3.33]:
+            print("FAIL: cp1252 0x80-0x9f glyph widths (em dash, ellipsis, left quote) expected [10, 10, 3.33], got %r" % (widths,)); return 1
+        clip = bytes(json.loads(lines[5])["bytes"])
+        if b"10 91.720 180 " not in clip:
+            print("FAIL: 40pt text clip must start 0.207 em (8.28pt) below the baseline"); return 1
+        print("PASS: control characters counted once; cp1252 extension widths; clip descent scales with size")
         print("PASS: freestanding in-memory render loads and returns identical bytes")
         print("PASS: backslash/parentheses escape; unsupported character becomes '?' and is counted")
         print("PASS: embedded Helvetica AFM metrics measure Hello at 22.78pt/10pt")

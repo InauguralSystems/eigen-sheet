@@ -47,7 +47,11 @@ define encode_text(text) as:
         # Unicode characters explicitly; unrepresentable code points become ?.
         local win_unicode is [8364,8218,402,8222,8230,8224,8225,710,8240,352,8249,338,381,8216,8217,8220,8221,8226,8211,8212,732,8482,353,8250,339,382,376]
         local win_bytes is [128,130,131,132,133,134,135,136,137,138,139,140,142,145,146,147,148,149,150,151,152,153,154,155,156,158,159]
-        if cp >= 160 and cp <= 255:
+        if cp < 32 or cp == 127:
+            # Control characters have no glyph: one '?' and one count.
+            n is 63
+            replaced is replaced + 1
+        elif cp >= 160 and cp <= 255:
             n is cp
         elif cp >= 32 and cp <= 126:
             n is cp
@@ -56,15 +60,20 @@ define encode_text(text) as:
             for j in range of (len of win_unicode):
                 if cp == win_unicode[j]:
                     n is win_bytes[j]
-            if n == 63 and cp != 63:
+            if n == 63:
                 replaced is replaced + 1
-        if cp < 32 or cp == 127:
-            n is 63
-            replaced is replaced + 1
         append of [bytes, n]
         clean is clean + (chr of n)
         i is i + used
     return {"text": clean, "bytes": bytes, "replaced": replaced}
+
+# Helvetica AFM widths for the printable cp1252 bytes 0x80-0x9f (Euro,
+# quotesinglbase, florin, quotedblbase, ellipsis, dagger, daggerdbl,
+# circumflex, perthousand, Scaron, guilsinglleft, OE, Zcaron, quoteleft,
+# quoteright, quotedblleft, quotedblright, bullet, endash, emdash, tilde,
+# trademark, scaron, guilsinglright, oe, zcaron, Ydieresis).
+_WIN_EXT_BYTES is [128,130,131,132,133,134,135,136,137,138,139,140,142,145,146,147,148,149,150,151,152,153,154,155,156,158,159]
+_WIN_EXT_WIDTHS is [556,222,556,333,1000,556,556,333,1000,667,333,1000,611,222,222,333,333,350,556,1000,333,1000,500,333,944,500,667]
 
 # Width in points using the embedded standard Helvetica AFM metrics.
 define text_width(text, size) as:
@@ -77,6 +86,10 @@ define text_width(text, size) as:
             w is _HELVETICA_ASCII[n - 32]
         elif n >= 160 and n <= 255:
             w is _HELVETICA_LATIN[n - 160]
+        else:
+            for j in range of (len of _WIN_EXT_BYTES):
+                if n == _WIN_EXT_BYTES[j]:
+                    w is _WIN_EXT_WIDTHS[j]
         units is units + w
     return units * size / 1000
 
@@ -133,7 +146,12 @@ define _content(page) as:
                 local ch is it.size + 2
                 if (has_key of [it, "clip_height"]):
                     ch is it.clip_height
-                stream is stream + (_num of it.x) + " " + (_num of (it.y - 2)) + " " + (_num of it.max_width) + " " + (_num of ch) + " re W n\n"
+                # Clip below the baseline by Helvetica's descender (0.207 em),
+                # never less than the original 2 pt, keeping the top edge fixed.
+                local descent is it.size * 0.207
+                if descent < 2:
+                    descent is 2
+                stream is stream + (_num of it.x) + " " + (_num of (it.y - descent)) + " " + (_num of it.max_width) + " " + (_num of (ch + descent - 2)) + " re W n\n"
             stream is stream + "BT /F1 " + (_num of it.size) + " Tf " + (_num of it.x) + " " + (_num of it.y) + " Td " + (_pdf_string of enc.text) + " Tj ET\nQ\n"
         elif it.type == "line":
             local lw is 0.5
