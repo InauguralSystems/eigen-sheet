@@ -29,6 +29,7 @@ def main():
         modules = os.path.join(tmp, "eigs_modules", "sheet")
         os.makedirs(modules)
         shutil.copy(os.path.join(REPO, "sheet.eigs"), modules)
+        shutil.copy(os.path.join(REPO, "pdf.eigs"), modules)
         shutil.copy(os.path.join(REPO, "eigs.json"), modules)
 
         bad = {}

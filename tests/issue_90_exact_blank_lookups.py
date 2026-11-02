@@ -54,6 +54,7 @@ def main():
         module = os.path.join(tmp, "eigs_modules", "sheet")
         os.makedirs(module)
         shutil.copy(os.path.join(ROOT, "sheet.eigs"), module)
+        shutil.copy(os.path.join(ROOT, "pdf.eigs"), module)
         shutil.copy(os.path.join(ROOT, "eigs.json"), module)
         lines = ["import sheet", "s is sheet.new_sheet of null"]
         values = {

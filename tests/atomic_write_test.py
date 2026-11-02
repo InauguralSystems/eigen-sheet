@@ -20,6 +20,7 @@ def main():
         modules = os.path.join(tmp, "eigs_modules", "sheet")
         os.makedirs(modules)
         shutil.copy(os.path.join(REPO, "sheet.eigs"), os.path.join(modules, "sheet.eigs"))
+        shutil.copy(os.path.join(REPO, "pdf.eigs"), os.path.join(modules, "pdf.eigs"))
         # Add a test-only public seam inside the copied module; underscore names
         # are intentionally private to importers.
         with open(os.path.join(modules, "sheet.eigs"), "a", encoding="utf-8") as module:

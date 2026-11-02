@@ -262,6 +262,7 @@ def main(argv):
         mod = os.path.join(tmp, "eigs_modules", "sheet")
         os.makedirs(mod)
         shutil.copy(os.path.join(ROOT, "sheet.eigs"), mod)
+        shutil.copy(os.path.join(ROOT, "pdf.eigs"), mod)
         shutil.copy(os.path.join(ROOT, "eigs.json"), mod)
 
         rc, got, err = run_sheet(tmp, cases, 60)

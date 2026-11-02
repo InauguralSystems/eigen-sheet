@@ -117,6 +117,26 @@ jobs:
       - name: Issue 88 truncated XLSX XML regression
         run: python3 tests/issue_88_truncated_xlsx_xml.py
 
+  pdf-oracle:
+    # PDF validity/content/render checks need qpdf and Poppler, so keep them
+    # out of the portable all-platform model suite.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install independent PDF oracle tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qpdf poppler-utils
+      - name: Build freestanding EigenScript runtime
+        run: |
+          git clone --depth 1 --branch v0.48.0 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"
+          make -C "$RUNNER_TEMP/eigs" -s
+          echo "EIGENSCRIPT=$RUNNER_TEMP/eigs/src/eigenscript" >> "$GITHUB_ENV"
+      - name: Issue 100 freestanding shared PDF library
+        run: python3 tests/issue_100_pdf_library.py
+      - name: Issue 100 PDF validity, pagination, text, render, and reproducibility
+        run: python3 tests/issue_100_pdf_export.py
+
   ui-oracle:
     # render oracle: draw_grid pixels decoded back to the model. gfx + xvfb.
     runs-on: ubuntu-latest

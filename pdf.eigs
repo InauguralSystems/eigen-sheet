@@ -1,0 +1,168 @@
+# Pure, freestanding PDF 1.4 writer.
+#
+# The document model is {pages: [{width, height, items: [...]}]}.  Items are
+# {type:"text", x, y, size, text[, max_width, clip_height]},
+# {type:"line", x1, y1, x2, y2[, width]}, or
+# {type:"rect", x, y, width, height[, line_width]}.
+# Coordinates are PDF points, measured from the bottom-left.  No function in
+# this module performs I/O, graphics, host, clock, or random calls.
+
+# Helvetica widths from Adobe's standard Helvetica AFM, indexed by the
+# WinAnsi byte.  Undefined WinAnsi slots use the AFM .notdef width (556).
+# Keeping the table here makes measurement independent of a host font stack.
+_HELVETICA_ASCII is [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584]
+_HELVETICA_LATIN is [278,333,556,556,556,556,260,556,333,737,370,556,584,333,737,333,400,584,333,333,333,556,537,278,333,333,365,556,834,834,834,611,667,667,667,667,667,667,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,500,556,556,556,556,278,278,278,278,556,556,556,556,556,556,556,584,611,556,556,556,556,500,556,500]
+
+# Return {text, bytes, replaced}. PDF text strings are WinAnsi byte strings;
+# unsupported characters become '?' and are explicitly counted.
+define encode_text(text) as:
+    local clean is ""
+    local bytes is []
+    local replaced is 0
+    for i in range of (len of text):
+        local n is ord of (char_at of [text, i])
+        if n < 32 or n > 255 or (n >= 127 and n <= 159):
+            n is 63
+            replaced is replaced + 1
+        append of [bytes, n]
+        clean is clean + (chr of n)
+    return {"text": clean, "bytes": bytes, "replaced": replaced}
+
+# Width in points using the embedded standard Helvetica AFM metrics.
+define text_width(text, size) as:
+    local enc is encode_text of text
+    local units is 0
+    for i in range of (len of enc.bytes):
+        local n is enc.bytes[i]
+        local w is 556
+        if n >= 32 and n <= 126:
+            w is _HELVETICA_ASCII[n - 32]
+        elif n >= 160 and n <= 255:
+            w is _HELVETICA_LATIN[n - 160]
+        units is units + w
+    return units * size / 1000
+
+define _extend(dst, src) as:
+    for i in range of (len of src):
+        append of [dst, src[i]]
+    return dst
+
+define _ascii(s) as:
+    local out is []
+    for i in range of (len of s):
+        append of [out, ord of (char_at of [s, i])]
+    return out
+
+# Fixed decimal spelling: integers have no decimal point; fractional values
+# have exactly three places. Layout created by eigen-sheet uses integer points.
+define _num(n) as:
+    if n == (floor of n):
+        return str of (floor of n)
+    local scaled is floor of (n * 1000 + 0.5)
+    local whole is floor of (scaled / 1000)
+    local frac is scaled - whole * 1000
+    local fs is str of frac
+    loop while (len of fs) < 3:
+        fs is "0" + fs
+    return (str of whole) + "." + fs
+
+define _pdf_string(s) as:
+    local out is "("
+    for i in range of (len of s):
+        local ch is char_at of [s, i]
+        if ch == "\\" or ch == "(" or ch == ")":
+            out is out + "\\"
+        out is out + ch
+    return out + ")"
+
+define _content(page) as:
+    local stream is ""
+    local replaced is 0
+    for i in range of (len of page.items):
+        local it is page.items[i]
+        if it.type == "text":
+            local enc is encode_text of it.text
+            replaced is replaced + enc.replaced
+            stream is stream + "q\n"
+            if (has_key of [it, "max_width"]):
+                local ch is it.size + 2
+                if (has_key of [it, "clip_height"]):
+                    ch is it.clip_height
+                stream is stream + (_num of it.x) + " " + (_num of (it.y - 2)) + " " + (_num of it.max_width) + " " + (_num of ch) + " re W n\n"
+            stream is stream + "BT /F1 " + (_num of it.size) + " Tf " + (_num of it.x) + " " + (_num of it.y) + " Td " + (_pdf_string of enc.text) + " Tj ET\nQ\n"
+        elif it.type == "line":
+            local lw is 0.5
+            if (has_key of [it, "width"]):
+                lw is it.width
+            stream is stream + (_num of lw) + " w " + (_num of it.x1) + " " + (_num of it.y1) + " m " + (_num of it.x2) + " " + (_num of it.y2) + " l S\n"
+        elif it.type == "rect":
+            local lw is 0.5
+            if (has_key of [it, "line_width"]):
+                lw is it.line_width
+            stream is stream + (_num of lw) + " w " + (_num of it.x) + " " + (_num of it.y) + " " + (_num of it.width) + " " + (_num of it.height) + " re S\n"
+    return {"stream": stream, "replaced": replaced}
+
+define _pad10(n) as:
+    local s is str of n
+    loop while (len of s) < 10:
+        s is "0" + s
+    return s
+
+define _hex8(n) as:
+    local digits is "0123456789abcdef"
+    local out is ""
+    local x is n
+    for i in range of 8:
+        local d is bit_and of [x, 15]
+        out is (char_at of [digits, d]) + out
+        x is bit_shr of [x, 4]
+    return out
+
+# Small deterministic content hash (FNV-1a, repeated to PDF's 16-byte ID).
+define _doc_id(bytes) as:
+    local h is 2166136261
+    for i in range of (len of bytes):
+        h is bit_xor of [h, bytes[i]]
+        # multiplication is deliberately reduced to unsigned 32 bits.
+        h is bit_and of [h * 16777619, 4294967295]
+    local x is _hex8 of h
+    return x + x + x + x
+
+# Render and return {bytes, replaced}. Streams are intentionally uncompressed
+# on runtimes without a compressor builtin (including EigenScript v0.48).
+# This is the specified deterministic fallback; a future core `deflate` can be
+# selected by a separate entry point without changing the document model.
+define render(document) as:
+    assert of [(type of document) == "dict" and (has_key of [document, "pages"]), "pdf.render: document.pages is required"]
+    local bodies is []
+    append of [bodies, "<< /Type /Catalog /Pages 2 0 R >>"]
+    local kids is ""
+    for p in range of (len of document.pages):
+        local page_obj is 5 + p * 2
+        kids is kids + (str of page_obj) + " 0 R "
+    append of [bodies, "<< /Type /Pages /Count " + (str of (len of document.pages)) + " /Kids [" + kids + "] >>"]
+    append of [bodies, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"]
+    local replaced is 0
+    for p in range of (len of document.pages):
+        local built is _content of document.pages[p]
+        replaced is replaced + built.replaced
+        append of [bodies, "<< /Length " + (str of (len of (_ascii of built.stream))) + " >>\nstream\n" + built.stream + "endstream"]
+        local content_obj is 4 + p * 2
+        local pg is document.pages[p]
+        append of [bodies, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + (_num of pg.width) + " " + (_num of pg.height) + "] /Resources << /Font << /F1 3 0 R >> >> /Contents " + (str of content_obj) + " 0 R >>"]
+    local out is _ascii of "%PDF-1.4\n%PDFCORE\n"
+    local offsets is [0]
+    for i in range of (len of bodies):
+        append of [offsets, len of out]
+        _extend of [out, _ascii of ((str of (i + 1)) + " 0 obj\n" + bodies[i] + "\nendobj\n")]
+    local xref is len of out
+    local tail is "xref\n0 " + (str of ((len of bodies) + 1)) + "\n0000000000 65535 f \n"
+    for i in range of (len of bodies):
+        tail is tail + (_pad10 of offsets[i + 1]) + " 00000 n \n"
+    local id is _doc_id of out
+    tail is tail + "trailer\n<< /Size " + (str of ((len of bodies) + 1)) + " /Root 1 0 R /ID [<" + id + "><" + id + ">] >>\nstartxref\n" + (str of xref) + "\n%%EOF\n"
+    _extend of [out, _ascii of tail]
+    return {"bytes": out, "replaced": replaced}
+
+define bytes(document) as:
+    return (render of document).bytes

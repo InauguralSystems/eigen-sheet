@@ -153,6 +153,7 @@ def eigs_values():
     try:
         md = os.path.join(tmp, "eigs_modules", "sheet"); os.makedirs(md)
         shutil.copy(os.path.join(REPO, "sheet.eigs"), os.path.join(md, "sheet.eigs"))
+        shutil.copy(os.path.join(REPO, "pdf.eigs"), os.path.join(md, "pdf.eigs"))
         shutil.copy(os.path.join(REPO, "eigs.json"), os.path.join(md, "eigs.json"))
         app = os.path.join(tmp, "app.eigs"); open(app, "w").write(prog)
         r = subprocess.run([EIGS, app], cwd=tmp, capture_output=True, text=True, timeout=60)

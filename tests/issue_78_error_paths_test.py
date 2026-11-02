@@ -34,6 +34,7 @@ def main():
         mod = os.path.join(tmp, "eigs_modules", "sheet")
         os.makedirs(mod)
         shutil.copy(os.path.join(ROOT, "sheet.eigs"), mod)
+        shutil.copy(os.path.join(ROOT, "pdf.eigs"), mod)
         shutil.copy(os.path.join(ROOT, "eigs.json"), mod)
         lines = ["import sheet", "s is sheet.new_sheet of null"]
         for addr, raw in {"A1":"1", "A2":"2", "B1":"10", "B2":"20", "C1":"99", "C2":"98"}.items():

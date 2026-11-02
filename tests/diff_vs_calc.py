@@ -351,6 +351,7 @@ def issue_76_differential():
 
         md = os.path.join(tmp, "run", "eigs_modules", "sheet"); os.makedirs(md)
         shutil.copy(os.path.join(REPO, "sheet.eigs"), md)
+        shutil.copy(os.path.join(REPO, "pdf.eigs"), md)
         shutil.copy(os.path.join(REPO, "eigs.json"), md)
         lines = ["import sheet", "s is sheet.new_sheet of null",
                  'sheet.set_cell of [s, "A1", "1"]', 'sheet.set_cell of [s, "A2", "2"]']
@@ -430,6 +431,7 @@ def eigs_values():
     try:
         md = os.path.join(tmp, "eigs_modules", "sheet"); os.makedirs(md)
         shutil.copy(os.path.join(REPO, "sheet.eigs"), os.path.join(md, "sheet.eigs"))
+        shutil.copy(os.path.join(REPO, "pdf.eigs"), os.path.join(md, "pdf.eigs"))
         shutil.copy(os.path.join(REPO, "eigs.json"), os.path.join(md, "eigs.json"))
         app = os.path.join(tmp, "app.eigs"); open(app, "w").write(prog)
         r = subprocess.run([EIGS, app], cwd=tmp, capture_output=True, text=True, timeout=60)
