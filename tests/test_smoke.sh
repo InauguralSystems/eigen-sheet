@@ -13,7 +13,9 @@ TMP="$(mktemp -d)"
 trap "rm -rf '$TMP'" EXIT
 
 mkdir -p "$TMP/eigs_modules/$PKG_NAME"
-cp -a "$PKG_ROOT/$PKG_NAME.eigs" "$TMP/eigs_modules/$PKG_NAME/"
+# Mirror what `--pkg add` installs: the whole repo, so every top-level module
+# the package imports (e.g. pdf.eigs since #100) is present.
+cp -a "$PKG_ROOT"/*.eigs "$TMP/eigs_modules/$PKG_NAME/"
 cp -a "$PKG_ROOT/eigs.json" "$TMP/eigs_modules/$PKG_NAME/"
 
 cat > "$TMP/app.eigs" <<EOF
@@ -159,7 +161,9 @@ $PKG_NAME.recalc of s
 print of ("errs=" + ($PKG_NAME.display of [s, "X1"]) + "," + ($PKG_NAME.display of [s, "X2"]) + "," + ($PKG_NAME.display of [s, "X3"]) + "," + ($PKG_NAME.display of [s, "X4"]) + " gapavg=" + ($PKG_NAME.display of [s, "X5"]))
 EOF
 
-OUT="$("$EIGS" "$TMP/app.eigs" 2>&1)"
+if ! OUT="$("$EIGS" "$TMP/app.eigs" 2>&1)"; then
+    echo "FAIL: smoke program exited nonzero:"; printf '%s\n' "$OUT"; exit 1
+fi
 EXPECT="$(cat <<'EOF'
 A3=8
 A4=16
