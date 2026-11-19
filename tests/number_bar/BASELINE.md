@@ -1,35 +1,23 @@
 # Number-boundary bar baseline for #104
 
-This is measured output, not an expected-value source. LibreOffice Calc owns every expected display in the Calc-referenced sets. The comparison is exact display text equality; different numeric spellings and different errors differ. `known_before` means OLD differed from Calc and OLD's EigenScript display was exactly NEW's display. `new` is `differ - known_before`. API expectations instead cite operation rules and are counted separately.
+This is measured output, not an expected-value source. LibreOffice Calc decides every expected answer.
 
-NEW is EigenScript tag `phase2-consumers-1`, commit `b9881574b20503c5cfbdb6d80a5e6008e7501e15`, run against eigen-sheet `3dd5c1230dfaab5668db884d37003e9e2f95e312`. OLD is tag `v0.48.0`, commit `546848c0a7123ea7066923ebadb06f0af29af953`, run against the plain main clone at `3d43f211130d02774159e287a7cf84986639a1a3`.
+## The rule
 
-The OLD derivation took 12m44.827s shell wall time: 11m20.915s for the complete pre-extension population and 1m23.912s for the three appended source families. Appending preserves all existing keys; both parts used the tool's exact Calc-difference and display-equality rule. The final NEW run took 116.3 seconds of tool wall time (1m57.393s shell wall time):
+Calc is given every formula cell with the number format `0.00000000000000E+00` (fifteen significant digits, scientific) and converts the sheet to CSV with "save cell contents as shown", so C, Calc's text for a cell, is a number in one spelling whatever Calc would have auto-formatted (a time, a date, a percent, a logical). The same sheet without the format is converted in the same call and read only to learn whether Calc's result is a logical (it shows `TRUE` or `FALSE` there). A sentinel text on every row must come back; a missing Calc row is the tool's error, never an expectation of blank. For one cell, with C and this spreadsheet's VALUE (`sheet.get`, a logical read as its number) and DISPLAY (`sheet.display`):
+
+- **C is a number.** The cell matches when the VALUE is a number that agrees with C to within one unit in the fifteenth significant digit of the larger of the two in size (both zero agree), and the DISPLAY reads as a decimal number that agrees with C by the same rule and, when the VALUE is whole and below 1e15 in size, is plain digits with an optional minus sign (no `.0` ending, no exponent). When Calc's unformatted display is `TRUE` or `FALSE`, the result is a logical: the VALUE must then be a logical of that value and the DISPLAY must be `TRUE` or `FALSE` as Calc's is. Anything else differs: an error, a text, `#ERROR`, a crash.
+- **C is an error** (it starts with `#`, or is `Err:<digits>`). The cell matches when this spreadsheet's cell holds an error value other than `#ERROR` (its marker that the evaluation itself failed), and, where C is one of Excel's seven names (`#DIV/0!`, `#N/A`, `#NAME?`, `#NULL!`, `#NUM!`, `#REF!`, `#VALUE!`) or another `#` name, the same name; where C is `Err:<digits>`, any of the seven.
+- **C is anything else** (a text result, an empty result): the DISPLAY equals C exactly, and the cell holds no error.
+
+A cell the per-cell net in recalc caught counts as differing whatever its text. No other tolerance exists in the tool.
+
+`differ` counts every cell that does not match: no cell is set apart. `before` subtracts nothing: of the cells that differ now, it counts those whose answer on this repository's `main` with the OLD runtime was the same (the same number by the rule's agreement, the same error name, or the same text). `before.json` holds that run's answers keyed by set, formula text and the set's input cells, and is written whole by `--write-before`.
+
+## Counts
+
+The counts below this line were measured by the previous tool (exact display-text equality and a `known_before` set apart by address); they are replaced by the next full run.
 
 ```text
-DISPATCHER names=115 rule=One Calc-valid call per dispatcher function. arguments labels every position; each number position is expanded to one marked template by the tool. Calc signatures decide membership.
-TEMPLATES functions=115 positions=149
-SET class examined=8940 match=5792 differ=3148 known_before=1772 new=1376 kinds=error-for-value:2390,error-kind:425,text:310,value-for-error:23 net=unknown
-SET wrappers examined=630 match=304 differ=326 known_before=175 new=151 kinds=error-for-value:229,error-kind:70,text:27 net=unknown
-SET number-text examined=280 match=143 differ=137 known_before=123 new=14 kinds=text:137 net=unknown
-SET c-sumif examined=7 match=7 differ=0 known_before=0 new=0 kinds= net=unknown
-SET c1 examined=12 match=9 differ=3 known_before=3 new=0 kinds=error-kind:3 net=unknown
-SET c10 examined=22 match=17 differ=5 known_before=5 new=0 kinds=error-for-value:3,error-kind:2 net=unknown
-SET c20 examined=114 match=20 differ=94 known_before=72 new=22 kinds=error-for-value:15,error-kind:10,text:49,value-for-error:20 net=unknown
-SET c22 examined=56 match=44 differ=12 known_before=11 new=1 kinds=error-for-value:1,text:11 net=unknown
-SET c23 examined=19 match=8 differ=11 known_before=1 new=10 kinds=error-for-value:9,error-kind:1,text:1 net=unknown
-SET c24 examined=16 match=11 differ=5 known_before=1 new=4 kinds=error-for-value:1,text:3,value-for-error:1 net=unknown
-SET c25 examined=3 match=1 differ=2 known_before=0 new=2 kinds=error-for-value:2 net=unknown
-SET c4 examined=46 match=40 differ=6 known_before=4 new=2 kinds=error-for-value:2,error-kind:3,text:1 net=unknown
-SET c5 examined=14 match=9 differ=5 known_before=5 new=0 kinds=text:5 net=unknown
-SET c6 examined=18 match=15 differ=3 known_before=3 new=0 kinds=error-for-value:3 net=unknown
-SET c7 examined=12 match=0 differ=12 known_before=8 new=4 kinds=error-for-value:2,text:10 net=unknown
-SET c8 examined=6 match=0 differ=6 known_before=5 new=1 kinds=error-for-value:1,text:5 net=unknown
-SET c9 examined=6 match=6 differ=0 known_before=0 new=0 kinds= net=unknown
-SET api reference=rule examined=21 match=11 differ=10
 NUMBER-BAR examined=10201 differ=3775 known_before=2188 new=1587 net=unknown rule_examined=21 rule_differ=10 wall=116.3s
 ```
-
-The three Calc-referenced numbers moved from `examined=6679 differ=2089 known_before=1364 new=725` to `examined=10201 differ=3775 known_before=2188 new=1587`: all numeric argument positions add cells, and `LN(0)`, underflow, and overflowing `SUM` add three source kinds.
-
-The per-cell catch cannot be observed from outside recalc, so every formula set honestly remains `net=unknown`; the builder who repairs that layer must add the counter.

@@ -2,13 +2,54 @@
 """#104 number-boundary bar.
 
 The population is rebuilt from sheet.eigs and templates.json on every run.  A
-grid is run in measured chunks; a failed or timed-out chunk is isolated one
-cell per process.  LibreOffice Calc owns expected display text and only exact
-text equality matches.  The per-cell catch has no observable signal, so formula sets
-honestly report ``net=unknown``; a counter incremented in recalc's catch and a
-read-only accessor would be the smallest hook which could make it countable.
+grid is run in chunks of 200 cells, one runtime process per chunk; a chunk that
+crashes, times out or prints fewer cells than it was given is run again one
+cell per process, and a cell whose own process fails is CRASH or TIMEOUT.
+
+LibreOffice Calc decides every expected answer.  The tool writes each set into
+an .xlsx twice: once with the number format 0.00000000000000E+00 (fifteen
+significant digits, scientific) on every formula cell, and once with no format.
+Both are converted to CSV by one headless Calc call with "save cell contents as
+shown", so C, Calc's text for a cell, is a number in one spelling whatever Calc
+would have auto-formatted; the unformatted copy is read only to learn whether
+Calc's result is a logical (it shows TRUE or FALSE there).  A sentinel text in
+the column after the last one used is written on every row and must come back:
+a missing Calc row is the tool's error, never an expectation of blank.
+
+THE RULE (the only tolerance in this tool).  For one cell, with C and this
+spreadsheet's VALUE (sheet.get; a logical read as its number) and DISPLAY
+(sheet.display):
+- C is a number (it has the scientific form above).  The cell matches when the
+  VALUE is a number that agrees with C to within one unit in the fifteenth
+  significant digit of the larger of the two in size (both zero agree), and
+  the DISPLAY reads as a decimal number that agrees with C by the same rule
+  and, when the VALUE is whole and below 1e15 in size, is plain digits with an
+  optional minus sign (no ".0" ending, no exponent).  When Calc's unformatted
+  display is TRUE or FALSE the result is a logical: the VALUE must then be a
+  logical of that value and the DISPLAY must be TRUE or FALSE as Calc's is.
+  Anything else differs: an error, a text, #ERROR, a crash.
+- C is an error (it starts with "#", or is Err:<digits>).  The cell matches
+  when this spreadsheet's cell holds an error value other than #ERROR (its
+  marker that the evaluation itself failed), and where C is one of Excel's
+  seven names (#DIV/0! #N/A #NAME? #NULL! #NUM! #REF! #VALUE!) or another
+  "#" name, the same name; where C is Err:<digits>, any of the seven.
+- C is anything else (a text result, an empty result): the DISPLAY equals C
+  exactly, and the cell holds no error.
+A cell the per-cell net in recalc caught (sheet.net_caught) differs whatever
+its text.
+
+`differ` counts every cell that does not match; no cell is set apart from it.
+`before` is information that subtracts nothing: of the cells that differ now,
+those whose answer on this repository's main with the OLD runtime was the same
+(the same number by the rule's agreement, the same error name, or the same
+text).  tests/number_bar/before.json holds that run's answers, keyed by set,
+formula text and the set's input cells, and is written whole by --write-before.
+
+Exit 0 only when differ, net, crash and rule_differ are all 0 and every set
+ran; 1 when any is not; 2 for the tool's own errors.
 """
-import argparse, csv, glob, json, os, re, shutil, subprocess, sys, tempfile, time
+import argparse, csv, json, os, re, shutil, subprocess, sys, tempfile, time
+from decimal import Decimal, InvalidOperation
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "tests", "number_bar")
@@ -97,49 +138,186 @@ def population(tree):
  out["api"]={"reference":"rule","programs":json.load(open(os.path.join(DATA,"api","expectations.json")))["programs"]}
  return out,d
 
-def q(x): return json.dumps(x)
-def runtime_grid(tree, binary, spec, cells=None, timeout=30):
- fs=spec["f"] if cells is None else {a:spec["f"][a] for a in cells}; tmp=tempfile.mkdtemp()
+class ToolError(Exception):
+ """The tool could not measure: exit 2, never a verdict."""
+
+# ---- the rule ---------------------------------------------------------------
+SEVEN = ("#DIV/0!", "#N/A", "#NAME?", "#NULL!", "#NUM!", "#REF!", "#VALUE!")
+CALC_NUMBER = re.compile(r"-?\d\.\d{14}E[+-]\d+")
+NUMBER_TEXT = re.compile(r"-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
+WHOLE_TEXT = re.compile(r"-?\d+")
+FORMAT = "0.00000000000000E+00"
+
+def decimal(text, pattern=NUMBER_TEXT):
+ """The exact decimal a text spells, or None when it is not one."""
+ if not isinstance(text, str) or not pattern.fullmatch(text): return None
+ try: return Decimal(text)
+ except InvalidOperation: return None
+
+def agree(a, b):
+ """Within one unit in the fifteenth significant digit of the larger."""
+ if a is None or b is None or not a.is_finite() or not b.is_finite(): return False
+ m = max(abs(a), abs(b))
+ if m == 0: return True
+ return abs(a - b) <= Decimal(1).scaleb(m.adjusted() - 14)
+
+def calc_class(c):
+ if CALC_NUMBER.fullmatch(c): return "number"
+ if c.startswith("#") or re.fullmatch(r"Err:\d+", c): return "error"
+ return "text"
+
+def matches(c, logical, mine):
+ """Step 1's rule for one cell. mine = {"kind","value","display"}; kind is
+ N (number), L (logical), S (text), E (error), CRASH or TIMEOUT."""
+ k, value, disp = mine["kind"], mine["value"], mine["display"]
+ if k in ("CRASH", "TIMEOUT"): return False
+ cls = calc_class(c)
+ if cls == "number":
+  if k not in ("N", "L"): return False
+  want = decimal(c, CALC_NUMBER); v = decimal(value)
+  if not agree(v, want): return False
+  if logical is not None:
+   return k == "L" and disp == logical and v == (1 if logical == "TRUE" else 0)
+  shown = decimal(disp)
+  if not agree(shown, want): return False
+  if v == v.to_integral_value() and abs(v) < Decimal("1E15") and not WHOLE_TEXT.fullmatch(disp): return False
+  return True
+ if cls == "error":
+  if k != "E": return False
+  if disp == "#ERROR": return False
+  if c.startswith("Err:"): return disp in SEVEN
+  return disp == c
+ return k != "E" and disp == c
+
+def same_answer(old, new):
+ """The before comparison: the same number by agree(), the same error name,
+ or the same text."""
+ if old["kind"] != new["kind"]:
+  if {old["kind"], new["kind"]} <= {"N", "L"}: pass
+  else: return False
+ if new["kind"] in ("N", "L"): return agree(decimal(old["value"]), decimal(new["value"]))
+ if new["kind"] in ("CRASH", "TIMEOUT"): return True
+ return old["display"] == new["display"]
+
+# ---- this spreadsheet -------------------------------------------------------
+def q(x): return json.dumps(x, ensure_ascii=False)
+CELL_FN = '''define bar_cell(a) as:
+    local d is sheet.display of [s, a]
+    if (has_key of [s.err, a]):
+        return ["E", "", d]
+    local v is sheet.get of [s, a]
+    if (type of v) == "num":
+        return ["N", str of v, d]
+    if (type of v) == "dict" and (has_key of [v, "b"]):
+        return ["L", str of v.b, d]
+    if (type of v) == "str":
+        return ["S", v, d]
+    return ["?", str of v, d]'''
+
+def has_net(tree):
+ return "\ndefine net_caught(sheet) as:" in open(os.path.join(tree,"sheet.eigs"),encoding="utf-8").read()
+
+def install(tree, tmp):
+ md=os.path.join(tmp,"eigs_modules","sheet"); os.makedirs(md)
+ for n in ("sheet.eigs","pdf.eigs","eigs.json"): shutil.copy(os.path.join(tree,n),md)
+
+def runtime_grid(tree, binary, spec, cells, timeout=120, net=True):
+ """One process for the given cells: {"cells": {addr: answer}, "net": [...]}
+ or "CRASH" / "TIMEOUT"."""
+ tmp=tempfile.mkdtemp()
  try:
-  md=os.path.join(tmp,"eigs_modules","sheet"); os.makedirs(md)
-  for n in ("sheet.eigs","pdf.eigs","eigs.json"): shutil.copy(os.path.join(tree,n),md)
+  install(tree,tmp)
   lines=["import sheet","s is sheet.new_sheet of null"]
-  for a,v in list(spec.get("base",{}).items())+list(fs.items()): lines.append("sheet.set_cell of [s,%s,%s]"%(q(a),q(v)))
-  lines.append("sheet.recalc of s")
-  for a in fs: lines.append('print of (%s + "\\t" + (sheet.display of [s,%s]))'%(q(a),q(a)))
+  for a,v in list(spec.get("base",{}).items())+[(a,spec["f"][a]) for a in cells]:
+   lines.append("sheet.set_cell of [s,%s,%s]"%(q(a),q(v)))
+  lines += ["sheet.recalc of s", CELL_FN]
+  for a in cells: lines.append('print of (%s + (json_encode of (bar_cell of %s)))'%(q(a+"\t"),q(a)))
+  if net: lines.append('print of ("NET\\t" + (json_encode of (sheet.net_caught of s)))')
   open(os.path.join(tmp,"app.eigs"),"w").write("\n".join(lines)+"\n")
   try: r=subprocess.run([binary,"app.eigs"],cwd=tmp,text=True,capture_output=True,timeout=timeout)
   except subprocess.TimeoutExpired: return "TIMEOUT"
   if r.returncode: return "CRASH"
-  return dict(x.split("\t",1) for x in r.stdout.splitlines() if "\t" in x)
+  out={}; caught=None
+  for x in r.stdout.splitlines():
+   if "\t" not in x: continue
+   a,j=x.split("\t",1)
+   if a=="NET": caught=json.loads(j); continue
+   k,v,d=json.loads(j); out[a]={"kind":k,"value":v,"display":d}
+  if net and caught is None: return "CRASH"
+  return {"cells":out,"net":caught or []}
  finally: shutil.rmtree(tmp)
 
+def run_chunks(tree, binary, spec, net=True, grid=runtime_grid, size=200):
+ """Every cell of the set, and the set of cells the net caught."""
+ out={}; caught=set(); cells=list(spec["f"])
+ for off in range(0,len(cells),size):
+  chunk=cells[off:off+size]; got=grid(tree,binary,spec,chunk,net=net)
+  if isinstance(got,dict) and set(got["cells"])==set(chunk):
+   out.update(got["cells"]); caught.update(got["net"]); continue
+  for ad in chunk:
+   one=grid(tree,binary,spec,[ad],timeout=60,net=net)
+   if isinstance(one,dict) and ad in one["cells"]: out[ad]=one["cells"][ad]; caught.update(one["net"])
+   else: out[ad]={"kind":one if one in ("CRASH","TIMEOUT") else "CRASH","value":"","display":""}
+ return out,caught
+
+# ---- LibreOffice Calc -------------------------------------------------------
+def col_number(a):
+ m=re.fullmatch(r"([A-Z]+)(\d+)",a); c=0
+ for ch in m.group(1): c=c*26+ord(ch)-64
+ return c,int(m.group(2))
+
+def col_letters(c):
+ s=""
+ while c: c,r=divmod(c-1,26); s=chr(65+r)+s
+ return s
+
+CSV_SHOWN = "csv:Text - txt - csv (StarCalc):44,34,76,1,,0,false,true,true"
+
+def calc_rows(path, last_row, last_col):
+ """Calc's CSV rows; every row 1..last_row must end in its sentinel."""
+ rows=list(csv.reader(open(path,newline="",encoding="utf-8")))
+ for i in range(last_row):
+  if i>=len(rows) or len(rows[i])<last_col or rows[i][last_col-1]!="@row%d"%(i+1):
+   raise ToolError("Calc row %d is missing or short in %s"%(i+1,os.path.basename(path)))
+ return rows
+
 def calc_grid(spec):
+ """{addr: (C, "TRUE"/"FALSE"/None)} for every cell of spec["f"], from Calc."""
  import openpyxl
+ from openpyxl.workbook.defined_name import DefinedName
  office=shutil.which("libreoffice") or shutil.which("soffice")
- if not office: raise RuntimeError("LibreOffice Calc is required")
+ if not office: raise ToolError("LibreOffice Calc is required")
+ cells=list(spec.get("base",{}).items())+list(spec["f"].items())
+ last_col=max(col_number(a)[0] for a,_ in cells)+1; last_row=max(col_number(a)[1] for a,_ in cells)
  tmp=tempfile.mkdtemp()
  try:
-  w=openpyxl.Workbook(); s=w.active
-  for a,v in list(spec.get("base",{}).items())+list(spec["f"].items()):
-   if v.startswith("="):
-    for n in XLFN: v=re.sub(r"\b"+n+r"\(","_xlfn."+n+"(",v)
-    s[a]=v
-   else:
-    try: s[a]=int(v)
-    except ValueError:
-     try: s[a]=float(v)
-     except ValueError: s[a]=v
-  w.calculation.fullCalcOnLoad=True; x=os.path.join(tmp,"bar.xlsx"); w.save(x)
-  r=subprocess.run([office,"--headless","--norestore","--nolockcheck","-env:UserInstallation=file://"+tmp+"/profile","--convert-to","csv","--outdir",tmp,x],capture_output=True,timeout=240)
-  files=glob.glob(tmp+"/*.csv")
-  if not files: raise RuntimeError("LibreOffice produced no CSV: "+r.stderr.decode(errors="replace"))
-  rows=list(csv.reader(open(files[0],newline=""))); out={}
+  paths=[]
+  for name,fmt in (("formatted",FORMAT),("plain",None)):
+   w=openpyxl.Workbook(); s=w.active
+   for a,v in cells:
+    if v.startswith("="):
+     for n in XLFN: v=re.sub(r"\b"+n+r"\(","_xlfn."+n+"(",v)
+     s[a]=v
+    else:
+     try: s[a]=int(v)
+     except ValueError:
+      try: s[a]=float(v)
+      except ValueError: s[a]=v
+    if fmt and a in spec["f"]: s[a].number_format=fmt
+   for r in range(1,last_row+1): s[col_letters(last_col)+str(r)]="@row%d"%r
+   for nm,ref in spec.get("names",{}).items(): w.defined_names[nm]=DefinedName(nm,attr_text=ref)
+   w.calculation.fullCalcOnLoad=True; p=os.path.join(tmp,name+".xlsx"); w.save(p); paths.append(p)
+  r=subprocess.run([office,"--headless","--norestore","--nolockcheck","-env:UserInstallation=file://"+tmp+"/profile",
+                    "--convert-to",CSV_SHOWN,"--outdir",tmp]+paths,capture_output=True,timeout=600)
+  grids={}
+  for name in ("formatted","plain"):
+   f=os.path.join(tmp,name+".csv")
+   if not os.path.exists(f): raise ToolError("LibreOffice produced no %s CSV: %s"%(name,r.stderr.decode(errors="replace")))
+   grids[name]=calc_rows(f,last_row,last_col)
+  out={}
   for a in spec["f"]:
-   m=re.match(r"([A-Z]+)(\d+)",a); c=0
-   for ch in m.group(1): c=c*26+ord(ch)-64
-   try: out[a]=rows[int(m.group(2))-1][c-1]
-   except IndexError: out[a]="<blank>"
+   c,rw=col_number(a); text=grids["formatted"][rw-1][c-1]; plain=grids["plain"][rw-1][c-1]
+   out[a]=(text, plain if (plain in ("TRUE","FALSE") and calc_class(text)=="number") else None)
   return out
  finally: shutil.rmtree(tmp)
 
@@ -149,143 +327,142 @@ def validate_templates(d, oracle=calc_grid):
  for name,row in d["rows"].items():
   if name=="NA": continue # NA's only valid result is the error value it constructs.
   a=address(i); i+=1; fs[a]="="+row["call"]; owner[a]=(name,row["call"])
- if not fs: raise ValueError("template validation examined=0")
+ if not fs: raise ToolError("template validation examined=0")
  got=oracle({"base":BASE,"f":fs})
- for a,v in got.items():
-  if v.startswith("#") or v.startswith("Err:"):
+ if set(got)!=set(fs): raise ToolError("template validation: Calc answered %d of %d"%(len(got),len(fs)))
+ for a,(v,_) in got.items():
+  if calc_class(v)=="error":
    name,t=owner[a]; raise ValueError("template is an error by itself in Calc: %s: %s -> %s"%(name,t,v))
 
-def equal(a,b): return a == b
+# ---- before.json ------------------------------------------------------------
+def before_key(set_name, address, formula):
+ return set_name+"\t"+formula
 
-def is_error(v): return v in ("CRASH","TIMEOUT") or v.startswith("#") or v.startswith("Err:")
-def kind(a,b):
- if a in ("CRASH","TIMEOUT"): return a
- if is_error(a) and not is_error(b): return "error-for-value"
- if not is_error(a) and is_error(b): return "value-for-error"
- if is_error(a) and is_error(b): return "error-kind"
- return "text"
+def write_before(path, sets, tree, binary, grid=runtime_grid):
+ """The answers of `tree` on `binary` for every formula set, written whole."""
+ doc={"tree":tree,"runtime":binary,"inputs":{},"cells":{}}
+ for name,spec in sets.items():
+  if spec.get("reference")=="rule": continue
+  if not spec.get("f"): raise ToolError("SET %s examined=0 is invalid"%name)
+  mine,_=run_chunks(tree,binary,spec,net=False,grid=grid)
+  doc["inputs"][name]=spec.get("base",{})
+  for ad,f in spec["f"].items():
+   k=before_key(name,ad,f)
+   if k in doc["cells"]: raise ToolError("two cells share the before key "+repr(k))
+   doc["cells"][k]=mine[ad]
+ with open(path,"w") as fh: json.dump(doc,fh,indent=1,sort_keys=True)
+ return len(doc["cells"])
 
-def run_chunks(tree,binary,spec,size=200):
- out={}; cells=list(spec["f"])
- for off in range(0,len(cells),size):
-  chunk=cells[off:off+size]; got=runtime_grid(tree,binary,spec,chunk)
-  if isinstance(got,dict) and len(got)==len(chunk): out.update(got); continue
-  for ad in chunk:
-   one=runtime_grid(tree,binary,spec,[ad],timeout=1)
-   out[ad]=one.get(ad,"CRASH") if isinstance(one,dict) else one
- return out
+def check_before(doc, sets):
+ """Every key of before.json names a cell of the present population, and each
+ set's inputs are the present ones."""
+ live={}
+ for name,spec in sets.items():
+  if spec.get("reference")=="rule": continue
+  if name in doc["inputs"] and doc["inputs"][name]!=spec.get("base",{}):
+   raise ToolError("before.json: the inputs of set %s are not the present ones"%name)
+  for ad,f in spec["f"].items(): live[before_key(name,ad,f)]=1
+ stale=[k for k in doc["cells"] if k not in live]
+ if stale: raise ToolError("before.json has %d keys no present cell has, first %r"%(len(stale),stale[0]))
 
-def compare_set(spec, mine, oracle, known=None):
- known=known or {}; diff=before=0
- for ad in spec["f"]:
-  ev=mine.get(ad,"CRASH"); lo=oracle[ad]
-  if not equal(ev,lo):
-   diff+=1
-   old=known.get("x:"+ad)
-   if old is not None and old==ev: before+=1
- return len(spec["f"]),diff,before
-
-def selftest(tree):
- clean=load_templates(tree); tmp=tempfile.mkdtemp()
- try:
-  p=os.path.join(tmp,"t.json"); json.dump(clean,open(p,"w")); load_templates(tree,p)
-  missing=next(iter(clean["rows"])); d=json.loads(json.dumps(clean)); d["rows"].pop(missing); json.dump(d,open(p,"w"))
-  try: load_templates(tree,p); raise AssertionError("missing-row plant survived")
-  except ValueError as e: assert "no template row" in str(e)
-  print("PASS: dispatcher function with no row is rejected")
-  d=json.loads(json.dumps(clean)); d["rows"]["NOT_A_BUILTIN"]={"call":"NOT_A_BUILTIN()","arguments":[]}; json.dump(d,open(p,"w"))
-  try: load_templates(tree,p); raise AssertionError("stale-row plant survived")
-  except ValueError as e: assert "lacks dispatcher" in str(e)
-  print("PASS: row with no dispatcher function is rejected")
-  spec={"f":{"A1":"=1"}}; control={"A1":"7101"}
-  assert compare_set(spec,control,control)==(1,0,0)
-  n,diff,before=compare_set(spec,{"A1":"710X"},control); assert (n,diff,before)==(1,1,0)
-  print("PASS: one-character plant exits nonzero SET plant examined=1 differ=1 new=1")
-  def bad_template(spec):
-   return {a:("Err:502" if i==0 else "1") for i,a in enumerate(spec["f"])}
-  try: validate_templates(clean,bad_template); raise AssertionError("bad-template plant survived")
-  except ValueError as e: assert "error by itself in Calc" in str(e)
-  print("PASS: valid call rejected when oracle returns an error")
-  try:
-   if not {}: raise ValueError("examined=0 is invalid")
-  except ValueError as e: assert str(e)=="examined=0 is invalid"
-  print("PASS: empty set is rejected examined=0")
-  calls=[]
-  def chunks(cells):
-   calls.append(tuple(cells)); return "CRASH" if len(cells)>1 or cells==["B1"] else {cells[0]:"ok"}
-  cells=["A1","B1","C1"]; got=chunks(cells)
-  if not isinstance(got,dict): got={a:(chunks([a]).get(a,"CRASH") if isinstance(chunks([a]),dict) else "CRASH") for a in cells}
-  assert got=={"A1":"ok","B1":"CRASH","C1":"ok"}
-  print("PASS: failed chunk is isolated and only failing cell is CRASH")
-  assert compare_set(spec,{"A1":"same"},{"A1":"calc"},{"x:A1":"same"})==(1,1,1)
-  assert compare_set(spec,{"A1":"changed"},{"A1":"calc"},{"x:A1":"same"})==(1,1,0)
-  print("PASS: known_before requires the current EigenScript display to be unchanged")
- finally: shutil.rmtree(tmp)
+# ---- one set ----------------------------------------------------------------
+def compare_set(name, spec, mine, caught, calc, before):
+ """Records and counts for one formula set."""
+ if not spec.get("f"): raise ToolError("SET %s examined=0 is invalid"%name)
+ recs=[]; n={"examined":0,"differ":0,"before":0,"net":0,"crash":0}
+ for ad,f in spec["f"].items():
+  if ad not in calc: raise ToolError("Calc has no row for %s:%s"%(name,ad))
+  if ad not in mine: raise ToolError("no answer for %s:%s"%(name,ad))
+  c,logical=calc[ad]; m=mine[ad]; net=ad in caught
+  ok=matches(c,logical,m) and not net
+  n["examined"]+=1; n["net"]+=net; n["crash"]+=m["kind"] in ("CRASH","TIMEOUT")
+  b=False
+  if not ok:
+   n["differ"]+=1
+   old=before.get(before_key(name,ad,f)) if before is not None else None
+   if old is not None and same_answer(old,m): b=True; n["before"]+=1
+  recs.append({"set":name,"address":ad,"formula":f,"calc":c,"calc_logical":logical,"kind":m["kind"],
+               "value":m["value"],"display":m["display"],"net":net,"verdict":"match" if ok else "differ","before":b})
+ return recs,n
 
 def api_grid(tree,binary,spec):
- out={}; api=os.path.join(DATA,"api")
+ out={}; api=os.path.join(DATA,"api"); crashed=0
  for program,item in spec["programs"].items():
   tmp=tempfile.mkdtemp()
   try:
-   md=os.path.join(tmp,"eigs_modules","sheet"); os.makedirs(md)
-   for n in ("sheet.eigs","pdf.eigs","eigs.json"): shutil.copy(os.path.join(tree,n),md)
+   install(tree,tmp)
    shutil.copy(os.path.join(api,program),os.path.join(tmp,"app.eigs"))
    if program=="sc-6-csv.eigs":
     os.makedirs(os.path.join(tmp,"api")); open(os.path.join(tmp,"api","big.csv"),"w").write("9223372036854775807,9223372036854775807,=A1+B1\n9007199254740993,5000000000,=A2*B2\n")
     s=open(os.path.join(tmp,"app.eigs")).read().replace("REVIEW_DIR/api/big.csv","api/big.csv"); open(os.path.join(tmp,"app.eigs"),"w").write(s)
    r=subprocess.run([binary,"app.eigs"],cwd=tmp,text=True,capture_output=True,timeout=60)
-   got=r.stdout.splitlines() if r.returncode==0 else ["CRASH"]
+   got=r.stdout.splitlines() if r.returncode==0 else ["CRASH"]; crashed+=r.returncode!=0
    for i,expected in enumerate(item["expect"]): out[program+":"+str(i)]=(got[i] if i<len(got) else "<missing>",expected)
   finally: shutil.rmtree(tmp)
- return out
+ return out,crashed
 
-def main():
- ap=argparse.ArgumentParser(); ap.add_argument("--tree",default=ROOT); ap.add_argument("--runtime",default=os.environ.get("EIGENSCRIPT","eigenscript")); ap.add_argument("--old-tree"); ap.add_argument("--old-runtime"); ap.add_argument("--list",action="store_true"); ap.add_argument("--set"); ap.add_argument("--out"); ap.add_argument("--selftest",action="store_true"); ap.add_argument("--known-before")
- a=ap.parse_args(); start=time.monotonic()
- if a.selftest:return selftest(a.tree)
- sets,d=population(a.tree); print("DISPATCHER names=%d rule=%s"%(len(d["rows"]),d["rule"]))
- positions=sum(row["arguments"].count("number") for row in d["rows"].values())
- print("TEMPLATES functions=%d positions=%d"%(len(d["rows"]),positions))
- if a.set:
-  if a.set not in sets: raise SystemExit("unknown set "+a.set)
-  sets={a.set:sets[a.set]}
- if a.list:
-  for n,s in sets.items():
-   for ad,f in s["f"].items(): print("%s\t%s\t%s"%(n,ad,f))
-  return
- if not (a.set=="api"): validate_templates(d)
- records=[]; N=D=0; unknown=False; RN=RD=0
- known_data={}
- if a.known_before and os.path.exists(a.known_before):
-  known_data={x["key"]:x for x in json.load(open(a.known_before))}
+# ---- the run ----------------------------------------------------------------
+def run_bar(sets, tree, binary, before_doc, out=None, calc=calc_grid, grid=runtime_grid, api=api_grid, log=print):
+ """Every set; returns (totals, exit status)."""
+ if not sets: raise ToolError("no set to run")
+ net=has_net(tree)
+ if not net: raise ToolError("the tree has no `define net_caught(sheet)`: the net cannot be counted")
+ before=None
+ if before_doc is not None: check_before(before_doc,sets); before=before_doc["cells"]
+ T={"examined":0,"differ":0,"before":0,"net":0,"crash":0,"rule_examined":0,"rule_differ":0}; records=[]
  for name,spec in sets.items():
   if spec.get("reference")=="rule":
-   got=api_grid(a.tree,a.runtime,spec); n=len(got); diff=sum(actual!=expected for actual,expected in got.values())
-   RN+=n; RD+=diff
-   print("SET %s reference=rule examined=%d match=%d differ=%d"%(name,n,n-diff,diff))
-   for key,(actual,expected) in got.items(): records.append({"set":name,"key":key,"eigen":actual,"rule":expected,"verdict":"match" if actual==expected else "differ"})
+   got,crashed=api(tree,binary,spec); n=len(got); diff=sum(a!=e for a,e in got.values())
+   T["rule_examined"]+=n; T["rule_differ"]+=diff; T["crash"]+=crashed
+   log("SET %s reference=rule examined=%d match=%d differ=%d crash=%d"%(name,n,n-diff,diff,crashed))
+   for key,(a,e) in got.items(): records.append({"set":name,"key":key,"eigen":a,"rule":e,"verdict":"match" if a==e else "differ"})
    continue
-  if not spec.get("f"): raise SystemExit("SET %s examined=0 is invalid"%name)
-  lo=calc_grid(spec); mine=run_chunks(a.tree,a.runtime,spec)
-  if a.old_tree and a.old_runtime:
-   same=os.path.realpath(a.tree)==os.path.realpath(a.old_tree) and os.path.realpath(a.runtime)==os.path.realpath(a.old_runtime)
-   old=mine if same else run_chunks(a.old_tree,a.old_runtime,spec)
-  else: old=None
-  diff=0; before=0; kinds={}
-  for ad,f in spec["f"].items():
-   ev=mine.get(ad,"CRASH"); verdict="match" if equal(ev,lo[ad]) else "differ"
-   key=name+":"+ad
-   if verdict=="differ":
-    diff+=1; k=kind(ev,lo[ad]); kinds[k]=kinds.get(k,0)+1
-    ov=old.get(ad,"CRASH") if old else known_data.get(key,{}).get("eigen")
-    if ov is not None and not equal(ov,lo[ad]) and equal(ov,ev):
-     verdict="known-before"; before+=1; known_data[key]={"key":key,"eigen":ev,"calc":lo[ad]}
-   records.append({"set":name,"address":ad,"formula":f,"eigen":ev,"calc":lo[ad],"verdict":verdict,"kind":None if verdict=="match" else kind(ev,lo[ad])})
-  n=len(spec["f"]); N+=n; D+=diff; unknown=True
-  print("SET %s examined=%d match=%d differ=%d known_before=%d new=%d kinds=%s net=unknown"%(name,n,n-diff,diff,before,diff-before,",".join("%s:%d"%x for x in sorted(kinds.items()))))
- if a.out: json.dump(records,open(a.out,"w"),indent=2)
- if a.known_before and a.old_tree: json.dump([known_data[k] for k in sorted(known_data)],open(a.known_before,"w"),indent=2)
- kb=sum(1 for r in records if r["verdict"]=="known-before")
- print("NUMBER-BAR examined=%d differ=%d known_before=%d new=%d net=unknown rule_examined=%d rule_differ=%d wall=%.1fs"%(N,D,kb,D-kb,RN,RD,time.monotonic()-start))
- return 1 if D-kb or unknown or RD else 0
-if __name__=="__main__": sys.exit(main() or 0)
+  lo=calc(spec); mine,caught=run_chunks(tree,binary,spec,grid=grid)
+  recs,n=compare_set(name,spec,mine,caught,lo,before); records+=recs
+  for k in n: T[k]+=n[k]
+  log("SET %s examined=%d match=%d differ=%d before=%d net=%d crash=%d"%(name,n["examined"],n["examined"]-n["differ"],n["differ"],n["before"],n["net"],n["crash"]))
+ if out:
+  with open(out,"w") as fh: json.dump(records,fh,indent=1)
+ bad=T["differ"] or T["net"] or T["crash"] or T["rule_differ"]
+ return T, (1 if bad else 0)
+
+def main(argv=None):
+ ap=argparse.ArgumentParser(); ap.add_argument("--tree",default=ROOT); ap.add_argument("--runtime",default=os.environ.get("EIGENSCRIPT","eigenscript"))
+ ap.add_argument("--list",action="store_true"); ap.add_argument("--set"); ap.add_argument("--out"); ap.add_argument("--selftest",action="store_true")
+ ap.add_argument("--before",default=os.path.join(DATA,"before.json"))
+ ap.add_argument("--write-before",action="store_true",help="write --before from --old-tree on --old-runtime (all formula sets)")
+ ap.add_argument("--old-tree"); ap.add_argument("--old-runtime")
+ a=ap.parse_args(argv); start=time.monotonic()
+ if a.selftest: return selftest(a.tree)
+ try:
+  sets,d=population(a.tree); print("DISPATCHER names=%d rule=%s"%(len(d["rows"]),d["rule"]))
+  positions=sum(row["arguments"].count("number") for row in d["rows"].values())
+  print("TEMPLATES functions=%d positions=%d"%(len(d["rows"]),positions))
+  if a.list:
+   for n,s in sets.items():
+    for ad,f in s.get("f",{}).items(): print("%s\t%s\t%s"%(n,ad,f))
+   return 0
+  if a.write_before:
+   if a.set: raise ToolError("--write-before writes the whole file: no --set")
+   if not (a.old_tree and a.old_runtime): raise ToolError("--write-before needs --old-tree and --old-runtime")
+   n=write_before(a.before,sets,a.old_tree,a.old_runtime)
+   print("BEFORE written=%d path=%s wall=%.1fs"%(n,a.before,time.monotonic()-start)); return 0
+  if a.set:
+   if a.set not in sets: raise ToolError("unknown set "+a.set)
+   sets={a.set:sets[a.set]}
+  if a.set!="api": validate_templates(d)
+  if not os.path.exists(a.before): raise ToolError("no before file "+a.before+" (write it with --write-before)")
+  doc=json.load(open(a.before))
+  if a.set: doc={"inputs":doc["inputs"],"cells":{k:v for k,v in doc["cells"].items() if k.split("\t",1)[0]==a.set}}
+  T,status=run_bar(sets,a.tree,a.runtime,doc,a.out)
+ except ToolError as e:
+  print("NUMBER-BAR TOOL-ERROR %s"%e); return 2
+ print("NUMBER-BAR examined=%d differ=%d before=%d net=%d crash=%d rule_examined=%d rule_differ=%d wall=%.1fs"%(
+  T["examined"],T["differ"],T["before"],T["net"],T["crash"],T["rule_examined"],T["rule_differ"],time.monotonic()-start))
+ return status
+
+# ---- self-test ---------------------------------------------------------------
+def selftest(tree):
+ raise ToolError("the self-test is rewritten in the next step (plants that mutate this file)")
+
+if __name__=="__main__": sys.exit(main())
