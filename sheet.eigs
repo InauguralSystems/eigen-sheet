@@ -348,8 +348,9 @@ define _is_bool(v) as:
         return 1
     return 0
 
-# Coerce any value to display text — numbers via str (whole numbers lose the
-# decimal), so =5&"x" -> "5x". Matches a spreadsheet's number->text rule.
+# Coerce any value to display text. _number_text is the single numeric-text
+# boundary, shared with display formatting, so runtime spelling changes cannot
+# leak into CONCATENATE, &, LEN, LEFT, TEXTJOIN, or their siblings.
 # NOTE: a boolean coerces to "1"/"0" here (the & concatenation rule —
 # =TRUE()&"!" is "1!" in Calc, NOT "TRUE!"). Its TRUE/FALSE spelling is a
 # DISPLAY concern only, handled in display().
@@ -357,13 +358,24 @@ define _to_text(v) as:
     if (type of v) == "str":
         return v
     if (_is_bool of v) == 1:
-        return str of v.b
+        return _number_text of v.b
+    if (type of v) == "num":
+        return _number_text of v
     return str of v
 
 # Coerce to a number for arithmetic. A boolean is 1/0; a numeric-looking string
 # converts; other text is #VALUE! (like ="a"+1 in a spreadsheet), via st.err.
 define _to_num(st, v) as:
+    # Once an argument has failed, its placeholder/result must not flow into a
+    # second numeric operation. NEW runtimes retain IEEE infinity, and floor,
+    # ceil, integer conversion, and indexing correctly refuse it. Collapse the
+    # failed value here while preserving the original spreadsheet error.
+    if st.err != "":
+        return 0
     if (type of v) == "num":
+        if v != v or v > 1.7976931348623157e308 or v < -1.7976931348623157e308:
+            st.err is "#NUM!"
+            return 0
         return v
     if (_is_bool of v) == 1:
         return v.b
@@ -1722,6 +1734,8 @@ define _eval_factor(st) as:
             local ev is _to_num of [st, _eval_cmp of st]
             if (_peek of st) != null and (_peek of st).t == "rp":
                 st.i is st.i + 1
+            if st.err != "":
+                return 0
             local iv is floor of ev
             if ev < 0:
                 iv is 0 - (floor of (0 - ev))
@@ -2077,6 +2091,8 @@ define _eval_factor(st) as:
         if fname == "ABS" or fname == "INT" or fname == "TRUNC" or fname == "ROUND" or fname == "ROUNDUP" or fname == "ROUNDDOWN" or fname == "SIGN" or fname == "SQRT" or fname == "MOD" or fname == "POWER" or fname == "CEILING" or fname == "FLOOR":
             local nargs is _collect_args of st
             local nn is len of nargs
+            if st.err != "":
+                return 0
             if nn < 1:
                 st.err is "#ERROR"
                 return 0
@@ -2130,6 +2146,8 @@ define _eval_factor(st) as:
         if fname == "DATE" or fname == "YEAR" or fname == "MONTH" or fname == "DAY" or fname == "WEEKDAY" or fname == "EDATE" or fname == "EOMONTH" or fname == "DATEVALUE" or fname == "DATEDIF" or fname == "TIME" or fname == "HOUR" or fname == "MINUTE" or fname == "SECOND":
             local dargs is _collect_args of st
             local dn is len of dargs
+            if st.err != "":
+                return 0
             if fname == "DATE":
                 if dn < 3:
                     st.err is "#ERROR"
@@ -2331,7 +2349,9 @@ define _eval_power(st) as:
         # logarithmic comparison keeps the valid boundary 10^308 representable.
         if av > 1 and r > 0 and (log of av) * r > (log of 1.7976931348623157e308):
             st.err is "#NUM!"
-        v is pow of [v, r]
+            v is 0
+        else:
+            v is pow of [v, r]
     return v
 
 define _eval_term(st) as:
@@ -2350,7 +2370,9 @@ define _eval_term(st) as:
                 ar is 0 - ar
             if ar != 0 and av > 1.7976931348623157e308 / ar:
                 st.err is "#NUM!"
-            v is v * r
+                v is 0
+            else:
+                v is v * r
         else:
             # check BEFORE dividing — the runtime turns 1/0 into a silent 0
             if r == 0:
@@ -2365,7 +2387,9 @@ define _eval_term(st) as:
                     ard is 0 - ard
                 if ard < avd / 1.7976931348623157e308:
                     st.err is "#NUM!"
-                v is v / r
+                    v is 0
+                else:
+                    v is v / r
     return v
 
 define _eval_expr(st) as:
@@ -2378,11 +2402,15 @@ define _eval_expr(st) as:
         if op == "+":
             if (v > 0 and r > 0 and v > 1.7976931348623157e308 - r) or (v < 0 and r < 0 and v < -1.7976931348623157e308 - r):
                 st.err is "#NUM!"
-            v is v + r
+                v is 0
+            else:
+                v is v + r
         else:
             if (v > 0 and r < 0 and v > 1.7976931348623157e308 + r) or (v < 0 and r > 0 and v < -1.7976931348623157e308 + r):
                 st.err is "#NUM!"
-            v is v - r
+                v is 0
+            else:
+                v is v - r
     return v
 
 # Concatenation level: expr (& expr)* -> string. Binds looser than arithmetic,
@@ -2442,6 +2470,11 @@ define _eval_st(st, toks, selfaddr) as:
         st.err is "#ERROR"
         return 0
     local v is _eval_cmp of st
+    # No successful cell may retain an IEEE non-finite value. This catches
+    # domain results produced by a runtime builtin even when a dispatcher did
+    # not need a later integer/rounding conversion.
+    if st.err == "" and (type of v) == "num":
+        v is _to_num of [st, v]
     # trailing tokens the parser did not consume mean the formula is malformed
     # (e.g. "=1E5" tokenizes to num 1 then cell E5; "=A1 A2"). The error is left
     # on st.err (no per-formula result dict — fewer allocations in the hot loop).
@@ -2903,7 +2936,7 @@ define paste_block(sheet, clip, tc, tr) as:
 
 # Format a number for display: whole values as integers, otherwise trimmed to
 # a short decimal (so =A1/A2 shows 1.6667, not a 17-digit float tail).
-define _whole_text(n) as:
+define _number_text(n) as:
     local s is str of n
     local l is len of s
     # EigenScript's numeric spelling deliberately preserves the kind of an
@@ -2919,10 +2952,9 @@ define _fmt(n) as:
     if n != n or n > 1.7976931348623157e308 or n < -1.7976931348623157e308:
         return "#NUM!"
     if n == (floor of n):
-        return _whole_text of (floor of n)
+        return _number_text of (floor of n)
     local scaled is floor of (n * 10000 + 0.5)
-    local s is str of (scaled / 10000)
-    return s
+    return _number_text of (scaled / 10000)
 
 # ---- number-format codes (Calc/Excel mini-language, common subset) --
 
@@ -2987,13 +3019,13 @@ define _fmt_number(value, code) as:
     local factor is pow of [10, decimals]
     local scaled is floor of (v * factor + 0.5)
     local intval is floor of (scaled / factor)
-    local ints is _whole_text of intval
+    local ints is _number_text of intval
     if grouping == 1:
         ints is _group_thousands of ints
     local body is ints
     if decimals > 0:
         local fracval is scaled - intval * factor
-        local fs is _whole_text of fracval
+        local fs is _number_text of fracval
         loop while (len of fs) < decimals:
             fs is "0" + fs
         body is body + "." + fs
@@ -3246,11 +3278,11 @@ define pivot(sheet, c0, r0, c1, r1, row_col, data_col, aggfn, tc, tr) as:
         local key is keys_order[w]
         local agg is _pivot_agg of [aggfn, groups[_to_text of key]]
         dict_set of [sheet.cells, _cell_addr of [tc + 1, tr + 2 + w], _to_text of key]
-        dict_set of [sheet.cells, _cell_addr of [tc + 2, tr + 2 + w], str of agg]
+        dict_set of [sheet.cells, _cell_addr of [tc + 2, tr + 2 + w], _number_text of agg]
         w is w + 1
     # grand total
     dict_set of [sheet.cells, _cell_addr of [tc + 1, tr + 2 + (len of keys_order)], "Total"]
-    dict_set of [sheet.cells, _cell_addr of [tc + 2, tr + 2 + (len of keys_order)], str of (_pivot_agg of [aggfn, all_vals])]
+    dict_set of [sheet.cells, _cell_addr of [tc + 2, tr + 2 + (len of keys_order)], _number_text of (_pivot_agg of [aggfn, all_vals])]
     recalc of sheet
     return sheet
 

@@ -111,6 +111,8 @@ jobs:
 
       - name: Issue 98 malformed-argument error classes agree with LibreOffice
         run: python3 tests/issue_98_malformed_args_recalc.py --calc
+      - name: Issue 101 non-finite numeric dispatchers recalc safely
+        run: python3 tests/issue_101_nonfinite_recalc.py
 
       - name: Issue 75 corrupt XLSX and saved-sheet validation
         run: python3 tests/issue_75_bad_input_test.py
