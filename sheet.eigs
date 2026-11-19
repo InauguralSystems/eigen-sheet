@@ -2743,6 +2743,7 @@ define recalc(sheet) as:
     sheet.vals is {}
     sheet.err is {}
     sheet.order is []
+    sheet.net is []
     local addrs is keys of sheet.cells
     local formula_toks is {}
     local formula_deps is {}
@@ -2811,6 +2812,7 @@ define recalc(sheet) as:
             # in this program and is raised again, so that a test sees it.
             if (type of eval_error) == "dict" and eval_error.kind == "value":
                 st.err is "#NUM!"
+                append of [sheet.net, addr]
             else:
                 throw of eval_error
         if st.err != "":
@@ -2831,6 +2833,13 @@ define recalc(sheet) as:
             dict_set of [sheet.err, pending[i], "#CYCLE"]
             dict_set of [sheet.vals, pending[i], 0]
     return sheet
+
+# The addresses whose evaluation the per-cell net in recalc caught (each shows
+# #NUM!), in evaluation order, since the last recalc began; [] before any.
+define net_caught(sheet) as:
+    if (has_key of [sheet, "net"]):
+        return sheet.net
+    return []
 
 define get(sheet, addr) as:
     local a is _upper of addr
