@@ -1005,7 +1005,7 @@ define _crit_test(cellval, crit) as:
 
 # sum/count/avg of a value list under a single criterion applied to `keys`
 # (keys[i] decides whether vals[i] is included). agg 0=count,1=sum,2=avg.
-define _crit_reduce(keys, vals, crit, agg) as:
+define _crit_reduce(st, keys, vals, crit, agg) as:
     local total is 0
     local count is 0
     for i in range of (len of keys):
@@ -1835,19 +1835,19 @@ define _eval_factor_raw(st) as:
                         return 0
                     rfi is rfi + 1
             if fname == "COUNTIF":
-                return _crit_reduce of [_range_values of [st, ca[0]], [], _arg_scalar of [st, ca[1]], 0]
+                return _crit_reduce of [st, _range_values of [st, ca[0]], [], _arg_scalar of [st, ca[1]], 0]
             if fname == "SUMIF":
                 local keys is _range_values of [st, ca[0]]
                 local svr is ca[0]
                 if nca >= 3:
                     svr is ca[2]
-                return _crit_reduce of [keys, _range_values of [st, svr], _arg_scalar of [st, ca[1]], 1]
+                return _crit_reduce of [st, keys, _range_values of [st, svr], _arg_scalar of [st, ca[1]], 1]
             if fname == "AVERAGEIF":
                 local akeys is _range_values of [st, ca[0]]
                 local avr is ca[0]
                 if nca >= 3:
                     avr is ca[2]
-                local ar is _crit_reduce of [akeys, _range_values of [st, avr], _arg_scalar of [st, ca[1]], 2]
+                local ar is _crit_reduce of [st, akeys, _range_values of [st, avr], _arg_scalar of [st, ca[1]], 2]
                 if ar.count == 0:
                     st.err is "#DIV/0!"
                     return 0
@@ -2803,10 +2803,16 @@ define recalc(sheet) as:
         try:
             v is _eval_st of [st, formula_toks[addr], addr]
         catch eval_error:
-            # This last-resort boundary classifies an otherwise uncaught
-            # runtime failure as #NUM!. Expected type/reference errors are
-            # produced explicitly by the evaluator before reaching this net.
-            st.err is "#NUM!"
+            # The last net, and a narrow one. Only an arithmetic failure (the
+            # runtime's `value` kind: an integer overflow, a function that
+            # refuses a value that is not finite, a division by zero) becomes
+            # this cell's #NUM! and lets the other cells be computed. Anything
+            # else (an undefined name, a bad index, a type mismatch) is a fault
+            # in this program and is raised again, so that a test sees it.
+            if (type of eval_error) == "dict" and eval_error.kind == "value":
+                st.err is "#NUM!"
+            else:
+                throw of eval_error
         if st.err != "":
             dict_set of [sheet.err, addr, st.err]
             dict_set of [sheet.vals, addr, 0]
