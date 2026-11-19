@@ -2903,9 +2903,23 @@ define paste_block(sheet, clip, tc, tr) as:
 
 # Format a number for display: whole values as integers, otherwise trimmed to
 # a short decimal (so =A1/A2 shows 1.6667, not a 17-digit float tail).
+define _whole_text(n) as:
+    local s is str of n
+    local l is len of s
+    # EigenScript's numeric spelling deliberately preserves the kind of an
+    # integral double ("1.0").  Spreadsheet display does not: Calc renders a
+    # whole numeric value as "1", irrespective of its internal number kind.
+    if l >= 2 and (substr of [s, l - 2, 2]) == ".0":
+        return substr of [s, 0, l - 2]
+    return s
+
 define _fmt(n) as:
+    # Arithmetic overflow is an ordinary spreadsheet error.  In particular,
+    # do not pass an IEEE infinity/NaN to floor, which accepts finite values.
+    if n != n or n > 1.7976931348623157e308 or n < -1.7976931348623157e308:
+        return "#NUM!"
     if n == (floor of n):
-        return str of (floor of n)
+        return _whole_text of (floor of n)
     local scaled is floor of (n * 10000 + 0.5)
     local s is str of (scaled / 10000)
     return s
@@ -2973,13 +2987,13 @@ define _fmt_number(value, code) as:
     local factor is pow of [10, decimals]
     local scaled is floor of (v * factor + 0.5)
     local intval is floor of (scaled / factor)
-    local ints is str of intval
+    local ints is _whole_text of intval
     if grouping == 1:
         ints is _group_thousands of ints
     local body is ints
     if decimals > 0:
         local fracval is scaled - intval * factor
-        local fs is str of fracval
+        local fs is _whole_text of fracval
         loop while (len of fs) < decimals:
             fs is "0" + fs
         body is body + "." + fs

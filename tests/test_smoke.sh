@@ -174,8 +174,8 @@ D1=#CYCLE
 D2=#CYCLE
 order=["A3", "B2", "A4", "B1", "C1"]
 A1:A4 sum=32 count=4
-A1:B2 sum=43 count=4
-B2:A1 sum=43 count=4
+A1:B2 sum=43.0 count=4
+B2:A1 sum=43.0 count=4
 paste B3=35 raw==B1+B2
 E1=8 E2=3 E3=16 E4=16
 S1=hi World S2=HI! S3=5 S4=orl S5=53 S6=yes S7=#VALUE!
