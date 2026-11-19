@@ -164,7 +164,7 @@ def population(tree):
  # Arrival cells are generated from the same rows and sources.  A formula-cell
  # reference is common to all paths; ranges, criteria and lookup keys then use
  # their syntactic path, while comparisons put the reference on either side.
- fs={}; base=dict(BASE); i=0; source_cells={}
+ fs={}; base=dict(BASE); i=0; source_cells={}; by_formula={}; formula_paths={}; path_own={}; same_formula=set()
  for name,row in sorted(d["rows"].items()):
   for pos,path,t in arrival_templates(row,name):
    for kind,bad in SOURCES.items():
@@ -175,11 +175,17 @@ def population(tree):
     elif path=="comparison-left": repl="("+cell+"=0)"
     elif path=="comparison-right": repl="(0="+cell+")"
     else: repl=cell
-    fs[address(i)]="="+t.replace("@",repl); i+=1
- out["arrivals-generated"]={"base":base,"f":fs,"reference":"calc"}
+    formula="="+t.replace("@",repl); path_own.setdefault(path,0)
+    if formula in by_formula:
+     same_formula.add(formula); formula_paths[by_formula[formula]].append(path)
+    else:
+     ad=address(i); i+=1; by_formula[formula]=ad; fs[ad]=formula
+     formula_paths[ad]=[path]; path_own[path]+=1
+ out["arrivals-generated"]={"base":base,"f":fs,"paths":formula_paths,"reference":"calc"}
  hand=json.load(open(os.path.join(DATA,"arrival_cases.json")))
  out.update(hand)
- out["_arrival_counts"]={"generated":len(fs),"hand":sum(len(x.get("f",{})) for x in hand.values())}
+ out["_arrival_counts"]={"generated":len(fs),"hand":sum(len(x.get("f",{})) for x in hand.values()),
+                         "same_formula":len(same_formula),"subsumed":sorted(p for p,n in path_own.items() if not n)}
  out["api"]={"reference":"api","programs":json.load(open(os.path.join(DATA,"api","expectations.json")))["programs"]}
  return out,d
 
@@ -423,8 +429,31 @@ def validate_templates(d, oracle=calc_grid):
 def before_key(set_name, address, formula):
  return set_name+"\t"+formula
 
+def check_formulas(sets):
+ """Reject duplicate formula keys in every set before any oracle or runtime work."""
+ lines=[]
+ for name,spec in sets.items():
+  if spec.get("reference")=="api": continue
+  seen={}; duplicates=[]
+  for ad,formula in spec.get("f",{}).items():
+   if formula in seen: duplicates.append((formula,seen[formula],ad))
+   else: seen[formula]=ad
+  lines.append("FORMULAS set=%s examined=%d duplicates=%d"%(name,len(seen),len(duplicates)))
+  if duplicates:
+   formula,_,_=duplicates[0]
+   raise ToolError("two cells share the before key "+repr(before_key(name,"",formula)))
+ generated=set(sets.get("arrivals-generated",{}).get("f",{}).values())
+ hand=[formula for name,spec in sets.items() if name not in ("class","wrappers","number-text","arrivals-generated","api")
+       for formula in spec.get("f",{}).values() if formula in generated]
+ hand_examined=sum(len(spec.get("f",{})) for name,spec in sets.items()
+                   if name not in ("class","wrappers","number-text","arrivals-generated","api"))
+ lines.append("FORMULAS set=arrivals-hand-overlap examined=%d duplicates=%d"%(hand_examined,len(hand)))
+ if hand: raise ToolError("hand and generated arrivals share formula "+repr(hand[0]))
+ return lines
+
 def write_before(path, sets, tree, binary, grid=runtime_grid):
  """The answers of `tree` on `binary` for every formula set, written whole."""
+ check_formulas(sets)
  doc={"tree":tree,"runtime":binary,"inputs":{},"cells":{}}
  for name,spec in sets.items():
   if spec.get("reference")=="api": continue
@@ -441,14 +470,19 @@ def write_before(path, sets, tree, binary, grid=runtime_grid):
 def check_before(doc, sets):
  """Every key of before.json names a cell of the present population, and each
  set's inputs are the present ones."""
- live={}
+ live={}; expected_inputs={}
  for name,spec in sets.items():
   if spec.get("reference")=="api": continue
-  if name in doc["inputs"] and doc["inputs"][name]!=spec.get("base",{}):
+  expected_inputs[name]=spec.get("base",{})
+  if name not in doc.get("inputs",{}) or doc["inputs"][name]!=spec.get("base",{}):
    raise ToolError("before.json: the inputs of set %s are not the present ones"%name)
   for ad,f in spec["f"].items(): live[before_key(name,ad,f)]=1
  stale=[k for k in doc["cells"] if k not in live]
  if stale: raise ToolError("before.json has %d keys no present cell has, first %r"%(len(stale),stale[0]))
+ missing=[k for k in live if k not in doc["cells"]]
+ if missing: raise ToolError("before.json lacks %d present keys, first %r"%(len(missing),missing[0]))
+ extra_inputs=sorted(set(doc.get("inputs",{}))-set(expected_inputs))
+ if extra_inputs: raise ToolError("before.json has inputs for no present set: "+extra_inputs[0])
 
 # ---- one set ----------------------------------------------------------------
 def compare_set(name, spec, mine, caught, calc, before):
@@ -466,7 +500,7 @@ def compare_set(name, spec, mine, caught, calc, before):
    n["differ"]+=1
    old=before.get(before_key(name,ad,f)) if before is not None else None
    if old is not None and same_answer(old,m): b=True; n["before"]+=1
-  recs.append({"set":name,"address":ad,"formula":f,"calc":c,"calc_shape":shape,"kind":m["kind"],
+  recs.append({"set":name,"address":ad,"formula":f,"paths":spec.get("paths",{}).get(ad,[]),"calc":c,"calc_shape":shape,"kind":m["kind"],
                "value":m["value"],"display":m["display"],"net":net,"verdict":"match" if ok else "differ","before":b})
  return recs,n
 
@@ -572,6 +606,7 @@ def api_verdict(it, c, shape, mine):
 def run_bar(sets, tree, binary, before_doc, out=None, calc=calc_grid, grid=runtime_grid, api=api_grid, log=print):
  """Every set; returns (totals, exit status)."""
  if not sets: raise ToolError("no set to run")
+ check_formulas(sets)
  net=has_net(tree)
  if not net: raise ToolError("the tree has no `define net_caught(sheet)`: the net cannot be counted")
  before=None
@@ -612,7 +647,9 @@ def main(argv=None):
   positions=sum(k!="range" for row in d["rows"].values() for k in row["arguments"])
   left=sum(k=="range" for row in d["rows"].values() for k in row["arguments"])
   print("TEMPLATES functions=%d positions=%d left_out=%d"%(len(d["rows"]),positions,left))
-  print("ARRIVALS generated=%d hand=%d"%(arrival["generated"],arrival["hand"]))
+  print("ARRIVALS generated=%d hand=%d same_formula=%d"%(arrival["generated"],arrival["hand"],arrival["same_formula"]))
+  print("ARRIVALS no_own_formula=%s"%(",".join(arrival["subsumed"]) or "none"))
+  for line in check_formulas(sets): print(line)
   if a.sources:
    spec={"base":BASE,"f":{address(i):"="+x for i,x in enumerate(SOURCES.values())}}
    lo=calc_grid(spec); mine,_=run_chunks(a.tree,a.runtime,spec)
@@ -631,10 +668,11 @@ def main(argv=None):
   if a.set:
    if a.set not in sets: raise ToolError("unknown set "+a.set)
    sets={a.set:sets[a.set]}
-  if a.set!="api": validate_templates(d)
   if not os.path.exists(a.before): raise ToolError("no before file "+a.before+" (write it with --write-before)")
   doc=json.load(open(a.before))
-  if a.set: doc={"inputs":doc["inputs"],"cells":{k:v for k,v in doc["cells"].items() if k.split("\t",1)[0]==a.set}}
+  if a.set: doc={"inputs":({} if a.set=="api" else {a.set:doc["inputs"].get(a.set)}),"cells":{k:v for k,v in doc["cells"].items() if k.split("\t",1)[0]==a.set}}
+  check_before(doc,sets)
+  if a.set!="api": validate_templates(d)
   T,status=run_bar(sets,a.tree,a.runtime,doc,a.out)
  except ToolError as e:
   print("NUMBER-BAR TOOL-ERROR %s"%e); return 2
@@ -694,8 +732,29 @@ def _csv_case(m, tree, tmp):
  try: m.calc_rows(p,2,2); return "read"
  except Exception as e: return "TOOL-ERROR" if type(e).__name__=="ToolError" else repr(e)
 
+def _duplicate_case(m, tree, tmp):
+ sets={"t":{"base":{},"f":{"A1":"=1","A2":"=1"},"reference":"calc"}}
+ calls=[]
+ try:
+  m.run_bar(sets,tree,"stub",None,calc=lambda spec:calls.append(1) or {},grid=_stub_grid({}))
+  return "accepted evaluations=%d"%len(calls)
+ except Exception as e:
+  return "%s evaluations=%d"%("TOOL-ERROR" if type(e).__name__=="ToolError" else "BROKEN",len(calls))
+
+def _arrival_duplicate_case(m, tree, tmp):
+ try:
+  sets,_=m.population(tree); sets.pop("_arrival_counts")
+  m.check_formulas(sets); return "unique"
+ except Exception as e:
+  return str(e) if type(e).__name__=="ToolError" else "BROKEN: %r"%e
+
 ONE = 'return abs(a - b) <= Decimal(1).scaleb(m.adjusted() - 14)'
 PLANTS = [
+ ("generated arrivals not de-duplicated", "    if formula in by_formula:", "    if False:",
+  lambda m,t,x: _arrival_duplicate_case(m,t,x), "unique"),
+ ("duplicate check delayed until after evaluation", " check_formulas(sets)\n net=has_net(tree)",
+  " calc(next(spec for spec in sets.values() if spec.get('reference')!='api')); check_formulas(sets)\n net=has_net(tree)",
+  lambda m,t,x: _duplicate_case(m,t,x), "TOOL-ERROR evaluations=0"),
  ("a non-numeric-labelled scalar position silently dropped", 'if k!="range"]', 'if k=="number"]',
   lambda m,t,x: str(len(m.marked_templates({"call":"IF(1,2,3)","arguments":["logical","number","number"]},"IF"))), "3"),
  ("a generated arrival path skipped", "  for path in paths: out.append((i,path,name+\"(\"+\",\".join(args[:i]+[\"@\"]+args[i+1:])+\")\"))",

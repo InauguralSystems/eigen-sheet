@@ -1,0 +1,1 @@
+- Make the number-boundary bar generate one cell per distinct formula and validate its population before evaluation (#104).
