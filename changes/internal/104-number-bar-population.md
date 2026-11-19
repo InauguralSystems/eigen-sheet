@@ -1,0 +1,1 @@
+- The executable number-boundary bar now derives every implemented function argument and bad-value arrival path against Calc (#104).

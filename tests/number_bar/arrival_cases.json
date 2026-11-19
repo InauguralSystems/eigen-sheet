@@ -16,7 +16,8 @@
    "A5": "=SUMIFS(C1:C3,B1:B3,\">1\")",
    "A6": "=AVERAGEIF(B1:B3,\">1\")",
    "A7": "=SUMIF(B1:B3,2,C1:C3)"
-  }
+  },
+  "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c1": {
   "f": {
@@ -32,7 +33,8 @@
    "A7": "=LN(0)",
    "A8": "=INT(LN(0))",
    "A9": "=TEXT(LN(0),\"0\")"
-  }
+  },
+  "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c10": {
   "base": {
@@ -70,7 +72,8 @@
    "A7": "=B5*2",
    "A8": "=B5+1",
    "A9": "=-B5"
-  }
+  },
+  "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c20": {
   "base": {
@@ -204,7 +207,8 @@
    "A97": "=AVERAGEIF(H1:H3,\">1\",I1:I3)",
    "A98": "=SUMIF(H1:H3,\">1\")",
    "A99": "=COUNTIF(D1:D2,D1)"
-  }
+  },
+  "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c22": {
   "base": {
@@ -276,7 +280,8 @@
    "A7": "=B2+0&\"\"",
    "A8": "=B2-1&\"\"",
    "A9": "=B3"
-  }
+  },
+  "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c23": {
   "base": {
@@ -307,7 +312,8 @@
    "A7": "=TRUNC(1.5,309)",
    "A8": "=ROUND(1E300,-300)",
    "A9": "=LEN(REPT(\"a\",32767))"
-  }
+  },
+  "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c24": {
   "base": {
@@ -337,7 +343,8 @@
    "A7": "=SUMIF(B1:B3,B1,B1:B3)",
    "A8": "=COUNTIF(B1:B4,B4)",
    "A9": "=MATCH(B4,B1:B4,0)"
-  }
+  },
+  "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c25": {
   "base": {
@@ -351,7 +358,8 @@
    "A1": "=SUMIF(B1:B2,\">1\",C1:C2)",
    "A2": "=IFERROR(VLOOKUP(9,B1:C2,2,0)+C1+C2,0)",
    "A3": "=ISNA(VLOOKUP(9,B1:C2,2,0)+C1+C2)"
-  }
+  },
+  "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c4": {
   "base": {
@@ -415,7 +423,8 @@
    "A7": "=B4+B1/B2",
    "A8": "=IFNA(B4+B1/B2,\"miss\")",
    "A9": "=ISNA(B4+B1/B2)"
-  }
+  },
+  "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c5": {
   "base": {
@@ -439,7 +448,8 @@
    "A7": "=AVERAGE(B3:B4)",
    "A8": "=B3+B4",
    "A9": "=MIN(B3*10,1)"
-  }
+  },
+  "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c6": {
   "base": {
@@ -469,7 +479,8 @@
    "A7": "=MIN(POWER(10,400),1)",
    "A8": "=VLOOKUP(POWER(-1,0.5),B1:C3,2,0)",
    "A9": "=STDEV(1E200,-1E200)"
-  }
+  },
+  "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c7": {
   "base": {
@@ -490,7 +501,8 @@
    "A7": "=TEXT(B3,\"0%\")",
    "A8": "=IFERROR(B3*100,7)",
    "A9": "=-9223372036854775807-2"
-  }
+  },
+  "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c8": {
   "base": {
@@ -504,7 +516,8 @@
    "A4": "=B1*B1/2",
    "A5": "=SUMPRODUCT(B1,B1)",
    "A6": "=B1^2"
-  }
+  },
+  "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c9": {
   "f": {
@@ -514,6 +527,7 @@
    "A4": "=CONCATENATE(-1E-300*1E-300,\"x\")",
    "A5": "=TEXT(-1E-300*1E-300,\"0.00\")",
    "A6": "=(-1E-300*1E-300)&\"\"=\"0\""
-  }
+  },
+  "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  }
 }

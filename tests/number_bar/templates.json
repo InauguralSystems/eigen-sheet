@@ -1,16 +1,32 @@
 {
-  "rule": "One Calc-valid call per dispatcher function. arguments labels every position; each number position is expanded to one marked template by the tool. Calc signatures decide membership.",
+  "rule": "One Calc-valid fullest call per dispatcher function. arguments labels every position the implementation reads; all scalar positions are expanded, while reference-only range positions are counted left_out. Each row cites its fullest-call source.",
   "rows": {
     "ABS": {
       "call": "ABS(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:2113, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "AND": {
       "call": "AND(1)",
       "arguments": [
         "logical"
+      ],
+      "source": "sheet.eigs:1310, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "AVERAGE": {
@@ -18,6 +34,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:308, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "AVERAGEIF": {
@@ -26,6 +55,22 @@
         "range",
         "criterion",
         "range"
+      ],
+      "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "inside-range"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right",
+          "criterion"
+        ],
+        [
+          "inside-range"
+        ]
       ]
     },
     "AVERAGEIFS": {
@@ -34,6 +79,22 @@
         "range",
         "range",
         "criterion"
+      ],
+      "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "inside-range"
+        ],
+        [
+          "inside-range"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right",
+          "criterion"
+        ]
       ]
     },
     "AVG": {
@@ -42,13 +103,39 @@
         "number",
         "number"
       ],
-      "note": "AVG is the dispatcher alias; Calc validates its AVERAGE equivalent."
+      "note": "AVG is the dispatcher alias; Calc validates its AVERAGE equivalent.",
+      "source": "sheet.eigs:308, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
+      ]
     },
     "CEILING": {
       "call": "CEILING(1,1)",
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2113, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "CELL": {
@@ -57,18 +144,45 @@
         "text",
         "range"
       ],
-      "note": "sheet.eigs evaluates the second argument, but Calc signature requires a cell reference, so it is outside the numeric-position population."
+      "note": "sheet.eigs evaluates the second argument, but Calc signature requires a cell reference, so it is outside the numeric-position population. Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "source": "sheet.eigs:1764, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "inside-range"
+        ]
+      ]
     },
     "CHAR": {
       "call": "CHAR(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "CODE": {
       "call": "CODE(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "COLUMN": {
@@ -76,20 +190,45 @@
       "arguments": [
         "range"
       ],
-      "note": "Calc signature requires a reference/array; not a numeric scalar position."
+      "note": "Calc signature requires a reference/array; not a numeric scalar position. Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "inside-range"
+        ]
+      ]
     },
     "COLUMNS": {
       "call": "COLUMNS(B1:B3)",
       "arguments": [
         "range"
       ],
-      "note": "Calc signature requires a reference/array; not a numeric scalar position."
+      "note": "Calc signature requires a reference/array; not a numeric scalar position. Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "inside-range"
+        ]
+      ]
     },
     "CONCATENATE": {
       "call": "CONCATENATE(1,\"x\")",
       "arguments": [
         "number",
         "text"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "COUNT": {
@@ -97,6 +236,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2311, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "COUNTA": {
@@ -104,12 +256,32 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2313, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "COUNTBLANK": {
       "call": "COUNTBLANK(B1:B3)",
       "arguments": [
         "range"
+      ],
+      "source": "sheet.eigs:2315, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "inside-range"
+        ]
       ]
     },
     "COUNTIF": {
@@ -117,6 +289,18 @@
       "arguments": [
         "range",
         "number"
+      ],
+      "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "inside-range"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "COUNTIFS": {
@@ -124,6 +308,19 @@
       "arguments": [
         "range",
         "criterion"
+      ],
+      "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "inside-range"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right",
+          "criterion"
+        ]
       ]
     },
     "DATE": {
@@ -132,6 +329,24 @@
         "number",
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2176, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "DATEDIF": {
@@ -140,18 +355,52 @@
         "number",
         "number",
         "text"
+      ],
+      "source": "sheet.eigs:2176, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "DATEVALUE": {
       "call": "DATEVALUE(\"2020-01-01\")",
       "arguments": [
         "text"
+      ],
+      "source": "sheet.eigs:2176, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "DAY": {
       "call": "DAY(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:2176, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "EDATE": {
@@ -159,6 +408,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2176, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "EOMONTH": {
@@ -166,6 +428,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2176, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "EXACT": {
@@ -173,17 +448,51 @@
       "arguments": [
         "number",
         "text"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "FALSE": {
       "call": "FALSE()",
-      "arguments": []
+      "arguments": [],
+      "source": "sheet.eigs:1310, dispatcher branch containing the largest implemented argument count",
+      "paths": []
     },
     "FIND": {
-      "call": "FIND(\"a\",\"abc\")",
+      "call": "FIND(\"a\",\"abc\",1)",
       "arguments": [
         "text",
-        "text"
+        "text",
+        "number"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "FLOOR": {
@@ -191,14 +500,57 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2113, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "FV": {
-      "call": "FV(1,10,-100)",
+      "call": "FV(0.1,2,3,4,0)",
       "arguments": [
         "number",
         "number",
+        "number",
+        "number",
         "number"
+      ],
+      "source": "sheet.eigs:1558, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "HLOOKUP": {
@@ -208,12 +560,43 @@
         "range",
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right",
+          "lookup-key"
+        ],
+        [
+          "inside-range"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "HOUR": {
       "call": "HOUR(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:2176, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "IF": {
@@ -222,6 +605,24 @@
         "logical",
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:1227, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "IFERROR": {
@@ -229,6 +630,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:1279, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "IFNA": {
@@ -236,6 +650,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:1279, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "IFS": {
@@ -243,88 +670,247 @@
       "arguments": [
         "logical",
         "number"
+      ],
+      "source": "sheet.eigs:1345, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "INDEX": {
-      "call": "INDEX(B1:B3,1)",
+      "call": "INDEX(B1:C3,1,1)",
       "arguments": [
         "range",
+        "number",
         "number"
+      ],
+      "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "inside-range"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "INT": {
       "call": "INT(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:2113, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "IPMT": {
-      "call": "IPMT(0.05,1,1,1000)",
+      "call": "IPMT(0.1,1,2,3,4,0)",
       "arguments": [
+        "number",
+        "number",
         "number",
         "number",
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:1558, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "IRR": {
-      "call": "IRR(D1:D2)",
+      "call": "IRR(D1:D2,0.1)",
       "arguments": [
-        "range"
+        "range",
+        "number"
+      ],
+      "source": "sheet.eigs:1558, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "inside-range"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "ISBLANK": {
       "call": "ISBLANK(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1665, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "ISERR": {
       "call": "ISERR(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1665, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "ISERROR": {
       "call": "ISERROR(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1665, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "ISEVEN": {
       "call": "ISEVEN(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1746, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "ISLOGICAL": {
       "call": "ISLOGICAL(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1665, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "ISNA": {
       "call": "ISNA(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1665, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "ISNUMBER": {
       "call": "ISNUMBER(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1665, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "ISODD": {
       "call": "ISODD(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1746, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "ISTEXT": {
       "call": "ISTEXT(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1665, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "LEFT": {
@@ -332,12 +918,33 @@
       "arguments": [
         "text",
         "number"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "LEN": {
       "call": "LEN(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "LOOKUP": {
@@ -345,12 +952,33 @@
       "arguments": [
         "number",
         "range"
+      ],
+      "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right",
+          "lookup-key"
+        ],
+        [
+          "inside-range"
+        ]
       ]
     },
     "LOWER": {
       "call": "LOWER(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "MATCH": {
@@ -359,6 +987,24 @@
         "number",
         "range",
         "number"
+      ],
+      "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right",
+          "lookup-key"
+        ],
+        [
+          "inside-range"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "MAX": {
@@ -366,6 +1012,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:319, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "MEDIAN": {
@@ -373,6 +1032,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2317, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "MID": {
@@ -381,6 +1053,24 @@
         "text",
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "MIN": {
@@ -388,12 +1078,33 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:313, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "MINUTE": {
       "call": "MINUTE(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:2176, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "MOD": {
@@ -401,6 +1112,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2113, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "MODE": {
@@ -409,41 +1133,117 @@
         "number",
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2319, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "MONTH": {
       "call": "MONTH(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:2176, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "N": {
       "call": "N(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1665, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "NA": {
       "call": "NA()",
       "arguments": [],
-      "note": "No numeric positions. NA intentionally constructs #N/A, so it is the sole validation exception."
+      "note": "No numeric positions. NA intentionally constructs #N/A, so it is the sole validation exception.",
+      "source": "sheet.eigs:1256, dispatcher branch containing the largest implemented argument count",
+      "paths": []
     },
     "NOT": {
       "call": "NOT(1)",
       "arguments": [
         "logical"
+      ],
+      "source": "sheet.eigs:1310, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "NOW": {
       "call": "NOW()",
-      "arguments": []
+      "arguments": [],
+      "source": "sheet.eigs:1271, dispatcher branch containing the largest implemented argument count",
+      "paths": []
     },
     "NPER": {
-      "call": "NPER(0.05,-100,1000)",
+      "call": "NPER(0.1,2,3,4,0)",
       "arguments": [
         "number",
         "number",
+        "number",
+        "number",
         "number"
+      ],
+      "source": "sheet.eigs:1558, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "NPV": {
@@ -452,12 +1252,38 @@
         "number",
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:1558, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "OR": {
       "call": "OR(1)",
       "arguments": [
         "logical"
+      ],
+      "source": "sheet.eigs:1310, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "PERCENTILE": {
@@ -465,14 +1291,56 @@
       "arguments": [
         "range",
         "number"
+      ],
+      "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "inside-range"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "PMT": {
-      "call": "PMT(1,10,1000)",
+      "call": "PMT(0.1,2,3,4,0)",
       "arguments": [
         "number",
         "number",
+        "number",
+        "number",
         "number"
+      ],
+      "source": "sheet.eigs:1558, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "POWER": {
@@ -480,15 +1348,63 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2113, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "PPMT": {
-      "call": "PPMT(0.05,1,10,1)",
+      "call": "PPMT(0.1,1,2,3,4,0)",
       "arguments": [
         "number",
         "number",
         "number",
+        "number",
+        "number",
         "number"
+      ],
+      "source": "sheet.eigs:1558, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "PRODUCT": {
@@ -496,35 +1412,140 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:325, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "PROPER": {
       "call": "PROPER(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "PV": {
-      "call": "PV(0.05,10,1)",
+      "call": "PV(0.1,2,3,4,0)",
       "arguments": [
         "number",
         "number",
+        "number",
+        "number",
         "number"
+      ],
+      "source": "sheet.eigs:1558, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "RANK": {
-      "call": "RANK(1,B1:B3)",
+      "call": "RANK(1,B1:B3,0)",
       "arguments": [
         "number",
-        "range"
+        "range",
+        "number"
+      ],
+      "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "inside-range"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "RATE": {
-      "call": "RATE(1,-100,1000)",
+      "call": "RATE(10,-100,1000,0,0,0.1)",
       "arguments": [
         "number",
         "number",
+        "number",
+        "number",
+        "number",
         "number"
+      ],
+      "source": "sheet.eigs:1558, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "REPLACE": {
@@ -534,6 +1555,29 @@
         "number",
         "number",
         "text"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "REPT": {
@@ -541,6 +1585,19 @@
       "arguments": [
         "text",
         "number"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "RIGHT": {
@@ -548,6 +1605,19 @@
       "arguments": [
         "text",
         "number"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "ROUND": {
@@ -555,6 +1625,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2113, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "ROUNDDOWN": {
@@ -562,6 +1645,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2113, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "ROUNDUP": {
@@ -569,6 +1665,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2113, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "ROW": {
@@ -576,38 +1685,93 @@
       "arguments": [
         "range"
       ],
-      "note": "Calc signature requires a reference/array; not a numeric scalar position."
+      "note": "Calc signature requires a reference/array; not a numeric scalar position. Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "inside-range"
+        ]
+      ]
     },
     "ROWS": {
       "call": "ROWS(B1:B3)",
       "arguments": [
         "range"
       ],
-      "note": "Calc signature requires a reference/array; not a numeric scalar position."
+      "note": "Calc signature requires a reference/array; not a numeric scalar position. Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "inside-range"
+        ]
+      ]
     },
     "SEARCH": {
-      "call": "SEARCH(\"a\",\"abc\")",
+      "call": "SEARCH(\"a\",\"abc\",1)",
       "arguments": [
         "text",
-        "text"
+        "text",
+        "number"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "SECOND": {
       "call": "SECOND(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:2176, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "SIGN": {
       "call": "SIGN(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:2113, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "SQRT": {
       "call": "SQRT(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:2113, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "STDEV": {
@@ -615,6 +1779,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2326, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "STDEVP": {
@@ -622,6 +1799,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2338, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "SUBSTITUTE": {
@@ -631,6 +1821,29 @@
         "text",
         "text",
         "number"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "SUM": {
@@ -638,6 +1851,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2307, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "SUMIF": {
@@ -646,6 +1872,22 @@
         "range",
         "criterion",
         "range"
+      ],
+      "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "inside-range"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right",
+          "criterion"
+        ],
+        [
+          "inside-range"
+        ]
       ]
     },
     "SUMIFS": {
@@ -654,6 +1896,22 @@
         "range",
         "range",
         "criterion"
+      ],
+      "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "inside-range"
+        ],
+        [
+          "inside-range"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right",
+          "criterion"
+        ]
       ]
     },
     "SUMPRODUCT": {
@@ -661,6 +1919,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "SWITCH": {
@@ -670,12 +1941,43 @@
         "number",
         "text",
         "text"
+      ],
+      "source": "sheet.eigs:1371, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "T": {
       "call": "T(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1665, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "TEXT": {
@@ -683,6 +1985,19 @@
       "arguments": [
         "number",
         "text"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "TEXTJOIN": {
@@ -691,6 +2006,24 @@
         "text",
         "number",
         "text"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "TIME": {
@@ -699,44 +2032,112 @@
         "number",
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2176, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "TODAY": {
       "call": "TODAY()",
-      "arguments": []
+      "arguments": [],
+      "source": "sheet.eigs:1271, dispatcher branch containing the largest implemented argument count",
+      "paths": []
     },
     "TRIM": {
       "call": "TRIM(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "TRUE": {
       "call": "TRUE()",
-      "arguments": []
+      "arguments": [],
+      "source": "sheet.eigs:1310, dispatcher branch containing the largest implemented argument count",
+      "paths": []
     },
     "TRUNC": {
-      "call": "TRUNC(1)",
+      "call": "TRUNC(1.5,0)",
       "arguments": [
+        "number",
         "number"
+      ],
+      "source": "sheet.eigs:2113, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "TYPE": {
       "call": "TYPE(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1665, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "UPPER": {
       "call": "UPPER(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "VALUE": {
       "call": "VALUE(\"1\")",
       "arguments": [
         "text"
+      ],
+      "source": "sheet.eigs:1945, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "VAR": {
@@ -744,6 +2145,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2326, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "VARP": {
@@ -751,6 +2165,19 @@
       "arguments": [
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:2338, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "VLOOKUP": {
@@ -760,34 +2187,113 @@
         "range",
         "number",
         "number"
+      ],
+      "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
+      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right",
+          "lookup-key"
+        ],
+        [
+          "inside-range"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "WEEKDAY": {
-      "call": "WEEKDAY(1)",
+      "call": "WEEKDAY(1,1)",
       "arguments": [
+        "number",
         "number"
+      ],
+      "source": "sheet.eigs:2176, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "XLOOKUP": {
-      "call": "LOOKUP(1,B1:B3,C1:C3)",
+      "call": "XLOOKUP(1,B1:B3,C1:C3,0)",
       "arguments": [
         "number",
         "range",
-        "range"
+        "range",
+        "number"
       ],
-      "note": "Calc 24.2 lacks XLOOKUP; LOOKUP validates the same three argument kinds while the generated template uses dispatcher name XLOOKUP."
+      "note": "Calc 24.2 lacks XLOOKUP; LOOKUP validates the same three argument kinds while the generated template uses dispatcher name XLOOKUP. Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right",
+          "lookup-key"
+        ],
+        [
+          "inside-range"
+        ],
+        [
+          "inside-range"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
+      ]
     },
     "XOR": {
       "call": "XOR(1,1)",
       "arguments": [
         "logical",
         "logical"
+      ],
+      "source": "sheet.eigs:1310, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ],
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     },
     "YEAR": {
       "call": "YEAR(1)",
       "arguments": [
         "number"
+      ],
+      "source": "sheet.eigs:2176, dispatcher branch containing the largest implemented argument count",
+      "paths": [
+        [
+          "formula-reference",
+          "comparison-left",
+          "comparison-right"
+        ]
       ]
     }
   }

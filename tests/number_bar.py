@@ -5,7 +5,8 @@ The population is rebuilt from sheet.eigs and templates.json on every run.  A
 grid is run in chunks of 200 cells, one runtime process per chunk; a chunk that
 crashes, times out (120 s) or does not print exactly its cells is run again one
 cell per process, and a cell whose own process fails is CRASH, or TIMEOUT after
-60 s.  A cell's answer comes from bar_answer in api/bar_api.eigs, the one
+10 s.  The OLD derivation therefore records TIMEOUT after the same ten-second
+per-cell limit.  A cell's answer comes from bar_answer in api/bar_api.eigs, the one
 definition the api programs use too.
 
 LibreOffice Calc decides every expected answer.  The tool writes each sheet into
@@ -73,13 +74,18 @@ from decimal import Decimal, InvalidOperation
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "tests", "number_bar")
 XLFN = ("TEXTJOIN", "XOR", "IFNA", "IFS", "SWITCH", "XLOOKUP")
-BAD = {
- "float-overflow/operator":"1E300*1E10", "int64-product":"3037000500*3037000500",
- "nonfinite/function":"POWER(10,400)", "nan":"POWER(-1,0.5)", "na":"NA()",
- "division-zero":"1/0", "text":"\"not a number\""}
-EXTRA_BAD = {"log-zero/function":"LN(0)", "underflow/function":"0.5^-2000",
- "sum-overflow/function":"SUM(1E308,1E308)"}
-BASE = {"B1":"1","B2":"2","B3":"3","C1":"10","C2":"20","C3":"30","D1":"-1","D2":"2"}
+SOURCES = {
+ "floating-overflow/operator":"1E300*1E10",
+ "large-double/inline-product":"3037000500*3037000500",
+ "nonfinite/dispatcher-function":"POWER(10,400)", "nan":"POWER(-1,0.5)",
+ "na":"NA()", "division-zero":"1/0", "text":"\"not a number\"",
+ "floating-overflow/power":"0.5^-2000",
+ "floating-overflow/sum":"SUM(1E308,1E308)",
+ "typed-int64/product":"B10*B10", "typed-int64/sum":"B11+B11",
+ "typed-int64/difference":"B12-B11"}
+BASE = {"B1":"1","B2":"2","B3":"3","C1":"10","C2":"20","C3":"30",
+        "D1":"-1","D2":"2", "B10":"3037000500", "B11":"9223372036854775807",
+        "B12":"-9223372036854775808"}
 
 def dispatcher(tree):
  s=open(os.path.join(tree,"sheet.eigs"),encoding="utf-8").read()
@@ -91,7 +97,7 @@ def load_templates(tree, path=None):
  if missing: raise ValueError("dispatcher function has no template row: "+", ".join(missing))
  if stale: raise ValueError("template row lacks dispatcher function: "+", ".join(stale))
  for n,v in rows.items():
-  if not isinstance(v,dict) or set(v) - {"call","arguments","note"}: raise ValueError("invalid template row: "+n)
+  if not isinstance(v,dict) or set(v) - {"call","arguments","note","source","paths"}: raise ValueError("invalid template row: "+n)
   if "(" not in v.get("call",""): raise ValueError("template call is not a call: "+n)
   if any(x not in ("number","text","range","criterion","logical") for x in v.get("arguments",[])):
    raise ValueError("invalid argument kind: "+n)
@@ -114,7 +120,16 @@ def split_call(call):
 def marked_templates(row,name):
  args=split_call(row["call"])
  return [name+"("+",".join(args[:i]+["@"]+args[i+1:])+")"
-         for i,k in enumerate(row["arguments"]) if k=="number"]
+         for i,k in enumerate(row["arguments"]) if k!="range"]
+
+def arrival_templates(row, name):
+ """Derive every applicable arrival path from a row, never a case list."""
+ args=split_call(row["call"]); out=[]
+ if len(row.get("paths", [])) != len(row["arguments"]): raise ValueError("arrival paths do not match arguments: "+name)
+ for i,paths in enumerate(row["paths"]):
+  if not paths: raise ValueError("argument has no arrival path: %s position %d"%(name,i+1))
+  for path in paths: out.append((i,path,name+"("+",".join(args[:i]+["@"]+args[i+1:])+")"))
+ return out
 
 def address(i):
  col=""; n=i//500+1
@@ -124,24 +139,17 @@ def address(i):
 def population(tree):
  d=load_templates(tree); out={}
  fs={}; i=0
- # continued errors are tested bare and inside both required wrappers.
+ # Continued errors are tested bare and inside both required wrappers.
  shapes=("@","IFERROR(@,7101)","ISERROR(@)","(@)+2*3","IFERROR((@)+2*3,7101)","ISERROR((@)+2*3)")
  for name in sorted(d["rows"]):
   for ti,t in enumerate(marked_templates(d["rows"][name],name)):
-   for kind,bad in BAD.items():
-    expr=t.replace("@",bad)
-    for shape in shapes:
-     fs[address(i)]="="+shape.replace("@",expr); i+=1
- # Append new source families so existing stable keys retain their addresses.
- for name in sorted(d["rows"]):
-  for ti,t in enumerate(marked_templates(d["rows"][name],name)):
-   for kind,bad in EXTRA_BAD.items():
+   for kind,bad in SOURCES.items():
     expr=t.replace("@",bad)
     for shape in shapes:
      fs[address(i)]="="+shape.replace("@",expr); i+=1
  out["class"]={"base":BASE,"f":fs,"reference":"calc"}
- # c21's rule, rather than its 630 stored cells: 9 sources x 10 operators x 7 wrappers.
- sources=("NA()","1/0","SQRT(-1)","POWER(10,400)","0.5^-2000","SUM(1E308,1E308)","3037000500*3037000500","\"x\"+1","LN(0)")
+ # c21's rule: 8 valid sources x 10 operators x 7 wrappers.
+ sources=("NA()","1/0","SQRT(-1)","POWER(10,400)","0.5^-2000","SUM(1E308,1E308)","3037000500*3037000500","\"x\"+1")
  ops=("@+1+1","@*2*3","@*2/4","@/2*4","-@+1","ABS(@)+1","SUM(@,1)","@^2","(@)=0","@&\"x\"")
  wraps=("@","IFERROR(@,7)","IFNA(@,7)","ISERROR(@)","ISERR(@)","ISNA(@)","ERROR.TYPE(@)")
  fs={}; i=0
@@ -153,7 +161,25 @@ def population(tree):
  xs=("(0.1+0.2)*10","2+1/100000","4/2","10/2","0.1+0.2","1E21","10^21","1E-7","10^-7","-0","0*-1","-(1/2-0.5)","2^53+1","9007199254740993","123456789012345678","123456789012345678*1","1/3","2^53","1E15+0.5","-2.5*2")
  ts=("@","@&\"\"","LEN(@)","LEFT(@,30)","RIGHT(@,3)","MID(@,1,30)","TEXT(@,\"0\")","TEXT(@,\"0.00\")","TEXT(@,\"#,##0\")","TEXT(@,\"0%\")","CONCATENATE(@)","VALUE(@&\"\")","VALUE(@&\"\")=@","(@&\"\")=TEXT(@,\"0\")")
  out["number-text"]={"base":{},"f":{address(i):"="+t.replace("@","("+x+")" if t!="@" else x) for i,(x,t) in enumerate((x,t) for x in xs for t in ts)},"reference":"calc"}
- out.update(json.load(open(os.path.join(DATA,"arrival_cases.json"))))
+ # Arrival cells are generated from the same rows and sources.  A formula-cell
+ # reference is common to all paths; ranges, criteria and lookup keys then use
+ # their syntactic path, while comparisons put the reference on either side.
+ fs={}; base=dict(BASE); i=0; source_cells={}
+ for name,row in sorted(d["rows"].items()):
+  for pos,path,t in arrival_templates(row,name):
+   for kind,bad in SOURCES.items():
+    cell=source_cells.setdefault(kind,"ZZ%d"%(len(source_cells)+1)); base[cell]="="+bad
+    if path=="inside-range": repl=cell+":"+cell
+    elif path=="criterion": repl=cell
+    elif path=="lookup-key": repl=cell
+    elif path=="comparison-left": repl="("+cell+"=0)"
+    elif path=="comparison-right": repl="(0="+cell+")"
+    else: repl=cell
+    fs[address(i)]="="+t.replace("@",repl); i+=1
+ out["arrivals-generated"]={"base":base,"f":fs,"reference":"calc"}
+ hand=json.load(open(os.path.join(DATA,"arrival_cases.json")))
+ out.update(hand)
+ out["_arrival_counts"]={"generated":len(fs),"hand":sum(len(x.get("f",{})) for x in hand.values())}
  out["api"]={"reference":"api","programs":json.load(open(os.path.join(DATA,"api","expectations.json")))["programs"]}
  return out,d
 
@@ -269,7 +295,7 @@ def run_chunks(tree, binary, spec, net=True, grid=runtime_grid, size=200):
   if isinstance(got,dict) and set(got["cells"])==set(chunk):
    out.update(got["cells"]); caught.update(got["net"]); continue
   for ad in chunk:
-   one=grid(tree,binary,spec,[ad],timeout=60,net=net)
+   one=grid(tree,binary,spec,[ad],timeout=10,net=net)
    if isinstance(one,dict) and ad in one["cells"]: out[ad]=one["cells"][ad]; caught.update(one["net"])
    else: out[ad]={"kind":one if one in ("CRASH","TIMEOUT") else "CRASH","value":"","display":""}
  return out,caught
@@ -302,6 +328,13 @@ def office():
 
 def calc_put(s, a, v):
  if v.startswith("="):
+  # Calc 24.2 lacks these dispatcher names.  These are semantic equivalents,
+  # not expected values: Calc still independently evaluates every cell.
+  v=re.sub(r"\bAVG\(","AVERAGE(",v)
+  atom=r"((?:[^(),]|\([^()]*\))+?)"
+  xp=re.compile(r"XLOOKUP\("+atom+r","+atom+r","+atom+r","+atom+r"\)")
+  v=xp.sub(lambda m:"IFERROR(INDEX(%s,MATCH(%s,%s,0)),%s)"%
+           (m.group(3),m.group(1),m.group(2),m.group(4)),v)
   for n in XLFN: v=re.sub(r"\b"+n+r"\(","_xlfn."+n+"(",v)
   s[a]=v
  else:
@@ -568,15 +601,24 @@ def run_bar(sets, tree, binary, before_doc, out=None, calc=calc_grid, grid=runti
 def main(argv=None):
  ap=argparse.ArgumentParser(); ap.add_argument("--tree",default=ROOT); ap.add_argument("--runtime",default=os.environ.get("EIGENSCRIPT","eigenscript"))
  ap.add_argument("--list",action="store_true"); ap.add_argument("--set"); ap.add_argument("--out"); ap.add_argument("--selftest",action="store_true")
- ap.add_argument("--before",default=os.path.join(DATA,"before.json"))
+ ap.add_argument("--before",default=os.path.join(DATA,"before.json")); ap.add_argument("--sources",action="store_true")
  ap.add_argument("--write-before",action="store_true",help="write --before from --old-tree on --old-runtime (all formula sets)")
  ap.add_argument("--old-tree"); ap.add_argument("--old-runtime")
  a=ap.parse_args(argv); start=time.monotonic()
  if a.selftest: return selftest(a.tree)
  try:
-  sets,d=population(a.tree); print("DISPATCHER names=%d rule=%s"%(len(d["rows"]),d["rule"]))
-  positions=sum(row["arguments"].count("number") for row in d["rows"].values())
-  print("TEMPLATES functions=%d positions=%d"%(len(d["rows"]),positions))
+  sets,d=population(a.tree); arrival=sets.pop("_arrival_counts")
+  print("DISPATCHER names=%d rule=%s"%(len(d["rows"]),d["rule"]))
+  positions=sum(k!="range" for row in d["rows"].values() for k in row["arguments"])
+  left=sum(k=="range" for row in d["rows"].values() for k in row["arguments"])
+  print("TEMPLATES functions=%d positions=%d left_out=%d"%(len(d["rows"]),positions,left))
+  print("ARRIVALS generated=%d hand=%d"%(arrival["generated"],arrival["hand"]))
+  if a.sources:
+   spec={"base":BASE,"f":{address(i):"="+x for i,x in enumerate(SOURCES.values())}}
+   lo=calc_grid(spec); mine,_=run_chunks(a.tree,a.runtime,spec)
+   for i,(name,formula) in enumerate(SOURCES.items()):
+    ad=address(i); print("SOURCE %s formula=%s calc=%s sheet=%s"%(name,formula,lo[ad][0],mine[ad]["display"]))
+   print("SOURCES kinds=%d"%len(SOURCES)); return 0
   if a.list:
    for n,s in sets.items():
     for ad,f in s.get("f",{}).items(): print("%s\t%s\t%s"%(n,ad,f))
@@ -654,6 +696,11 @@ def _csv_case(m, tree, tmp):
 
 ONE = 'return abs(a - b) <= Decimal(1).scaleb(m.adjusted() - 14)'
 PLANTS = [
+ ("a non-numeric-labelled scalar position silently dropped", 'if k!="range"]', 'if k=="number"]',
+  lambda m,t,x: str(len(m.marked_templates({"call":"IF(1,2,3)","arguments":["logical","number","number"]},"IF"))), "3"),
+ ("a generated arrival path skipped", "  for path in paths: out.append((i,path,name+\"(\"+\",\".join(args[:i]+[\"@\"]+args[i+1:])+\")\"))",
+  "  for path in paths[:-1]: out.append((i,path,name+\"(\"+\",\".join(args[:i]+[\"@\"]+args[i+1:])+\")\"))",
+  lambda m,t,x: str(len(m.arrival_templates({"call":"MATCH(1,B1:B3,0)","arguments":["number","range","number"],"paths":[["formula-reference","comparison-left","comparison-right","lookup-key"],["inside-range"],["formula-reference","comparison-left","comparison-right"]]},"MATCH"))), "8"),
  # (name, anchor, replacement, case, the clean tool's (correct) outcome)
  ("number rule widened: a 13th-digit difference accepted", ONE, ONE.replace("- 14","- 12"),
   lambda m,t,x: _bar(m,t,**_one("1.00000000000000E+00",N("1.000000000001"))), 'examined=1 differ=1 before=0 net=0 crash=0 status=1'),
@@ -667,7 +714,7 @@ PLANTS = [
   lambda m,t,x: _bar(m,t,**_one("5.00000000000000E+00",N("5.0"))), 'examined=1 differ=1 before=0 net=0 crash=0 status=1'),
  ("a net-caught cell counted as a match", "ok=matches(c,shape,m) and not net", "ok=matches(c,shape,m)",
   lambda m,t,x: _bar(m,t,caught={"A1"},**_one("#NUM!",E("#NUM!"))), 'examined=1 differ=1 before=0 net=1 crash=0 status=1'),
- ("run_chunks gives every cell of a failed chunk a value", "one=grid(tree,binary,spec,[ad],timeout=60,net=net)",
+ ("run_chunks gives every cell of a failed chunk a value", "one=grid(tree,binary,spec,[ad],timeout=10,net=net)",
   'one={"cells":{ad:{"kind":"N","value":"7","display":"7"}},"net":[]}',
   lambda m,t,x: _bar(m,t,{"A1":"=1","A2":"=2"},{"A1":("7.00000000000000E+00",None),"A2":("7.00000000000000E+00",None)},
                      {"A1":N("7"),"A2":N("7")},crash={"A2"}), 'examined=2 differ=1 before=0 net=0 crash=1 status=1'),
