@@ -363,25 +363,34 @@ define _to_text(v) as:
         return _number_text of v
     return str of v
 
-# Coerce to a number for arithmetic. A boolean is 1/0; a numeric-looking string
-# converts; other text is #VALUE! (like ="a"+1 in a spreadsheet), via st.err.
-define _to_num(st, v) as:
-    # Once an argument has failed, its placeholder/result must not flow into a
-    # second numeric operation. NEW runtimes retain IEEE infinity, and floor,
-    # ceil, integer conversion, and indexing correctly refuse it. Collapse the
-    # failed value here while preserving the original spreadsheet error.
-    if st.err != "":
-        return 0
+# Formula numbers have one representation: IEEE binary64. This is the entry
+# boundary for stored cell numbers, literals, text conversions, and numeric
+# function results. Mixed arithmetic is EigenScript's documented int-to-float
+# conversion; the finite check makes the producing expression catchable before
+# any consumer (including a text function) can observe an infinity or NaN.
+define _formula_number(st, v) as:
     if (type of v) == "num":
         if v != v or v > 1.7976931348623157e308 or v < -1.7976931348623157e308:
-            st.err is "#NUM!"
+            if st.err == "":
+                st.err is "#NUM!"
             return 0
+        return v + 0.0
+    return v
+
+# Coerce to a formula number for arithmetic. The returned value is meaningful
+# only while st.err is empty; callers stop at that single error exit rather than
+# computing with an error placeholder.
+define _to_num(st, v) as:
+    if st.err != "":
         return v
+    if (type of v) == "num":
+        return _formula_number of [st, v]
     if (_is_bool of v) == 1:
-        return v.b
+        return _formula_number of [st, v.b]
     if (type of v) == "str" and (_is_number of v) == 1:
-        return num of v
-    st.err is "#VALUE!"
+        return _formula_number of [st, num of v]
+    if st.err == "":
+        st.err is "#VALUE!"
     return 0
 
 # Compare two values for a cmp operator, type-aware like a spreadsheet:
@@ -1165,7 +1174,7 @@ define _arg_ref_or_val(st) as:
     st.err is pre
     return {"kind": "val", "v": v, "err": e}
 
-define _eval_factor(st) as:
+define _eval_factor_raw(st) as:
     local tk is _peek of st
     if tk == null:
         # an operand was expected but the tokens ran out (e.g. "=A1+")
@@ -1939,6 +1948,10 @@ define _eval_factor(st) as:
             if (_peek of st) != null and (_peek of st).t == "rp":
                 st.i is st.i + 1
             local na is len of targs
+            # Nested argument errors leave through the evaluator unchanged;
+            # text consumers must not stringify their placeholder value.
+            if st.err != "":
+                return 0
             if fname == "LEN":
                 if na < 1:
                     st.err is "#ERROR"
@@ -2097,6 +2110,8 @@ define _eval_factor(st) as:
                 st.err is "#ERROR"
                 return 0
             local x is _to_num of [st, nargs[0]]
+            if st.err != "":
+                return 0
             if fname == "ABS":
                 return abs of x
             if fname == "INT":
@@ -2123,6 +2138,8 @@ define _eval_factor(st) as:
                     st.err is "#ERROR"
                     return 0
                 local d is _to_num of [st, nargs[1]]
+                if st.err != "":
+                    return 0
                 if d == 0:
                     st.err is "#DIV/0!"
                     return 0
@@ -2300,6 +2317,9 @@ define _eval_factor(st) as:
             local v2 is (_ss of vals) / ((len of vals) - 1)
             if fname == "VAR":
                 return v2
+            v2 is _formula_number of [st, v2]
+            if st.err != "":
+                return 0
             return sqrt of v2
         # population statistics (n)
         if fname == "VARP" or fname == "STDEVP":
@@ -2309,6 +2329,9 @@ define _eval_factor(st) as:
             local v3 is (_ss of vals) / (len of vals)
             if fname == "VARP":
                 return v3
+            v3 is _formula_number of [st, v3]
+            if st.err != "":
+                return 0
             return sqrt of v3
         # unknown function name
         st.err is "#NAME?"
@@ -2333,6 +2356,15 @@ define _eval_factor(st) as:
     st.err is "#ERROR"
     return 0
 
+# Every scalar entering or leaving a factor crosses the formula-number
+# boundary. Because every literal, reference and function call is a factor,
+# this is the evaluator's one numeric entry and non-finite error exit.
+define _eval_factor(st) as:
+    local v is _eval_factor_raw of st
+    if st.err != "":
+        return v
+    return _formula_number of [st, v]
+
 # Exponentiation level: binds tighter than * and /, looser than unary minus
 # (so =-2^2 is 4, matching Excel/LibreOffice), and is left-associative
 # (=2^3^2 is 64, like Calc — NOT the math-convention 512).
@@ -2342,6 +2374,8 @@ define _eval_power(st) as:
         st.i is st.i + 1
         v is _to_num of [st, v]
         local r is _to_num of [st, _eval_factor of st]
+        if st.err != "":
+            return v
         local av is v
         if av < 0:
             av is 0 - av
@@ -2361,6 +2395,8 @@ define _eval_term(st) as:
         st.i is st.i + 1
         v is _to_num of [st, v]
         local r is _to_num of [st, _eval_power of st]
+        if st.err != "":
+            return v
         if op == "*":
             local av is v
             local ar is r
@@ -2399,6 +2435,8 @@ define _eval_expr(st) as:
         st.i is st.i + 1
         v is _to_num of [st, v]
         local r is _to_num of [st, _eval_term of st]
+        if st.err != "":
+            return v
         if op == "+":
             if (v > 0 and r > 0 and v > 1.7976931348623157e308 - r) or (v < 0 and r < 0 and v < -1.7976931348623157e308 - r):
                 st.err is "#NUM!"
@@ -2421,6 +2459,8 @@ define _eval_concat(st) as:
     loop while (_peek of st) != null and (_peek of st).t == "op" and (_peek of st).v == "&":
         st.i is st.i + 1
         local r is _eval_expr of st
+        if st.err != "":
+            return v
         v is (_to_text of v) + (_to_text of r)
     return v
 
@@ -2434,6 +2474,8 @@ define _eval_cmp(st) as:
         local opv is tk.v
         st.i is st.i + 1
         local r is _eval_concat of st
+        if st.err != "":
+            return l
         return _mk_bool of (_compare of [l, r, opv])
     return l
 
@@ -2937,6 +2979,9 @@ define paste_block(sheet, clip, tc, tr) as:
 # Format a number for display: whole values as integers, otherwise trimmed to
 # a short decimal (so =A1/A2 shows 1.6667, not a 17-digit float tail).
 define _number_text(n) as:
+    # Calc does not expose IEEE's sign bit when zero becomes text.
+    if n == 0:
+        return "0"
     local s is str of n
     local l is len of s
     # EigenScript's numeric spelling deliberately preserves the kind of an

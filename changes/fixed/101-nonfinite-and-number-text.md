@@ -1,1 +1,1 @@
-Spreadsheet formulas now turn non-finite results into catchable cell errors and use Calc-compatible number-to-text spelling across display and text functions (#101).
+Spreadsheet formula values now use binary64 arithmetic, preserve the first error, reject non-finite results before consumers see them, and spell negative zero as `0` (#101).

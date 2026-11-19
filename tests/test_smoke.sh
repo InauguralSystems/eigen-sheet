@@ -173,7 +173,7 @@ C1=31
 D1=#CYCLE
 D2=#CYCLE
 order=["A3", "B2", "A4", "B1", "C1"]
-A1:A4 sum=32 count=4
+A1:A4 sum=32.0 count=4
 A1:B2 sum=43.0 count=4
 B2:A1 sum=43.0 count=4
 paste B3=35 raw==B1+B2
