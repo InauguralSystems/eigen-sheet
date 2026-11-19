@@ -4,7 +4,7 @@ This file records the tool's output. LibreOffice Calc 24.2 supplied the expected
 
 ## Provenance
 
-NEW was EigenScript tag `phase2-consumers-1`, commit `b9881574b20503c5cfbdb6d80a5e6008e7501e15`. OLD was tag `v0.48.0`, commit `546848c0a7123ea7066923ebadb06f0af29af953`. Both were built with `make -s zlib`, as the `calc-oracle` workflow builds NEW. The tested tree was commit `b3171f6a13f43f477c10a0d59ad882deaf49a2a4`; the plain main tree used with OLD was commit `3d43f211130d02774159e287a7cf84986639a1a3`.
+NEW was EigenScript tag `phase2-consumers-1`, commit `b9881574b20503c5cfbdb6d80a5e6008e7501e15`. OLD was tag `v0.48.0`, commit `546848c0a7123ea7066923ebadb06f0af29af953`. Both were built with `make -s zlib`, as the `calc-oracle` workflow builds NEW. The spreadsheet under test (`sheet.eigs`, `pdf.eigs`, `main.eigs`) is that of commit `b3171f6a13f43f477c10a0d59ad882deaf49a2a4`, and the tool is the one in the commit that holds this text; the plain main tree used with OLD was commit `3d43f211130d02774159e287a7cf84986639a1a3`.
 
 The OLD derivation printed tool wall `2409.3s` and shell wall `40m10.316s`. The NEW full run printed tool wall `207.3s` and shell wall `3m28.340s`.
 
