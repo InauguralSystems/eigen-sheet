@@ -1,4 +1,5 @@
 import sheet
+load_file of "bar_api.eigs"
 s is sheet.new_sheet of null
 sheet.set_cell of [s,"D1","9223372036854775807"]
 sheet.set_cell of [s,"D2","9223372036854775807"]
@@ -10,5 +11,4 @@ sheet.set_cell of [s,"A3","=bn*2"]
 sheet.set_cell of [s,"A4","=MAX(big)*2"]
 sheet.set_cell of [s,"A5","=1+1"]
 sheet.recalc of s
-for a in ["A1","A2","A3","A4","A5"]:
-    print of (a + "=" + (sheet.display of [s,a]))
+bar_stage of [s, "named", ["A1","A2","A3","A4","A5"]]

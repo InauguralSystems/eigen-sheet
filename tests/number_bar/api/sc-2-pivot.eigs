@@ -1,4 +1,5 @@
 import sheet
+load_file of "bar_api.eigs"
 s is sheet.new_sheet of null
 sheet.set_cell of [s,"K1","key"]
 sheet.set_cell of [s,"L1","val"]
@@ -8,4 +9,4 @@ sheet.set_cell of [s,"K3","a"]
 sheet.set_cell of [s,"L3","9223372036854775807"]
 sheet.recalc of s
 sheet.pivot of [s,10,0,11,2,0,1,"SUM",13,0]
-print of ("pivot N2=" + (sheet.display of [s,"N2"]) + " N3=" + (sheet.display of [s,"N3"]) + " raw N2=" + s.cells["N2"])
+bar_stage of [s, "pivot", ["O2","O3"]]

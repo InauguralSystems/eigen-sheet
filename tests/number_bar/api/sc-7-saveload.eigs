@@ -1,12 +1,16 @@
 import sheet
+load_file of "bar_api.eigs"
 s is sheet.new_sheet of null
 sheet.set_cell of [s,"A1","9007199254740993"]
 sheet.set_cell of [s,"A2","=A1"]
 sheet.set_cell of [s,"A3","=A1&\"\""]
 sheet.recalc of s
+bar_stage of [s, "saved", ["A1","A2","A3"]]
 c is sheet.to_csv of [s,0,0,0,2]
-print of ("csv1=" + c)
+bar_value of ["saved:csv", c, c]
 t is sheet.new_sheet of null
 sheet.from_csv of [t, c, 0, 0]
 sheet.recalc of t
-print of ("csv2=" + (sheet.to_csv of [t,0,0,0,2]) + " A1=" + (sheet.display of [t,"A1"]))
+bar_stage of [t, "loaded", ["A1","A2","A3"]]
+c2 is sheet.to_csv of [t,0,0,0,2]
+bar_value of ["loaded:csv", c2, c2]

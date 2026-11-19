@@ -1,9 +1,12 @@
 import sheet
+load_file of "bar_api.eigs"
 s is sheet.new_sheet of null
 sheet.set_cell of [s,"B1","5000000000"]
 sheet.set_cell of [s,"A1","=B1*B1"]
 sheet.set_cell of [s,"A2","=1+1"]
 sheet.recalc of s
-print of ("before A1=" + (sheet.display of [s,"A1"]))
+bar_stage of [s, "before", ["A1","A2"]]
 x is sheet.goal_seek of [s,"A1",100000000000000000000.0,"B1"]
-print of ("goal x=" + (str of x) + " A1=" + (sheet.display of [s,"A1"]) + " B1=" + (sheet.display of [s,"B1"]) + " A2=" + (sheet.display of [s,"A2"]))
+# x is an API return value; it is judged as the sheet shows a number.
+bar_value of ["goal:x", x, bar_shown of x]
+bar_stage of [s, "after", ["A1","A2","B1"]]

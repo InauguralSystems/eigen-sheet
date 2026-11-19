@@ -3,23 +3,28 @@
 
 The population is rebuilt from sheet.eigs and templates.json on every run.  A
 grid is run in chunks of 200 cells, one runtime process per chunk; a chunk that
-crashes, times out or prints fewer cells than it was given is run again one
-cell per process, and a cell whose own process fails is CRASH or TIMEOUT.
+crashes, times out (120 s) or does not print exactly its cells is run again one
+cell per process, and a cell whose own process fails is CRASH, or TIMEOUT after
+60 s.  A cell's answer comes from bar_answer in api/bar_api.eigs, the one
+definition the api programs use too.
 
-LibreOffice Calc decides every expected answer.  The tool writes each set into
+LibreOffice Calc decides every expected answer.  The tool writes each sheet into
 an .xlsx twice: once with the number format 0.00000000000000E+00 (fifteen
-significant digits, scientific) on every formula cell, and once with no format.
+significant digits, scientific) on every judged cell, and once with no format.
 Both are converted to CSV by one headless Calc call with "save cell contents as
 shown", so C, Calc's text for a cell, is a number in one spelling whatever Calc
-would have auto-formatted; the unformatted copy is read only to learn whether
-Calc's result is a logical (it shows TRUE or FALSE there).  A sentinel text in
-the column after the last one used is written on every row and must come back:
-a missing Calc row is the tool's error, never an expectation of blank.
+would have auto-formatted.  The unformatted copy is read only for the shape of
+a result whose C has that spelling: TRUE or FALSE there is a logical; the same
+text there is a text that only looks like a number (Calc never shows a number
+unformatted with fourteen decimals and a two-digit exponent).  A sentinel text
+in the column after the last one used is written on every row and must come
+back: a missing Calc row is the tool's error, never an expectation of blank.
 
 THE RULE (the only tolerance in this tool).  For one cell, with C and this
 spreadsheet's VALUE (sheet.get; a logical read as its number) and DISPLAY
 (sheet.display):
-- C is a number (it has the scientific form above).  The cell matches when the
+- C is a number (it has the scientific form above, and is not a text).  The
+  cell matches when the
   VALUE is a number that agrees with C to within one unit in the fifteenth
   significant digit of the larger of the two in size (both zero agree), and
   the DISPLAY reads as a decimal number that agrees with C by the same rule
@@ -41,14 +46,28 @@ its text.
 `differ` counts every cell that does not match; no cell is set apart from it.
 `before` is information that subtracts nothing: of the cells that differ now,
 those whose answer on this repository's main with the OLD runtime was the same
-(the same number by the rule's agreement, the same error name, or the same
-text).  tests/number_bar/before.json holds that run's answers, keyed by set,
-formula text and the set's input cells, and is written whole by --write-before.
+(the same number by the rule's agreement, the same error name, the same text,
+or the same CRASH or TIMEOUT).  tests/number_bar/before.json holds that run's
+answers, keyed by set, formula text and the set's input cells, and is written
+whole by --write-before; a key no present cell has is the tool's error.  The
+api set has no before.
+
+The api set (api/expectations.json) checks the paths outside recalc.  Each
+program prints, with api/bar_api.eigs, every cell's raw content and the
+defined names at each stage, and its judged answers.  Every expected item is
+asked of Calc in the run (calc=cell: the same cell of the same sheet; calc=a
+formula over the stage's cells, for the pivot and the status bar; calc=csv-out:
+every cell of the range, against the fields of the CSV this spreadsheet wrote;
+a stage may start from Calc's own read of a CSV), and compared by THE RULE.
+Items no Calc operation answers (goal seek's root) carry their rule and an
+expected text in Calc's spelling and are counted apart as rule_examined and
+rule_differ.  A program that aborts counts each of its items as differing and
+adds one to crash.
 
 Exit 0 only when differ, net, crash and rule_differ are all 0 and every set
 ran; 1 when any is not; 2 for the tool's own errors.
 """
-import argparse, csv, json, os, re, shutil, subprocess, sys, tempfile, time
+import argparse, csv, io, json, os, re, shutil, subprocess, sys, tempfile, time
 from decimal import Decimal, InvalidOperation
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -135,7 +154,7 @@ def population(tree):
  ts=("@","@&\"\"","LEN(@)","LEFT(@,30)","RIGHT(@,3)","MID(@,1,30)","TEXT(@,\"0\")","TEXT(@,\"0.00\")","TEXT(@,\"#,##0\")","TEXT(@,\"0%\")","CONCATENATE(@)","VALUE(@&\"\")","VALUE(@&\"\")=@","(@&\"\")=TEXT(@,\"0\")")
  out["number-text"]={"base":{},"f":{address(i):"="+t.replace("@","("+x+")" if t!="@" else x) for i,(x,t) in enumerate((x,t) for x in xs for t in ts)},"reference":"calc"}
  out.update(json.load(open(os.path.join(DATA,"arrival_cases.json"))))
- out["api"]={"reference":"rule","programs":json.load(open(os.path.join(DATA,"api","expectations.json")))["programs"]}
+ out["api"]={"reference":"api","programs":json.load(open(os.path.join(DATA,"api","expectations.json")))["programs"]}
  return out,d
 
 class ToolError(Exception):
@@ -166,18 +185,20 @@ def calc_class(c):
  if c.startswith("#") or re.fullmatch(r"Err:\d+", c): return "error"
  return "text"
 
-def matches(c, logical, mine):
- """Step 1's rule for one cell. mine = {"kind","value","display"}; kind is
+def matches(c, shape, mine):
+ """Step 1's rule for one cell. shape is what the unformatted copy showed:
+ "TRUE"/"FALSE" (a logical), "TEXT" (a text that merely looks like the
+ number spelling), or None.  mine = {"kind","value","display"}; kind is
  N (number), L (logical), S (text), E (error), CRASH or TIMEOUT."""
  k, value, disp = mine["kind"], mine["value"], mine["display"]
  if k in ("CRASH", "TIMEOUT"): return False
- cls = calc_class(c)
+ cls = "text" if shape == "TEXT" else calc_class(c)
  if cls == "number":
   if k not in ("N", "L"): return False
   want = decimal(c, CALC_NUMBER); v = decimal(value)
   if not agree(v, want): return False
-  if logical is not None:
-   return k == "L" and disp == logical and v == (1 if logical == "TRUE" else 0)
+  if shape is not None:
+   return k == "L" and disp == shape and v == (1 if shape == "TRUE" else 0)
   shown = decimal(disp)
   if not agree(shown, want): return False
   if v == v.to_integral_value() and abs(v) < Decimal("1E15") and not WHOLE_TEXT.fullmatch(disp): return False
@@ -201,25 +222,18 @@ def same_answer(old, new):
 
 # ---- this spreadsheet -------------------------------------------------------
 def q(x): return json.dumps(x, ensure_ascii=False)
-CELL_FN = '''define bar_cell(a) as:
-    local d is sheet.display of [s, a]
-    if (has_key of [s.err, a]):
-        return ["E", "", d]
-    local v is sheet.get of [s, a]
-    if (type of v) == "num":
-        return ["N", str of v, d]
-    if (type of v) == "dict" and (has_key of [v, "b"]):
-        return ["L", str of v.b, d]
-    if (type of v) == "str":
-        return ["S", v, d]
-    return ["?", str of v, d]'''
+API = os.path.join(DATA, "api")
 
 def has_net(tree):
  return "\ndefine net_caught(sheet) as:" in open(os.path.join(tree,"sheet.eigs"),encoding="utf-8").read()
 
 def install(tree, tmp):
+ """The tree as the module `sheet`, and api/bar_api.eigs (the one definition of
+ a cell's answer) with the api programs' CSV inputs beside the program."""
  md=os.path.join(tmp,"eigs_modules","sheet"); os.makedirs(md)
  for n in ("sheet.eigs","pdf.eigs","eigs.json"): shutil.copy(os.path.join(tree,n),md)
+ for n in os.listdir(API):
+  if n=="bar_api.eigs" or n.endswith(".csv"): shutil.copy(os.path.join(API,n),tmp)
 
 def runtime_grid(tree, binary, spec, cells, timeout=120, net=True):
  """One process for the given cells: {"cells": {addr: answer}, "net": [...]}
@@ -227,11 +241,11 @@ def runtime_grid(tree, binary, spec, cells, timeout=120, net=True):
  tmp=tempfile.mkdtemp()
  try:
   install(tree,tmp)
-  lines=["import sheet","s is sheet.new_sheet of null"]
+  lines=["import sheet",'load_file of "bar_api.eigs"',"s is sheet.new_sheet of null"]
   for a,v in list(spec.get("base",{}).items())+[(a,spec["f"][a]) for a in cells]:
    lines.append("sheet.set_cell of [s,%s,%s]"%(q(a),q(v)))
-  lines += ["sheet.recalc of s", CELL_FN]
-  for a in cells: lines.append('print of (%s + (json_encode of (bar_cell of %s)))'%(q(a+"\t"),q(a)))
+  lines.append("sheet.recalc of s")
+  for a in cells: lines.append('print of (%s + (json_encode of (bar_answer of [s, %s])))'%(q(a+"\t"),q(a)))
   if net: lines.append('print of ("NET\\t" + (json_encode of (sheet.net_caught of s)))')
   open(os.path.join(tmp,"app.eigs"),"w").write("\n".join(lines)+"\n")
   try: r=subprocess.run([binary,"app.eigs"],cwd=tmp,text=True,capture_output=True,timeout=timeout)
@@ -281,45 +295,83 @@ def calc_rows(path, last_row, last_col):
    raise ToolError("Calc row %d is missing or short in %s"%(i+1,os.path.basename(path)))
  return rows
 
-def calc_grid(spec):
- """{addr: (C, "TRUE"/"FALSE"/None)} for every cell of spec["f"], from Calc."""
+def office():
+ o=shutil.which("libreoffice") or shutil.which("soffice")
+ if not o: raise ToolError("LibreOffice Calc is required")
+ return o
+
+def calc_put(s, a, v):
+ if v.startswith("="):
+  for n in XLFN: v=re.sub(r"\b"+n+r"\(","_xlfn."+n+"(",v)
+  s[a]=v
+ else:
+  try: s[a]=int(v)
+  except ValueError:
+   try: s[a]=float(v)
+   except ValueError: s[a]=v
+
+def calc_name(defn):
+ """A defined name for the .xlsx: a cell or range gets the sheet and $."""
+ if re.fullmatch(r"[A-Z]+\d+(:[A-Z]+\d+)?",defn):
+  return "Sheet!"+":".join(re.sub(r"([A-Z]+)(\d+)",r"$\1$\2",x) for x in defn.split(":"))
+ return defn
+
+def calc_sheet(spec, start=None):
+ """Calc's two CSVs ("formatted": spec["f"] cells in FORMAT; "plain": no
+ format) of one sheet: spec["base"] and spec["f"] cells (an f value None keeps
+ the cell Calc read from `start`, an .xlsx Calc wrote) and spec["names"]."""
  import openpyxl
  from openpyxl.workbook.defined_name import DefinedName
- office=shutil.which("libreoffice") or shutil.which("soffice")
- if not office: raise ToolError("LibreOffice Calc is required")
- cells=list(spec.get("base",{}).items())+list(spec["f"].items())
- last_col=max(col_number(a)[0] for a,_ in cells)+1; last_row=max(col_number(a)[1] for a,_ in cells)
- tmp=tempfile.mkdtemp()
+ o=office(); tmp=tempfile.mkdtemp()
  try:
-  paths=[]
+  paths=[]; shape=None
   for name,fmt in (("formatted",FORMAT),("plain",None)):
-   w=openpyxl.Workbook(); s=w.active
-   for a,v in cells:
-    if v.startswith("="):
-     for n in XLFN: v=re.sub(r"\b"+n+r"\(","_xlfn."+n+"(",v)
-     s[a]=v
-    else:
-     try: s[a]=int(v)
-     except ValueError:
-      try: s[a]=float(v)
-      except ValueError: s[a]=v
+   w=openpyxl.load_workbook(start) if start else openpyxl.Workbook(); s=w.active
+   for a,v in list(spec.get("base",{}).items())+list(spec["f"].items()):
+    if v is not None: calc_put(s,a,v)
     if fmt and a in spec["f"]: s[a].number_format=fmt
-   for r in range(1,last_row+1): s[col_letters(last_col)+str(r)]="@row%d"%r
-   for nm,ref in spec.get("names",{}).items(): w.defined_names[nm]=DefinedName(nm,attr_text=ref)
+   shape=(s.max_row,s.max_column+1)
+   for r in range(1,shape[0]+1): s[col_letters(shape[1])+str(r)]="@row%d"%r
+   for nm,ref in spec.get("names",{}).items(): w.defined_names[nm]=DefinedName(nm,attr_text=calc_name(ref))
    w.calculation.fullCalcOnLoad=True; p=os.path.join(tmp,name+".xlsx"); w.save(p); paths.append(p)
-  r=subprocess.run([office,"--headless","--norestore","--nolockcheck","-env:UserInstallation=file://"+tmp+"/profile",
+  r=subprocess.run([o,"--headless","--norestore","--nolockcheck","-env:UserInstallation=file://"+tmp+"/profile",
                     "--convert-to",CSV_SHOWN,"--outdir",tmp]+paths,capture_output=True,timeout=600)
   grids={}
   for name in ("formatted","plain"):
    f=os.path.join(tmp,name+".csv")
    if not os.path.exists(f): raise ToolError("LibreOffice produced no %s CSV: %s"%(name,r.stderr.decode(errors="replace")))
-   grids[name]=calc_rows(f,last_row,last_col)
-  out={}
-  for a in spec["f"]:
-   c,rw=col_number(a); text=grids["formatted"][rw-1][c-1]; plain=grids["plain"][rw-1][c-1]
-   out[a]=(text, plain if (plain in ("TRUE","FALSE") and calc_class(text)=="number") else None)
-  return out
+   grids[name]=calc_rows(f,*shape)
+  return grids
  finally: shutil.rmtree(tmp)
+
+def calc_cells(grids, addrs):
+ """{addr: (C, shape)}: shape is "TRUE"/"FALSE" when the unformatted copy
+ shows a logical, "TEXT" when it shows the same text as the formatted copy
+ (a text result in the number spelling: a number's unformatted text never has
+ fourteen decimals and a two-digit exponent), else None."""
+ out={}
+ for a in addrs:
+  c,rw=col_number(a); text=grids["formatted"][rw-1][c-1]; plain=grids["plain"][rw-1][c-1]
+  shape=None
+  if calc_class(text)=="number":
+   if plain in ("TRUE","FALSE"): shape=plain
+   elif plain==text: shape="TEXT"
+  out[a]=(text,shape)
+ return out
+
+def calc_grid(spec):
+ return calc_cells(calc_sheet(spec),spec["f"])
+
+CSV_READ = "CSV:44,34,76,1,,0,false,true,false,false,false,-1,true"
+
+def calc_read_csv(text, tmp):
+ """Calc's own read of a CSV text (formulas evaluated), as an .xlsx path."""
+ d=tempfile.mkdtemp(dir=tmp); p=os.path.join(d,"in.csv"); open(p,"w",encoding="utf-8").write(text)
+ r=subprocess.run([office(),"--headless","--norestore","--nolockcheck","-env:UserInstallation=file://"+d+"/profile",
+                   "--infilter="+CSV_READ,"--convert-to","xlsx","--outdir",d,p],capture_output=True,timeout=600)
+ x=os.path.join(d,"in.xlsx")
+ if not os.path.exists(x): raise ToolError("LibreOffice did not read the CSV: "+r.stderr.decode(errors="replace"))
+ return x
 
 def validate_templates(d, oracle=calc_grid):
  """Ask Calc whether each unmarked valid call works before trusting the table."""
@@ -342,7 +394,7 @@ def write_before(path, sets, tree, binary, grid=runtime_grid):
  """The answers of `tree` on `binary` for every formula set, written whole."""
  doc={"tree":tree,"runtime":binary,"inputs":{},"cells":{}}
  for name,spec in sets.items():
-  if spec.get("reference")=="rule": continue
+  if spec.get("reference")=="api": continue
   if not spec.get("f"): raise ToolError("SET %s examined=0 is invalid"%name)
   mine,_=run_chunks(tree,binary,spec,net=False,grid=grid)
   doc["inputs"][name]=spec.get("base",{})
@@ -358,7 +410,7 @@ def check_before(doc, sets):
  set's inputs are the present ones."""
  live={}
  for name,spec in sets.items():
-  if spec.get("reference")=="rule": continue
+  if spec.get("reference")=="api": continue
   if name in doc["inputs"] and doc["inputs"][name]!=spec.get("base",{}):
    raise ToolError("before.json: the inputs of set %s are not the present ones"%name)
   for ad,f in spec["f"].items(): live[before_key(name,ad,f)]=1
@@ -373,33 +425,115 @@ def compare_set(name, spec, mine, caught, calc, before):
  for ad,f in spec["f"].items():
   if ad not in calc: raise ToolError("Calc has no row for %s:%s"%(name,ad))
   if ad not in mine: raise ToolError("no answer for %s:%s"%(name,ad))
-  c,logical=calc[ad]; m=mine[ad]; net=ad in caught
-  ok=matches(c,logical,m) and not net
+  c,shape=calc[ad]; m=mine[ad]; net=ad in caught
+  ok=matches(c,shape,m) and not net
   n["examined"]+=1; n["net"]+=net; n["crash"]+=m["kind"] in ("CRASH","TIMEOUT")
   b=False
   if not ok:
    n["differ"]+=1
    old=before.get(before_key(name,ad,f)) if before is not None else None
    if old is not None and same_answer(old,m): b=True; n["before"]+=1
-  recs.append({"set":name,"address":ad,"formula":f,"calc":c,"calc_logical":logical,"kind":m["kind"],
+  recs.append({"set":name,"address":ad,"formula":f,"calc":c,"calc_shape":shape,"kind":m["kind"],
                "value":m["value"],"display":m["display"],"net":net,"verdict":"match" if ok else "differ","before":b})
  return recs,n
 
-def api_grid(tree,binary,spec):
- out={}; api=os.path.join(DATA,"api"); crashed=0
+# ---- the api programs (paths outside recalc) --------------------------------
+def api_parse(stdout):
+ """STAGE / CELL / NAME / VAL lines (bar_api.eigs) -> stages in order, answers."""
+ stages={}; vals={}; cur=None
+ for line in stdout.splitlines():
+  p=line.split("\t",2)
+  if p[0]=="STAGE": cur=stages.setdefault(p[1],{"cells":{},"names":{}})
+  elif p[0]=="CELL": cur["cells"][p[1]]=json.loads(p[2])
+  elif p[0]=="NAME": cur["names"][p[1]]=json.loads(p[2])
+  elif p[0]=="VAL": k,v,d=json.loads(p[2]); vals[p[1]]={"kind":k,"value":v,"display":d}
+ return stages,vals
+
+def csv_matches(calc_fields, mine):
+ """A CSV this spreadsheet wrote against Calc's answers for the same range:
+ the same shape, and every field by the rule (a field is read as a number, a
+ logical, an error or a text by its spelling)."""
+ if mine["kind"]!="S": return False
+ ours=list(csv.reader(mine["value"].splitlines()))
+ if len(calc_fields)!=len(ours) or not ours: return False
+ for crow,orow in zip(calc_fields,ours):
+  if len(crow)!=len(orow): return False
+  for (c,shape),of in zip(crow,orow):
+   if of in ("TRUE","FALSE"): m={"kind":"L","value":"1" if of=="TRUE" else "0","display":of}
+   else: m={"kind":"N" if decimal(of) is not None else ("E" if calc_class(of)=="error" else "S"),"value":of,"display":of}
+   if not matches(c,shape,m): return False
+ return True
+
+def range_cells(rng):
+ (c0,r0),(c1,r1)=(col_number(x) for x in rng.split(":"))
+ return [[col_letters(c)+str(r) for c in range(c0,c1+1)] for r in range(r0,r1+1)]
+
+def api_calc(program, item, stages, tmp):
+ """Calc's answer for every calc item of a program that ran: {id: (C, shape)}."""
+ got={}; csvs={}
+ for stage,dump in stages.items():
+  its=[it for it in item["items"] if it["id"].split(":")[0]==stage and "calc" in it]
+  if not its: continue
+  opt=item.get("stages",{}).get(stage,{}); start=None; names=dump["names"]
+  judged=[it["id"].split(":",1)[1] for it in its if it["calc"]=="cell"]
+  if "start" in opt:
+   kind,src=opt["start"].split(":",1)
+   text=open(os.path.join(API,src)).read() if kind=="csv" else csvs[src]
+   start=calc_read_csv(text,tmp)
+   base={a:dump["cells"][a] for a in opt.get("add",[]) if a not in judged}
+   f={a:(dump["cells"][a] if a in opt.get("add",[]) else None) for a in judged}; names={}
+  else:
+   base={a:v for a,v in dump["cells"].items() if a not in judged}
+   f={a:dump["cells"].get(a,"") for a in judged}
+  for it in its:
+   if it["calc"]=="csv-out":
+    for a in sum(range_cells(it["range"]),[]):
+     if a not in f: f[a]=None if start else dump["cells"].get(a)
+  spare={}
+  for i,it in enumerate(x for x in its if x["calc"].startswith("=")):
+   a="Z%d"%(i+1)
+   if a in dump["cells"]: raise ToolError("%s: the spare cell %s is in use"%(program,a))
+   f[a]=it["calc"]; spare[it["id"]]=a
+  grids=calc_sheet({"base":base,"f":f,"names":names},start)
+  cells=calc_cells(grids,[a for a in f])
+  for it in its:
+   a=it["id"].split(":",1)[1]
+   if it["calc"]=="cell": got[it["id"]]=cells[a]
+   elif it["calc"]=="csv-out":
+    fields=[[cells[x] for x in row] for row in range_cells(it["range"])]
+    w=io.StringIO(); csv.writer(w,lineterminator="\n").writerows([[c for c,_ in row] for row in fields])
+    csvs[it["id"]]=w.getvalue(); got[it["id"]]=(fields,None)
+   else: got[it["id"]]=cells[spare[it["id"]]]
+ return got
+
+MISSING={"kind":"CRASH","value":"","display":"<missing>"}
+
+def api_grid(tree, binary, spec):
+ """[(program, item, C, shape, answer)] for every expected item, and how many
+ programs aborted.  An aborted program's items all differ."""
+ out=[]; crashed=0
+ if not spec["programs"]: raise ToolError("SET api has no program")
  for program,item in spec["programs"].items():
+  if not item.get("items"): raise ToolError("api program %s has no expected item"%program)
   tmp=tempfile.mkdtemp()
   try:
-   install(tree,tmp)
-   shutil.copy(os.path.join(api,program),os.path.join(tmp,"app.eigs"))
-   if program=="sc-6-csv.eigs":
-    os.makedirs(os.path.join(tmp,"api")); open(os.path.join(tmp,"api","big.csv"),"w").write("9223372036854775807,9223372036854775807,=A1+B1\n9007199254740993,5000000000,=A2*B2\n")
-    s=open(os.path.join(tmp,"app.eigs")).read().replace("REVIEW_DIR/api/big.csv","api/big.csv"); open(os.path.join(tmp,"app.eigs"),"w").write(s)
-   r=subprocess.run([binary,"app.eigs"],cwd=tmp,text=True,capture_output=True,timeout=60)
-   got=r.stdout.splitlines() if r.returncode==0 else ["CRASH"]; crashed+=r.returncode!=0
-   for i,expected in enumerate(item["expect"]): out[program+":"+str(i)]=(got[i] if i<len(got) else "<missing>",expected)
+   install(tree,tmp); shutil.copy(os.path.join(API,program),os.path.join(tmp,"app.eigs"))
+   try: r=subprocess.run([binary,"app.eigs"],cwd=tmp,text=True,capture_output=True,timeout=120); rc=r.returncode; stdout=r.stdout
+   except subprocess.TimeoutExpired: rc=124; stdout=""
+   ran=rc==0; crashed+=not ran
+   stages,vals=api_parse(stdout) if ran else ({},{})
+   lo=api_calc(program,item,stages,tmp) if ran else {}
+   for it in item["items"]:
+    mine=vals.get(it["id"],MISSING) if ran else MISSING
+    c,shape=(it["expect"],None) if "rule" in it else lo.get(it["id"],(None,None))
+    out.append((program,it,c,shape,mine))
   finally: shutil.rmtree(tmp)
  return out,crashed
+
+def api_verdict(it, c, shape, mine):
+ if mine["kind"] in ("CRASH","TIMEOUT") or c is None: return False
+ if it.get("calc")=="csv-out": return csv_matches(c,mine)
+ return matches(c,shape,mine)
 
 # ---- the run ----------------------------------------------------------------
 def run_bar(sets, tree, binary, before_doc, out=None, calc=calc_grid, grid=runtime_grid, api=api_grid, log=print):
@@ -411,11 +545,16 @@ def run_bar(sets, tree, binary, before_doc, out=None, calc=calc_grid, grid=runti
  if before_doc is not None: check_before(before_doc,sets); before=before_doc["cells"]
  T={"examined":0,"differ":0,"before":0,"net":0,"crash":0,"rule_examined":0,"rule_differ":0}; records=[]
  for name,spec in sets.items():
-  if spec.get("reference")=="rule":
-   got,crashed=api(tree,binary,spec); n=len(got); diff=sum(a!=e for a,e in got.values())
-   T["rule_examined"]+=n; T["rule_differ"]+=diff; T["crash"]+=crashed
-   log("SET %s reference=rule examined=%d match=%d differ=%d crash=%d"%(name,n,n-diff,diff,crashed))
-   for key,(a,e) in got.items(): records.append({"set":name,"key":key,"eigen":a,"rule":e,"verdict":"match" if a==e else "differ"})
+  if spec.get("reference")=="api":
+   got,crashed=api(tree,binary,spec); n={"examined":0,"differ":0,"rule_examined":0,"rule_differ":0}
+   for program,it,c,shape,m in got:
+    ok=api_verdict(it,c,shape,m); pre="rule_" if "rule" in it else ""
+    n[pre+"examined"]+=1; n[pre+"differ"]+=not ok
+    records.append({"set":name,"program":program,"id":it["id"],"reference":"rule" if pre else "calc","calc":c,"calc_shape":shape,
+                    "kind":m["kind"],"value":m["value"],"display":m["display"],"verdict":"match" if ok else "differ"})
+   for k in n: T[k]+=n[k]
+   T["crash"]+=crashed
+   log("SET %s examined=%d match=%d differ=%d crash=%d rule_examined=%d rule_differ=%d"%(name,n["examined"],n["examined"]-n["differ"],n["differ"],crashed,n["rule_examined"],n["rule_differ"]))
    continue
   lo=calc(spec); mine,caught=run_chunks(tree,binary,spec,grid=grid)
   recs,n=compare_set(name,spec,mine,caught,lo,before); records+=recs
@@ -485,7 +624,7 @@ def _bar(m, tree, f, calc, answers, crash=(), caught=(), before=None, base=None)
   if type(e).__name__=="ToolError": return "TOOL-ERROR"
   raise
 
-def _one(c, mine, logical=None): return dict(f={"A1":"=1"},calc={"A1":(c,logical)},answers={"A1":mine})
+def _one(c, mine, shape=None): return dict(f={"A1":"=1"},calc={"A1":(c,shape)},answers={"A1":mine})
 
 def _before_case(m, tree, tmp):
  """before.json written for A1 '=X', A2 '=Y'; then the two formulas swap
@@ -495,6 +634,17 @@ def _before_case(m, tree, tmp):
  m.write_before(p,old,tree,"stub",grid=_stub_grid({"A1":N("1"),"A2":N("2")}))
  return _bar(m,tree,{"A1":"=Y","A2":"=X"},{"A1":("9.00000000000000E+00",None),"A2":("9.00000000000000E+00",None)},
              {"A1":N("2"),"A2":N("1")},before=json.load(open(p)))
+
+def _api_case(m, tree, tmp):
+ """A runtime that aborts every program: each expected item differs."""
+ b=os.path.join(tmp,"abort.sh"); open(b,"w").write("#!/bin/sh\nexit 1\n"); os.chmod(b,0o755)
+ sets={"api":{"reference":"api","programs":{"sc-9-canonical.eigs":{"items":[{"id":"canonical:A%d"%i,"calc":"cell"} for i in (1,2,3)]}}}}
+ try:
+  T,status=m.run_bar(sets,tree,b,None,log=lambda *x:None)
+  return "examined=%d differ=%d crash=%d status=%d"%(T["examined"],T["differ"],T["crash"],status)
+ except Exception as e:
+  if type(e).__name__=="ToolError": return "TOOL-ERROR"
+  raise
 
 def _csv_case(m, tree, tmp):
  """Calc's CSV loses its second row: the reader must refuse it."""
@@ -515,7 +665,7 @@ PLANTS = [
   lambda m,t,x: _bar(m,t,**_one("#DIV/0!",E("#NUM!"))), 'examined=1 differ=1 before=0 net=0 crash=0 status=1'),
  ("a whole number displayed with .0 accepted", 'and not WHOLE_TEXT.fullmatch(disp): return False', 'and not WHOLE_TEXT.fullmatch(disp): pass',
   lambda m,t,x: _bar(m,t,**_one("5.00000000000000E+00",N("5.0"))), 'examined=1 differ=1 before=0 net=0 crash=0 status=1'),
- ("a net-caught cell counted as a match", "ok=matches(c,logical,m) and not net", "ok=matches(c,logical,m)",
+ ("a net-caught cell counted as a match", "ok=matches(c,shape,m) and not net", "ok=matches(c,shape,m)",
   lambda m,t,x: _bar(m,t,caught={"A1"},**_one("#NUM!",E("#NUM!"))), 'examined=1 differ=1 before=0 net=1 crash=0 status=1'),
  ("run_chunks gives every cell of a failed chunk a value", "one=grid(tree,binary,spec,[ad],timeout=60,net=net)",
   'one={"cells":{ad:{"kind":"N","value":"7","display":"7"}},"net":[]}',
@@ -529,6 +679,8 @@ PLANTS = [
   lambda m,t,x: _bar(m,t,{"A1":"=\"\""},{},{"A1":{"kind":"S","value":"","display":""}}), 'TOOL-ERROR'),
  ("a short Calc CSV row read", 'if i>=len(rows) or len(rows[i])<last_col or rows[i][last_col-1]!="@row%d"%(i+1):', "if False:",
   lambda m,t,x: _csv_case(m,t,x), 'TOOL-ERROR'),
+ ("an aborted api program counted as zero differing lines", 'for it in item["items"]:', 'for it in (item["items"] if ran else []):',
+  lambda m,t,x: _api_case(m,t,x), "examined=3 differ=3 crash=1 status=1"),
  ("a before.json key matched by address instead of formula", 'return set_name+"\\t"+formula', 'return set_name+"\\t"+address',
   lambda m,t,x: _before_case(m,t,x), 'examined=2 differ=2 before=2 net=0 crash=0 status=1'),
 ]
@@ -536,13 +688,22 @@ CONTROLS = [
  ("a 17th-digit difference matches", lambda m,t,x: _bar(m,t,**_one("1.00000000000000E+00",N("1.0000000000000002"))),
   "examined=1 differ=0 before=0 net=0 crash=0 status=0"),
  ("Err:502 matches #NUM!", lambda m,t,x: _bar(m,t,**_one("Err:502",E("#NUM!"))), "examined=1 differ=0 before=0 net=0 crash=0 status=0"),
+ ("a text in the number spelling matches only as that text", lambda m,t,x: (_bar(m,t,**_one("1.00000000000000E+00",{"kind":"S","value":"1.00000000000000E+00","display":"1.00000000000000E+00"},"TEXT")),
+  _bar(m,t,**_one("1.00000000000000E+00",N("1"),"TEXT"))), ("examined=1 differ=0 before=0 net=0 crash=0 status=0","examined=1 differ=1 before=0 net=0 crash=0 status=1")),
  ("a logical matches only as a logical", lambda m,t,x: (_bar(m,t,**_one("1.00000000000000E+00",{"kind":"L","value":"1","display":"TRUE"},"TRUE")),
   _bar(m,t,**_one("1.00000000000000E+00",N("1"),"TRUE"))), ("examined=1 differ=0 before=0 net=0 crash=0 status=0","examined=1 differ=1 before=0 net=0 crash=0 status=1")),
 ]
 
 def _load(path, name):
+ """The file as a module; a copy elsewhere still reads this tree's data."""
  import importlib.util
- spec=importlib.util.spec_from_file_location(name,path); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
+ spec=importlib.util.spec_from_file_location(name,path); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+ m.ROOT,m.DATA,m.API=ROOT,DATA,API; return m
+
+def _run(case, m, tree, tmp):
+ """A case's outcome; a case that raises is BROKEN, which is never a catch."""
+ try: return case(m,tree,tmp)
+ except Exception as e: return "BROKEN: %r"%e
 
 def selftest(tree):
  src=open(os.path.abspath(__file__),encoding="utf-8").read(); tmp=tempfile.mkdtemp(); failed=0; examined=0
@@ -551,17 +712,18 @@ def selftest(tree):
  try:
   clean=_load(os.path.abspath(__file__),"bar_clean")
   for name,case,want in CONTROLS:
-   got=case(clean,tree,tmp); examined+=1
+   got=_run(case,clean,tree,tmp); examined+=1
    if got!=want: failed+=1; print("FAIL: control %s: %r, wanted %r"%(name,got,want))
    else: print("PASS: control %s: %s"%(name,got))
   for i,(name,anchor,repl,case,right) in enumerate(PLANTS):
    examined+=1; n=body.count(anchor)
    if n!=1: failed+=1; print("FAIL: %s: anchor found %d times"%(name,n)); continue
    p=os.path.join(tmp,"mutant%d.py"%i); open(p,"w",encoding="utf-8").write(body.replace(anchor,repl)+rest)
-   want=case(clean,tree,tmp)
+   want=_run(case,clean,tree,tmp)
    if want!=right: failed+=1; print("FAIL: %s: the clean tool gives %r, wanted %r"%(name,want,right)); continue
-   got=case(_load(p,"bar_mutant%d"%i),tree,tmp)
-   if got==want: failed+=1; print("FAIL: %s: the mutant gives the clean result %r"%(name,got))
+   got=_run(case,_load(p,"bar_mutant%d"%i),tree,tmp)
+   if got.startswith("BROKEN"): failed+=1; print("FAIL: %s: the mutant broke the case: %s"%(name,got))
+   elif got==want: failed+=1; print("FAIL: %s: the mutant gives the clean result %r"%(name,got))
    else: print("PASS: %s: clean %s; mutant %s"%(name,want,got))
  finally: shutil.rmtree(tmp)
  total=len(CONTROLS)+len(PLANTS)

@@ -1,7 +1,13 @@
 import sheet
+load_file of "bar_api.eigs"
 s is sheet.new_sheet of null
 sheet.set_cell of [s,"A1","9223372036854775807"]
 sheet.set_cell of [s,"A2","9223372036854775807"]
 sheet.recalc of s
+bar_stage of [s, "status", []]
+# The status bar's line in run(): Sum, Average and Count of the selection.
 st is sheet.range_stats of [s,0,0,0,1]
-print of ("status sum=" + (str of st.sum) + " count=" + (str of st.count))
+bar_value of ["status:sum", st.sum, bar_shown of st.sum]
+avg is st.sum / st.count
+bar_value of ["status:average", avg, bar_shown of avg]
+bar_value of ["status:count", st.count, str of st.count]

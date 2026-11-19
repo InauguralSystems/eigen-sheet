@@ -1,4 +1,5 @@
 import sheet
+load_file of "bar_api.eigs"
 s is sheet.new_sheet of null
 sheet.set_cell of [s,"A1","9223372036854775807"]
 sheet.set_cell of [s,"A2","5000000000"]
@@ -8,11 +9,11 @@ sheet.set_cell of [s,"B2","=A2*A2"]
 sheet.set_cell of [s,"B3","=A3+A3"]
 sheet.recalc of s
 sheet.sort_range of [s,0,0,1,2,0,0]
-print of ("sorted A1=" + (sheet.display of [s,"A1"]) + " B1=" + (sheet.display of [s,"B1"]) + " B3=" + (sheet.display of [s,"B3"]))
+bar_stage of [s, "sorted", ["A1","A2","A3","B1","B2","B3"]]
 cp is sheet.copy_block of [s,1,0,1,2]
 sheet.paste_block of [s,cp,2,0]
 sheet.recalc of s
-print of ("filled C3=" + (sheet.display of [s,"C3"]) + " raw=" + s.cells["C3"])
+bar_stage of [s, "filled", ["C1","C2","C3"]]
 sheet.set_cell of [s,"D1","=SUM(A1:A3)"]
 sheet.recalc of s
-print of ("D1=" + (sheet.display of [s,"D1"]))
+bar_stage of [s, "summed", ["D1"]]

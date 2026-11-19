@@ -1,0 +1,45 @@
+# Printing helpers for the number bar's api programs (tests/number_bar.py
+# loads this file beside each program).  A STAGE line starts a stage; CELL and
+# NAME lines give every cell's raw content and every defined name at that
+# point, so the tool can give the same sheet to LibreOffice Calc; a VAL line is
+# one judged answer as [kind, value, display] (kind N number, L logical,
+# S text, E error).
+import sheet
+
+define bar_answer(s, a) as:
+    local d is sheet.display of [s, a]
+    if (has_key of [s.err, a]):
+        return ["E", "", d]
+    local v is sheet.get of [s, a]
+    if (type of v) == "num":
+        return ["N", str of v, d]
+    if (type of v) == "dict" and (has_key of [v, "b"]):
+        return ["L", str of v.b, d]
+    if (type of v) == "str":
+        return ["S", v, d]
+    return ["?", str of v, d]
+
+define bar_stage(s, stage, judged) as:
+    print of ("STAGE\t" + stage)
+    local ks is keys of s.cells
+    for k in ks:
+        print of ("CELL\t" + k + "\t" + (json_encode of (s.cells[k])))
+    local ns is keys of s.names
+    for k in ns:
+        print of ("NAME\t" + k + "\t" + (json_encode of (s.names[k])))
+    for a in judged:
+        print of ("VAL\t" + stage + ":" + a + "\t" + (json_encode of (bar_answer of [s, a])))
+
+define bar_value(key, v, d) as:
+    if (type of v) == "num":
+        print of ("VAL\t" + key + "\t" + (json_encode of (["N", str of v, d])))
+    else:
+        print of ("VAL\t" + key + "\t" + (json_encode of (["S", v, d])))
+
+# How the sheet shows a number that is not in a cell (the status bar's Sum and
+# Average, goal seek's root): display of a cell that holds it, which is the
+# module's _fmt of it, the formatting the status bar uses.
+define bar_shown(v) as:
+    local t is sheet.new_sheet of null
+    sheet.set_cell of [t, "A1", str of v]
+    return sheet.display of [t, "A1"]

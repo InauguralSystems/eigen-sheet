@@ -1,14 +1,41 @@
 {
-  "rule": "Expected printed lines come only from the adjacent Calc operation rule, never from an EigenScript run.",
+  "rule": "Each item is one answer a program prints with bar_api.eigs. calc=cell: LibreOffice Calc evaluates the same cell of the same sheet (the stage's raw contents and names as the program printed them, or Calc's own read of a CSV when the stage has a start). calc=<formula>: Calc evaluates that formula over the stage's cells. calc=csv-out: Calc writes the range as CSV (contents as shown) and each field is compared by the bar's rule. rule=<text>: no Calc operation answers it; expect is written in Calc's spelling from the stated rule and counted apart (rule_examined, rule_differ).",
   "programs": {
-    "sc-1-named.eigs": {"rule": "Calc names do not change double arithmetic; SUM and each multiplication of two 9223372036854775807 values display the same rounded double, while 1+1 is 2.", "expect": ["A1=1.8446744073709552e+19", "A2=1.8446744073709552e+19", "A3=1.8446744073709552e+19", "A4=1.8446744073709552e+19", "A5=2"]},
-    "sc-2-pivot.eigs": {"rule": "Omitted: the review program uses a pivot API layout for which no independent Calc-to-printed-line mapping was supplied.", "expect": []},
-    "sc-3-pivot-avg.eigs": {"rule": "Omitted: the review program uses a pivot API layout for which no independent Calc-to-printed-line mapping was supplied.", "expect": []},
-    "sc-4-sort-fill.eigs": {"rule": "Calc sorts rows, moves their formulas, fills by relative reference, and SUM uses double addition.", "expect": ["sorted A1=1 B1=1.8446744073709552e+19 B3=2", "filled C3=3.6893488147419103e+19 raw==B1*2", "D1=9.223372041854776e+18"]},
-    "sc-5-goalseek.eigs": {"rule": "Calc double multiplication gives 2.5e19; goal seek for x squared equal to 1e20 gives 1e10 and leaves the control formula at 2.", "expect": ["before A1=2.5e+19", "goal x=10000000000.0 A1=1e+20 B1=10000000000 A2=2"]},
-    "sc-6-csv.eigs": {"rule": "Calc imports nineteen-digit CSV numerics as doubles, evaluates formulas as doubles, and exports the displayed double values.", "expect": ["C1=1.8446744073709552e+19 C2=4.503599627370496e+25 A2=9007199254740992", "D1=1.8446744073709552e+19 D2=9.223372036854776e+18", "csv out=9.223372036854776e+18,9.223372036854776e+18,1.8446744073709552e+19,1.8446744073709552e+19", "9.007199254740992e+15,5000000000,4.503599627370496e+25,9.223372036854776e+18"]},
-    "sc-7-saveload.eigs": {"rule": "Calc stores and CSV-round-trips 9007199254740993 as its nearest double, 9007199254740992.", "expect": ["csv1=9007199254740992", "9007199254740992", "9007199254740992", "csv2=9007199254740992", "9007199254740992", "9007199254740992 A1=9007199254740992"]},
-    "sc-8-statusbar.eigs": {"rule": "Omitted: Calc's status bar has no stable textual serialization matching this library record.", "expect": []},
-    "sc-9-canonical.eigs": {"rule": "Calc SUMIF returns 20, IFERROR catches the missing VLOOKUP as 0, and COUNTIF returns 1.", "expect": ["A1=20  A2=0  A3=1"]}
+    "sc-1-named.eigs": {"items": [
+      {"id": "named:A1", "calc": "cell"}, {"id": "named:A2", "calc": "cell"}, {"id": "named:A3", "calc": "cell"},
+      {"id": "named:A4", "calc": "cell"}, {"id": "named:A5", "calc": "cell"}]},
+    "sc-2-pivot.eigs": {"items": [
+      {"id": "pivot:O2", "calc": "=SUM(L2:L3)", "note": "the SUM row of key a (L2 and L3)"},
+      {"id": "pivot:O3", "calc": "=SUM(L2:L3)", "note": "the grand total"}]},
+    "sc-3-pivot-avg.eigs": {"items": [
+      {"id": "pivot:O2", "calc": "=AVERAGE(L2:L2)", "note": "the AVERAGE row of key a (L2)"},
+      {"id": "pivot:O3", "calc": "=AVERAGE(L3:L4)", "note": "the AVERAGE row of key b (L3 and L4)"},
+      {"id": "pivot:O4", "calc": "=AVERAGE(L2:L4)", "note": "the grand total"}]},
+    "sc-4-sort-fill.eigs": {"items": [
+      {"id": "sorted:A1", "calc": "cell"}, {"id": "sorted:A2", "calc": "cell"}, {"id": "sorted:A3", "calc": "cell"},
+      {"id": "sorted:B1", "calc": "cell"}, {"id": "sorted:B2", "calc": "cell"}, {"id": "sorted:B3", "calc": "cell"},
+      {"id": "filled:C1", "calc": "cell"}, {"id": "filled:C2", "calc": "cell"}, {"id": "filled:C3", "calc": "cell"},
+      {"id": "summed:D1", "calc": "cell"}]},
+    "sc-5-goalseek.eigs": {"items": [
+      {"id": "before:A1", "calc": "cell"}, {"id": "before:A2", "calc": "cell"},
+      {"id": "goal:x", "rule": "goal seek of A1=B1*B1 to 1E20 by B1: the root is 1E10", "expect": "1.00000000000000E+10"},
+      {"id": "after:B1", "rule": "goal seek leaves its root in B1: 1E10", "expect": "1.00000000000000E+10"},
+      {"id": "after:A1", "calc": "cell"}, {"id": "after:A2", "calc": "cell"}]},
+    "sc-6-csv.eigs": {"stages": {"read": {"start": "csv:big.csv", "add": ["D1", "D2"]}}, "items": [
+      {"id": "read:A1", "calc": "cell"}, {"id": "read:B1", "calc": "cell"}, {"id": "read:C1", "calc": "cell"},
+      {"id": "read:A2", "calc": "cell"}, {"id": "read:B2", "calc": "cell"}, {"id": "read:C2", "calc": "cell"},
+      {"id": "read:D1", "calc": "cell"}, {"id": "read:D2", "calc": "cell"},
+      {"id": "read:csv", "calc": "csv-out", "range": "A1:D2"}]},
+    "sc-7-saveload.eigs": {"stages": {"loaded": {"start": "csv-of:saved:csv"}}, "items": [
+      {"id": "saved:A1", "calc": "cell"}, {"id": "saved:A2", "calc": "cell"}, {"id": "saved:A3", "calc": "cell"},
+      {"id": "saved:csv", "calc": "csv-out", "range": "A1:A3"},
+      {"id": "loaded:A1", "calc": "cell"}, {"id": "loaded:A2", "calc": "cell"}, {"id": "loaded:A3", "calc": "cell"},
+      {"id": "loaded:csv", "calc": "csv-out", "range": "A1:A3"}]},
+    "sc-8-statusbar.eigs": {"items": [
+      {"id": "status:sum", "calc": "=SUM(A1:A2)"},
+      {"id": "status:average", "calc": "=AVERAGE(A1:A2)"},
+      {"id": "status:count", "calc": "=COUNT(A1:A2)"}]},
+    "sc-9-canonical.eigs": {"items": [
+      {"id": "canonical:A1", "calc": "cell"}, {"id": "canonical:A2", "calc": "cell"}, {"id": "canonical:A3", "calc": "cell"}]}
   }
 }
