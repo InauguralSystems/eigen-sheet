@@ -85,6 +85,7 @@ TARGETS = [
     ("=NA()/2", "#N/A"),
     ('=MOD("a",3)', "#VALUE!"),
     ("=IFERROR(POWER(10,400),7)", "7"),
+    ("=IFERROR(0^-1,7)", "7"),
     ("=IFERROR(1E300*1E10,7)", "7"),
     ("=ISERROR(POWER(10,400))", "TRUE"),
     ('=CONCATENATE(POWER(10,400),"x")', "#NUM!"),

@@ -1,1 +1,1 @@
-Spreadsheet formula values now use binary64 arithmetic, preserve the first error, reject non-finite results before consumers see them, and spell negative zero as `0` (#101).
+Spreadsheet formula values now cross one binary64 boundary at literals, cells, ranges, conversions and function results; runtime failures are contained per cell, non-finite results are catchable, and negative zero displays as `0` (#101).

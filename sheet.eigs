@@ -606,6 +606,10 @@ define _sign(x) as:
 # from zero (ROUND), 1 = always away from zero (ROUNDUP), 2 = toward zero
 # (ROUNDDOWN/TRUNC). nd may be negative, e.g. ROUND(1234,-2)=1200.
 define _round_dp(x, nd, mode) as:
+    # Calc refuses decimal-place magnitudes whose 10^nd scaling is not a
+    # finite formula number. Check before floor/ceil sees an infinity.
+    if nd > 308 or nd < -308:
+        return {"round_error": 1}
     local factor is pow of [10, floor of nd]
     local y is x * factor
     local ay is y
@@ -783,13 +787,13 @@ define _ref_val(st, col, row) as:
 # reject a scalar first with _ref_arg.
 define _range_values(st, rg) as:
     if rg.r != 1:
-        return [rg.v]
+        return [_formula_number of [st, rg.v]]
     local out is []
     local r is rg.r1
     loop while r <= rg.r2:
         local c is rg.c1
         loop while c <= rg.c2:
-            append of [out, _ref_val of [st, c, r]]
+            append of [out, _formula_number of [st, _ref_val of [st, c, r]]]
             c is c + 1
         r is r + 1
     return out
@@ -936,11 +940,11 @@ define _wild_match(s, p) as:
 
 # a value as a number, or 0 for anything non-numeric (no error — SUMIF etc. just
 # skip text in the sum range).
-define _numor0(v) as:
+define _numor0(st, v) as:
     if (type of v) == "num":
-        return v
+        return _formula_number of [st, v]
     if (_is_bool of v) == 1:
-        return v.b
+        return _formula_number of [st, v.b]
     return 0
 
 # keep only the numeric values of a flat range list (for PERCENTILE / RANK).
@@ -1008,7 +1012,7 @@ define _crit_reduce(keys, vals, crit, agg) as:
         if (_crit_test of [keys[i], crit]) == 1:
             count is count + 1
             if i < (len of vals):
-                total is total + (_numor0 of vals[i])
+                total is total + (_numor0 of [st, vals[i]])
     if agg == 0:
         return count
     if agg == 1:
@@ -1579,7 +1583,7 @@ define _eval_factor_raw(st) as:
                     if fa[ai].r == 1:
                         local rv is _range_values of [st, fa[ai]]
                         for j in range of (len of rv):
-                            append of [cf, _numor0 of rv[j]]
+                            append of [cf, _numor0 of [st, rv[j]]]
                     else:
                         append of [cf, _to_num of [st, fa[ai].v]]
                     ai is ai + 1
@@ -1876,7 +1880,7 @@ define _eval_factor_raw(st) as:
                     if ok == 1:
                         cnt is cnt + 1
                         if fname != "COUNTIFS" and ix < (len of vvals):
-                            tot is tot + (_numor0 of vvals[ix])
+                            tot is tot + (_numor0 of [st, vvals[ix]])
                 if fname == "COUNTIFS":
                     return cnt
                 if fname == "SUMIFS":
@@ -1897,7 +1901,7 @@ define _eval_factor_raw(st) as:
                     local prod is 1
                     for li in range of (len of vlists):
                         if ix < (len of vlists[li]):
-                            prod is prod * (_numor0 of vlists[li][ix])
+                            prod is prod * (_numor0 of [st, vlists[li][ix]])
                         else:
                             prod is 0
                     acc is acc + prod
@@ -2021,7 +2025,12 @@ define _eval_factor_raw(st) as:
                 if na < 2:
                     st.err is "#ERROR"
                     return ""
-                return _rept of [_to_text of targs[0], _to_num of [st, targs[1]]]
+                local repeat_text is _to_text of targs[0]
+                local repeat_count is _to_num of [st, targs[1]]
+                if repeat_count < 0 or repeat_count > 32767 or repeat_count * (len of repeat_text) > 32767:
+                    st.err is "#VALUE!"
+                    return ""
+                return _rept of [repeat_text, repeat_count]
             if fname == "PROPER":
                 if na < 1:
                     st.err is "#ERROR"
@@ -2132,7 +2141,11 @@ define _eval_factor_raw(st) as:
                     mode is 1
                 elif fname == "ROUNDDOWN" or fname == "TRUNC":
                     mode is 2
-                return _round_dp of [x, nd, mode]
+                local rounded is _round_dp of [x, nd, mode]
+                if (type of rounded) == "dict":
+                    st.err is "#NUM!"
+                    return 0
+                return rounded
             if fname == "MOD":
                 if nn < 2:
                     st.err is "#ERROR"
@@ -2385,7 +2398,9 @@ define _eval_power(st) as:
             st.err is "#NUM!"
             v is 0
         else:
-            v is pow of [v, r]
+            # Exponentiation is an operator inside the surrounding factor, so
+            # reject its IEEE non-finite result here where IFERROR can see it.
+            v is _formula_number of [st, pow of [v, r]]
     return v
 
 define _eval_term(st) as:
@@ -2784,7 +2799,14 @@ define recalc(sheet) as:
         local addr is queue[qi]
         qi is qi + 1
         dict_set of [done, addr, 1]
-        local v is _eval_st of [st, formula_toks[addr], addr]
+        local v is 0
+        try:
+            v is _eval_st of [st, formula_toks[addr], addr]
+        catch eval_error:
+            # This last-resort boundary classifies an otherwise uncaught
+            # runtime failure as #NUM!. Expected type/reference errors are
+            # produced explicitly by the evaluator before reaching this net.
+            st.err is "#NUM!"
         if st.err != "":
             dict_set of [sheet.err, addr, st.err]
             dict_set of [sheet.vals, addr, 0]
