@@ -461,8 +461,112 @@ def main(argv=None):
   T["examined"],T["differ"],T["before"],T["net"],T["crash"],T["rule_examined"],T["rule_differ"],time.monotonic()-start))
  return status
 
-# ---- self-test ---------------------------------------------------------------
+# ---- self-test: one-line mutants of this file, no LibreOffice ---------------
+def _stub_calc(table):
+ return lambda spec: {a:table[a] for a in spec["f"] if a in table}
+
+def _stub_grid(answers, crash=(), caught=()):
+ def grid(tree, binary, spec, cells, timeout=0, net=True):
+  if any(a in crash for a in cells): return "CRASH"
+  return {"cells":{a:dict(answers[a]) for a in cells},"net":[a for a in cells if a in caught]}
+ return grid
+
+def N(v, d=None): return {"kind":"N","value":v,"display":v if d is None else d}
+def E(d): return {"kind":"E","value":"","display":d}
+
+def _bar(m, tree, f, calc, answers, crash=(), caught=(), before=None, base=None):
+ """The outcome the bar gives for one set "t": the counts and exit status, or
+ TOOL-ERROR."""
+ sets={"t":{"base":base or {},"f":f,"reference":"calc"}}
+ try:
+  T,status=m.run_bar(sets,tree,"stub",before,calc=_stub_calc(calc),grid=_stub_grid(answers,crash,caught),log=lambda *x:None)
+  return "examined=%d differ=%d before=%d net=%d crash=%d status=%d"%(T["examined"],T["differ"],T["before"],T["net"],T["crash"],status)
+ except Exception as e:
+  if type(e).__name__=="ToolError": return "TOOL-ERROR"
+  raise
+
+def _one(c, mine, logical=None): return dict(f={"A1":"=1"},calc={"A1":(c,logical)},answers={"A1":mine})
+
+def _before_case(m, tree, tmp):
+ """before.json written for A1 '=X', A2 '=Y'; then the two formulas swap
+ addresses.  Matched by formula, both cells' answers are as before."""
+ old={"t":{"base":{},"f":{"A1":"=X","A2":"=Y"},"reference":"calc"}}
+ p=os.path.join(tmp,"before.json")
+ m.write_before(p,old,tree,"stub",grid=_stub_grid({"A1":N("1"),"A2":N("2")}))
+ return _bar(m,tree,{"A1":"=Y","A2":"=X"},{"A1":("9.00000000000000E+00",None),"A2":("9.00000000000000E+00",None)},
+             {"A1":N("2"),"A2":N("1")},before=json.load(open(p)))
+
+def _csv_case(m, tree, tmp):
+ """Calc's CSV loses its second row: the reader must refuse it."""
+ p=os.path.join(tmp,"short.csv"); open(p,"w").write("1,@row1\n")
+ try: m.calc_rows(p,2,2); return "read"
+ except Exception as e: return "TOOL-ERROR" if type(e).__name__=="ToolError" else repr(e)
+
+ONE = 'return abs(a - b) <= Decimal(1).scaleb(m.adjusted() - 14)'
+PLANTS = [
+ # (name, anchor, replacement, case, the clean tool's (correct) outcome)
+ ("number rule widened: a 13th-digit difference accepted", ONE, ONE.replace("- 14","- 12"),
+  lambda m,t,x: _bar(m,t,**_one("1.00000000000000E+00",N("1.000000000001"))), 'examined=1 differ=1 before=0 net=0 crash=0 status=1'),
+ ("#ERROR accepted as a match for a Calc error", 'if disp == "#ERROR": return False', 'if disp == "#ERROR": return True',
+  lambda m,t,x: _bar(m,t,**_one("Err:502",E("#ERROR"))), 'examined=1 differ=1 before=0 net=0 crash=0 status=1'),
+ ("an Err:502 expectation refused for #NUM!", 'if c.startswith("Err:"): return disp in SEVEN', 'if c.startswith("Err:"): return disp == c',
+  lambda m,t,x: _bar(m,t,**_one("Err:502",E("#NUM!"))), 'examined=1 differ=0 before=0 net=0 crash=0 status=0'),
+ ("a different error name accepted where Calc names one", "  return disp == c\n", "  return True\n",
+  lambda m,t,x: _bar(m,t,**_one("#DIV/0!",E("#NUM!"))), 'examined=1 differ=1 before=0 net=0 crash=0 status=1'),
+ ("a whole number displayed with .0 accepted", 'and not WHOLE_TEXT.fullmatch(disp): return False', 'and not WHOLE_TEXT.fullmatch(disp): pass',
+  lambda m,t,x: _bar(m,t,**_one("5.00000000000000E+00",N("5.0"))), 'examined=1 differ=1 before=0 net=0 crash=0 status=1'),
+ ("a net-caught cell counted as a match", "ok=matches(c,logical,m) and not net", "ok=matches(c,logical,m)",
+  lambda m,t,x: _bar(m,t,caught={"A1"},**_one("#NUM!",E("#NUM!"))), 'examined=1 differ=1 before=0 net=1 crash=0 status=1'),
+ ("run_chunks gives every cell of a failed chunk a value", "one=grid(tree,binary,spec,[ad],timeout=60,net=net)",
+  'one={"cells":{ad:{"kind":"N","value":"7","display":"7"}},"net":[]}',
+  lambda m,t,x: _bar(m,t,{"A1":"=1","A2":"=2"},{"A1":("7.00000000000000E+00",None),"A2":("7.00000000000000E+00",None)},
+                     {"A1":N("7"),"A2":N("7")},crash={"A2"}), 'examined=2 differ=1 before=0 net=0 crash=1 status=1'),
+ ("an empty set accepted", 'if not spec.get("f"): raise ToolError("SET %s examined=0 is invalid"%name)\n recs=',
+  'if False: raise ToolError("SET %s examined=0 is invalid"%name)\n recs=',
+  lambda m,t,x: _bar(m,t,{},{},{}), 'TOOL-ERROR'),
+ ("a missing Calc answer read as blank", 'if ad not in calc: raise ToolError("Calc has no row for %s:%s"%(name,ad))',
+  'if ad not in calc: calc[ad]=("",None)',
+  lambda m,t,x: _bar(m,t,{"A1":"=\"\""},{},{"A1":{"kind":"S","value":"","display":""}}), 'TOOL-ERROR'),
+ ("a short Calc CSV row read", 'if i>=len(rows) or len(rows[i])<last_col or rows[i][last_col-1]!="@row%d"%(i+1):', "if False:",
+  lambda m,t,x: _csv_case(m,t,x), 'TOOL-ERROR'),
+ ("a before.json key matched by address instead of formula", 'return set_name+"\\t"+formula', 'return set_name+"\\t"+address',
+  lambda m,t,x: _before_case(m,t,x), 'examined=2 differ=2 before=2 net=0 crash=0 status=1'),
+]
+CONTROLS = [
+ ("a 17th-digit difference matches", lambda m,t,x: _bar(m,t,**_one("1.00000000000000E+00",N("1.0000000000000002"))),
+  "examined=1 differ=0 before=0 net=0 crash=0 status=0"),
+ ("Err:502 matches #NUM!", lambda m,t,x: _bar(m,t,**_one("Err:502",E("#NUM!"))), "examined=1 differ=0 before=0 net=0 crash=0 status=0"),
+ ("a logical matches only as a logical", lambda m,t,x: (_bar(m,t,**_one("1.00000000000000E+00",{"kind":"L","value":"1","display":"TRUE"},"TRUE")),
+  _bar(m,t,**_one("1.00000000000000E+00",N("1"),"TRUE"))), ("examined=1 differ=0 before=0 net=0 crash=0 status=0","examined=1 differ=1 before=0 net=0 crash=0 status=1")),
+]
+
+def _load(path, name):
+ import importlib.util
+ spec=importlib.util.spec_from_file_location(name,path); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
+
 def selftest(tree):
- raise ToolError("the self-test is rewritten in the next step (plants that mutate this file)")
+ src=open(os.path.abspath(__file__),encoding="utf-8").read(); tmp=tempfile.mkdtemp(); failed=0; examined=0
+ # anchors are looked for, and edited, only above this section (the table holds them too)
+ cut=src.index("# ---- self-test: one-line mutants"); body,rest=src[:cut],src[cut:]
+ try:
+  clean=_load(os.path.abspath(__file__),"bar_clean")
+  for name,case,want in CONTROLS:
+   got=case(clean,tree,tmp); examined+=1
+   if got!=want: failed+=1; print("FAIL: control %s: %r, wanted %r"%(name,got,want))
+   else: print("PASS: control %s: %s"%(name,got))
+  for i,(name,anchor,repl,case,right) in enumerate(PLANTS):
+   examined+=1; n=body.count(anchor)
+   if n!=1: failed+=1; print("FAIL: %s: anchor found %d times"%(name,n)); continue
+   p=os.path.join(tmp,"mutant%d.py"%i); open(p,"w",encoding="utf-8").write(body.replace(anchor,repl)+rest)
+   want=case(clean,tree,tmp)
+   if want!=right: failed+=1; print("FAIL: %s: the clean tool gives %r, wanted %r"%(name,want,right)); continue
+   got=case(_load(p,"bar_mutant%d"%i),tree,tmp)
+   if got==want: failed+=1; print("FAIL: %s: the mutant gives the clean result %r"%(name,got))
+   else: print("PASS: %s: clean %s; mutant %s"%(name,want,got))
+ finally: shutil.rmtree(tmp)
+ total=len(CONTROLS)+len(PLANTS)
+ if not (examined==total>0): failed+=1
+ print("SELFTEST examined=%d of %d failed=%d"%(examined,total,failed))
+ return 1 if failed else 0
 
 if __name__=="__main__": sys.exit(main())
