@@ -1,0 +1,14 @@
+{
+  "rule": "Expected printed lines come only from the adjacent Calc operation rule, never from an EigenScript run.",
+  "programs": {
+    "sc-1-named.eigs": {"rule": "Calc names do not change double arithmetic; SUM and each multiplication of two 9223372036854775807 values display the same rounded double, while 1+1 is 2.", "expect": ["A1=1.8446744073709552e+19", "A2=1.8446744073709552e+19", "A3=1.8446744073709552e+19", "A4=1.8446744073709552e+19", "A5=2"]},
+    "sc-2-pivot.eigs": {"rule": "Omitted: the review program uses a pivot API layout for which no independent Calc-to-printed-line mapping was supplied.", "expect": []},
+    "sc-3-pivot-avg.eigs": {"rule": "Omitted: the review program uses a pivot API layout for which no independent Calc-to-printed-line mapping was supplied.", "expect": []},
+    "sc-4-sort-fill.eigs": {"rule": "Calc sorts rows, moves their formulas, fills by relative reference, and SUM uses double addition.", "expect": ["sorted A1=1 B1=1.8446744073709552e+19 B3=2", "filled C3=3.6893488147419103e+19 raw==B1*2", "D1=9.223372041854776e+18"]},
+    "sc-5-goalseek.eigs": {"rule": "Calc double multiplication gives 2.5e19; goal seek for x squared equal to 1e20 gives 1e10 and leaves the control formula at 2.", "expect": ["before A1=2.5e+19", "goal x=10000000000.0 A1=1e+20 B1=10000000000 A2=2"]},
+    "sc-6-csv.eigs": {"rule": "Calc imports nineteen-digit CSV numerics as doubles, evaluates formulas as doubles, and exports the displayed double values.", "expect": ["C1=1.8446744073709552e+19 C2=4.503599627370496e+25 A2=9007199254740992", "D1=1.8446744073709552e+19 D2=9.223372036854776e+18", "csv out=9.223372036854776e+18,9.223372036854776e+18,1.8446744073709552e+19,1.8446744073709552e+19", "9.007199254740992e+15,5000000000,4.503599627370496e+25,9.223372036854776e+18"]},
+    "sc-7-saveload.eigs": {"rule": "Calc stores and CSV-round-trips 9007199254740993 as its nearest double, 9007199254740992.", "expect": ["csv1=9007199254740992", "9007199254740992", "9007199254740992", "csv2=9007199254740992", "9007199254740992", "9007199254740992 A1=9007199254740992"]},
+    "sc-8-statusbar.eigs": {"rule": "Omitted: Calc's status bar has no stable textual serialization matching this library record.", "expect": []},
+    "sc-9-canonical.eigs": {"rule": "Calc SUMIF returns 20, IFERROR catches the missing VLOOKUP as 0, and COUNTIF returns 1.", "expect": ["A1=20  A2=0  A3=1"]}
+  }
+}

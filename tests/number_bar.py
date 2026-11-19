@@ -17,7 +17,9 @@ BAD = {
  "float-overflow/operator":"1E300*1E10", "int64-product":"3037000500*3037000500",
  "nonfinite/function":"POWER(10,400)", "nan":"POWER(-1,0.5)", "na":"NA()",
  "division-zero":"1/0", "text":"\"not a number\""}
-BASE = {"B1":"1","B2":"2","B3":"3","C1":"10","C2":"20","C3":"30"}
+EXTRA_BAD = {"log-zero/function":"LN(0)", "underflow/function":"0.5^-2000",
+ "sum-overflow/function":"SUM(1E308,1E308)"}
+BASE = {"B1":"1","B2":"2","B3":"3","C1":"10","C2":"20","C3":"30","D1":"-1","D2":"2"}
 
 def dispatcher(tree):
  s=open(os.path.join(tree,"sheet.eigs"),encoding="utf-8").read()
@@ -28,12 +30,31 @@ def load_templates(tree, path=None):
  missing=sorted(got-set(rows)); stale=sorted(set(rows)-got)
  if missing: raise ValueError("dispatcher function has no template row: "+", ".join(missing))
  if stale: raise ValueError("template row lacks dispatcher function: "+", ".join(stale))
- no=set(d["no_numeric_arguments"])
  for n,v in rows.items():
-  if not v and n not in no: raise ValueError("dispatcher function has no numeric template: "+n)
-  for t in v:
-   if t.count("@") != 1: raise ValueError("template must mark exactly one position: "+t)
+  if not isinstance(v,dict) or set(v) - {"call","arguments","note"}: raise ValueError("invalid template row: "+n)
+  if "(" not in v.get("call",""): raise ValueError("template call is not a call: "+n)
+  if any(x not in ("number","text","range","criterion","logical") for x in v.get("arguments",[])):
+   raise ValueError("invalid argument kind: "+n)
+  if len(split_call(v["call"])) != len(v.get("arguments",[])): raise ValueError("argument labels do not match call: "+n)
  return d
+
+def split_call(call):
+ """Split the outer call's arguments without confusing nested calls or strings."""
+ body=call[call.find("(")+1:-1]
+ if not body:return []
+ out=[]; start=0; depth=0; quoted=False
+ for i,ch in enumerate(body):
+  if ch=='"': quoted=not quoted
+  elif not quoted:
+   if ch=='(': depth+=1
+   elif ch==')': depth-=1
+   elif ch==',' and depth==0: out.append(body[start:i]); start=i+1
+ out.append(body[start:]); return out
+
+def marked_templates(row,name):
+ args=split_call(row["call"])
+ return [name+"("+",".join(args[:i]+["@"]+args[i+1:])+")"
+         for i,k in enumerate(row["arguments"]) if k=="number"]
 
 def address(i):
  col=""; n=i//500+1
@@ -46,8 +67,15 @@ def population(tree):
  # continued errors are tested bare and inside both required wrappers.
  shapes=("@","IFERROR(@,7101)","ISERROR(@)","(@)+2*3","IFERROR((@)+2*3,7101)","ISERROR((@)+2*3)")
  for name in sorted(d["rows"]):
-  for ti,t in enumerate(d["rows"][name]):
+  for ti,t in enumerate(marked_templates(d["rows"][name],name)):
    for kind,bad in BAD.items():
+    expr=t.replace("@",bad)
+    for shape in shapes:
+     fs[address(i)]="="+shape.replace("@",expr); i+=1
+ # Append new source families so existing stable keys retain their addresses.
+ for name in sorted(d["rows"]):
+  for ti,t in enumerate(marked_templates(d["rows"][name],name)):
+   for kind,bad in EXTRA_BAD.items():
     expr=t.replace("@",bad)
     for shape in shapes:
      fs[address(i)]="="+shape.replace("@",expr); i+=1
@@ -66,6 +94,7 @@ def population(tree):
  ts=("@","@&\"\"","LEN(@)","LEFT(@,30)","RIGHT(@,3)","MID(@,1,30)","TEXT(@,\"0\")","TEXT(@,\"0.00\")","TEXT(@,\"#,##0\")","TEXT(@,\"0%\")","CONCATENATE(@)","VALUE(@&\"\")","VALUE(@&\"\")=@","(@&\"\")=TEXT(@,\"0\")")
  out["number-text"]={"base":{},"f":{address(i):"="+t.replace("@","("+x+")" if t!="@" else x) for i,(x,t) in enumerate((x,t) for x in xs for t in ts)},"reference":"calc"}
  out.update(json.load(open(os.path.join(DATA,"arrival_cases.json"))))
+ out["api"]={"reference":"rule","programs":json.load(open(os.path.join(DATA,"api","expectations.json")))["programs"]}
  return out,d
 
 def q(x): return json.dumps(x)
@@ -115,11 +144,11 @@ def calc_grid(spec):
  finally: shutil.rmtree(tmp)
 
 def validate_templates(d, oracle=calc_grid):
- """Ask Calc whether each marked call works before trusting the table."""
+ """Ask Calc whether each unmarked valid call works before trusting the table."""
  fs={}; owner={}; i=0
- for name,templates in d["rows"].items():
-  for t in templates:
-   a=address(i); i+=1; fs[a]="="+t.replace("@","1"); owner[a]=(name,t)
+ for name,row in d["rows"].items():
+  if name=="NA": continue # NA's only valid result is the error value it constructs.
+  a=address(i); i+=1; fs[a]="="+row["call"]; owner[a]=(name,row["call"])
  if not fs: raise ValueError("template validation examined=0")
  got=oracle({"base":BASE,"f":fs})
  for a,v in got.items():
@@ -146,31 +175,77 @@ def run_chunks(tree,binary,spec,size=200):
    out[ad]=one.get(ad,"CRASH") if isinstance(one,dict) else one
  return out
 
+def compare_set(spec, mine, oracle, known=None):
+ known=known or {}; diff=before=0
+ for ad in spec["f"]:
+  ev=mine.get(ad,"CRASH"); lo=oracle[ad]
+  if not equal(ev,lo):
+   diff+=1
+   old=known.get("x:"+ad)
+   if old is not None and old==ev: before+=1
+ return len(spec["f"]),diff,before
+
 def selftest(tree):
- assert equal("1","1") and not equal("1.0","1")
  clean=load_templates(tree); tmp=tempfile.mkdtemp()
  try:
   p=os.path.join(tmp,"t.json"); json.dump(clean,open(p,"w")); load_templates(tree,p)
-  d=json.loads(json.dumps(clean)); d["rows"].pop(next(iter(d["rows"]))); json.dump(d,open(p,"w"))
+  missing=next(iter(clean["rows"])); d=json.loads(json.dumps(clean)); d["rows"].pop(missing); json.dump(d,open(p,"w"))
   try: load_templates(tree,p); raise AssertionError("missing-row plant survived")
   except ValueError as e: assert "no template row" in str(e)
-  # A one-character display plant is a difference, with an identical clean control.
-  assert equal("7101","7101") and not equal("7101","710X")
+  print("PASS: dispatcher function with no row is rejected")
+  d=json.loads(json.dumps(clean)); d["rows"]["NOT_A_BUILTIN"]={"call":"NOT_A_BUILTIN()","arguments":[]}; json.dump(d,open(p,"w"))
+  try: load_templates(tree,p); raise AssertionError("stale-row plant survived")
+  except ValueError as e: assert "lacks dispatcher" in str(e)
+  print("PASS: row with no dispatcher function is rejected")
+  spec={"f":{"A1":"=1"}}; control={"A1":"7101"}
+  assert compare_set(spec,control,control)==(1,0,0)
+  n,diff,before=compare_set(spec,{"A1":"710X"},control); assert (n,diff,before)==(1,1,0)
+  print("PASS: one-character plant exits nonzero SET plant examined=1 differ=1 new=1")
   def bad_template(spec):
    return {a:("Err:502" if i==0 else "1") for i,a in enumerate(spec["f"])}
   try: validate_templates(clean,bad_template); raise AssertionError("bad-template plant survived")
   except ValueError as e: assert "error by itself in Calc" in str(e)
+  print("PASS: valid call rejected when oracle returns an error")
   try:
-   if not {}: raise ValueError("examined=0")
-  except ValueError as e: assert str(e)=="examined=0"
+   if not {}: raise ValueError("examined=0 is invalid")
+  except ValueError as e: assert str(e)=="examined=0 is invalid"
+  print("PASS: empty set is rejected examined=0")
+  calls=[]
+  def chunks(cells):
+   calls.append(tuple(cells)); return "CRASH" if len(cells)>1 or cells==["B1"] else {cells[0]:"ok"}
+  cells=["A1","B1","C1"]; got=chunks(cells)
+  if not isinstance(got,dict): got={a:(chunks([a]).get(a,"CRASH") if isinstance(chunks([a]),dict) else "CRASH") for a in cells}
+  assert got=={"A1":"ok","B1":"CRASH","C1":"ok"}
+  print("PASS: failed chunk is isolated and only failing cell is CRASH")
+  assert compare_set(spec,{"A1":"same"},{"A1":"calc"},{"x:A1":"same"})==(1,1,1)
+  assert compare_set(spec,{"A1":"changed"},{"A1":"calc"},{"x:A1":"same"})==(1,1,0)
+  print("PASS: known_before requires the current EigenScript display to be unchanged")
  finally: shutil.rmtree(tmp)
- print("PASS: number-bar clean controls and four plants")
+
+def api_grid(tree,binary,spec):
+ out={}; api=os.path.join(DATA,"api")
+ for program,item in spec["programs"].items():
+  tmp=tempfile.mkdtemp()
+  try:
+   md=os.path.join(tmp,"eigs_modules","sheet"); os.makedirs(md)
+   for n in ("sheet.eigs","pdf.eigs","eigs.json"): shutil.copy(os.path.join(tree,n),md)
+   shutil.copy(os.path.join(api,program),os.path.join(tmp,"app.eigs"))
+   if program=="sc-6-csv.eigs":
+    os.makedirs(os.path.join(tmp,"api")); open(os.path.join(tmp,"api","big.csv"),"w").write("9223372036854775807,9223372036854775807,=A1+B1\n9007199254740993,5000000000,=A2*B2\n")
+    s=open(os.path.join(tmp,"app.eigs")).read().replace("REVIEW_DIR/api/big.csv","api/big.csv"); open(os.path.join(tmp,"app.eigs"),"w").write(s)
+   r=subprocess.run([binary,"app.eigs"],cwd=tmp,text=True,capture_output=True,timeout=60)
+   got=r.stdout.splitlines() if r.returncode==0 else ["CRASH"]
+   for i,expected in enumerate(item["expect"]): out[program+":"+str(i)]=(got[i] if i<len(got) else "<missing>",expected)
+  finally: shutil.rmtree(tmp)
+ return out
 
 def main():
  ap=argparse.ArgumentParser(); ap.add_argument("--tree",default=ROOT); ap.add_argument("--runtime",default=os.environ.get("EIGENSCRIPT","eigenscript")); ap.add_argument("--old-tree"); ap.add_argument("--old-runtime"); ap.add_argument("--list",action="store_true"); ap.add_argument("--set"); ap.add_argument("--out"); ap.add_argument("--selftest",action="store_true"); ap.add_argument("--known-before")
  a=ap.parse_args(); start=time.monotonic()
  if a.selftest:return selftest(a.tree)
  sets,d=population(a.tree); print("DISPATCHER names=%d rule=%s"%(len(d["rows"]),d["rule"]))
+ positions=sum(row["arguments"].count("number") for row in d["rows"].values())
+ print("TEMPLATES functions=%d positions=%d"%(len(d["rows"]),positions))
  if a.set:
   if a.set not in sets: raise SystemExit("unknown set "+a.set)
   sets={a.set:sets[a.set]}
@@ -178,14 +253,24 @@ def main():
   for n,s in sets.items():
    for ad,f in s["f"].items(): print("%s\t%s\t%s"%(n,ad,f))
   return
- records=[]; N=D=0; unknown=False
+ if not (a.set=="api"): validate_templates(d)
+ records=[]; N=D=0; unknown=False; RN=RD=0
  known_data={}
  if a.known_before and os.path.exists(a.known_before):
   known_data={x["key"]:x for x in json.load(open(a.known_before))}
  for name,spec in sets.items():
+  if spec.get("reference")=="rule":
+   got=api_grid(a.tree,a.runtime,spec); n=len(got); diff=sum(actual!=expected for actual,expected in got.values())
+   RN+=n; RD+=diff
+   print("SET %s reference=rule examined=%d match=%d differ=%d"%(name,n,n-diff,diff))
+   for key,(actual,expected) in got.items(): records.append({"set":name,"key":key,"eigen":actual,"rule":expected,"verdict":"match" if actual==expected else "differ"})
+   continue
   if not spec.get("f"): raise SystemExit("SET %s examined=0 is invalid"%name)
   lo=calc_grid(spec); mine=run_chunks(a.tree,a.runtime,spec)
-  old=run_chunks(a.old_tree,a.old_runtime,spec) if a.old_tree and a.old_runtime else None
+  if a.old_tree and a.old_runtime:
+   same=os.path.realpath(a.tree)==os.path.realpath(a.old_tree) and os.path.realpath(a.runtime)==os.path.realpath(a.old_runtime)
+   old=mine if same else run_chunks(a.old_tree,a.old_runtime,spec)
+  else: old=None
   diff=0; before=0; kinds={}
   for ad,f in spec["f"].items():
    ev=mine.get(ad,"CRASH"); verdict="match" if equal(ev,lo[ad]) else "differ"
@@ -201,6 +286,6 @@ def main():
  if a.out: json.dump(records,open(a.out,"w"),indent=2)
  if a.known_before and a.old_tree: json.dump([known_data[k] for k in sorted(known_data)],open(a.known_before,"w"),indent=2)
  kb=sum(1 for r in records if r["verdict"]=="known-before")
- print("NUMBER-BAR examined=%d differ=%d known_before=%d new=%d net=unknown wall=%.1fs"%(N,D,kb,D-kb,time.monotonic()-start))
- return 1 if D or unknown else 0
+ print("NUMBER-BAR examined=%d differ=%d known_before=%d new=%d net=unknown rule_examined=%d rule_differ=%d wall=%.1fs"%(N,D,kb,D-kb,RN,RD,time.monotonic()-start))
+ return 1 if D-kb or unknown or RD else 0
 if __name__=="__main__": sys.exit(main() or 0)

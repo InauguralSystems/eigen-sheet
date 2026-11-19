@@ -1,0 +1,1 @@
+- Complete the number-boundary bar's argument-position, self-test, and API-rule coverage (#104).

@@ -1,366 +1,794 @@
 {
-  "no_numeric_arguments": [
-    "FALSE",
-    "NA",
-    "NOW",
-    "TODAY",
-    "TRUE"
-  ],
+  "rule": "One Calc-valid call per dispatcher function. arguments labels every position; each number position is expanded to one marked template by the tool. Calc signatures decide membership.",
   "rows": {
-    "ABS": [
-      "ABS(@)"
-    ],
-    "AND": [
-      "AND(@)"
-    ],
-    "AVERAGE": [
-      "AVERAGE(@,1)"
-    ],
-    "AVERAGEIF": [
-      "AVERAGEIF(B1:B3,\">0\",@)"
-    ],
-    "AVERAGEIFS": [
-      "AVERAGEIFS(B1:B3,B1:B3,\">0\",@)"
-    ],
-    "AVG": [
-      "AVG(@,1)"
-    ],
-    "CEILING": [
-      "CEILING(@,1)",
-      "CEILING(5,@)"
-    ],
-    "CELL": [
-      "CELL(\"row\",@)"
-    ],
-    "CHAR": [
-      "CHAR(@)"
-    ],
-    "CODE": [
-      "CODE(@)"
-    ],
-    "COLUMN": [
-      "COLUMN(@)"
-    ],
-    "COLUMNS": [
-      "COLUMNS(@)"
-    ],
-    "CONCATENATE": [
-      "CONCATENATE(@,\"x\")"
-    ],
-    "COUNT": [
-      "COUNT(@,1)"
-    ],
-    "COUNTA": [
-      "COUNTA(@,1)"
-    ],
-    "COUNTBLANK": [
-      "COUNTBLANK(@)"
-    ],
-    "COUNTIF": [
-      "COUNTIF(B1:B3,@)"
-    ],
-    "COUNTIFS": [
-      "COUNTIFS(B1:B3,\">0\",@)"
-    ],
-    "DATE": [
-      "DATE(@,1,1)",
-      "DATE(2020,@,1)",
-      "DATE(2020,1,@)"
-    ],
-    "DATEDIF": [
-      "DATEDIF(@,100,\"d\")",
-      "DATEDIF(1,@,\"d\")"
-    ],
-    "DATEVALUE": [
-      "DATEVALUE(@)"
-    ],
-    "DAY": [
-      "DAY(@)"
-    ],
-    "EDATE": [
-      "EDATE(@,1)",
-      "EDATE(100,@)"
-    ],
-    "EOMONTH": [
-      "EOMONTH(@,1)",
-      "EOMONTH(100,@)"
-    ],
-    "EXACT": [
-      "EXACT(@,\"1\")"
-    ],
-    "FALSE": [],
-    "FIND": [
-      "FIND(\"a\",\"abc\",@)"
-    ],
-    "FLOOR": [
-      "FLOOR(@,1)",
-      "FLOOR(5,@)"
-    ],
-    "FV": [
-      "FV(@,10,-100)",
-      "FV(0.05,@,-100)"
-    ],
-    "HLOOKUP": [
-      "HLOOKUP(@,B1:C3,1,0)"
-    ],
-    "HOUR": [
-      "HOUR(@)"
-    ],
-    "IF": [
-      "IF(@,1,2)"
-    ],
-    "IFERROR": [
-      "IFERROR(@,1)"
-    ],
-    "IFNA": [
-      "IFNA(@,1)"
-    ],
-    "IFS": [
-      "IFS(@,1)"
-    ],
-    "INDEX": [
-      "INDEX(B1:B3,@)"
-    ],
-    "INT": [
-      "INT(@)"
-    ],
-    "IPMT": [
-      "IPMT(0.05,1,@,1000)"
-    ],
-    "IRR": [
-      "IRR(@)"
-    ],
-    "ISBLANK": [
-      "ISBLANK(@)"
-    ],
-    "ISERR": [
-      "ISERR(@)"
-    ],
-    "ISERROR": [
-      "ISERROR(@)"
-    ],
-    "ISEVEN": [
-      "ISEVEN(@)"
-    ],
-    "ISLOGICAL": [
-      "ISLOGICAL(@)"
-    ],
-    "ISNA": [
-      "ISNA(@)"
-    ],
-    "ISNUMBER": [
-      "ISNUMBER(@)"
-    ],
-    "ISODD": [
-      "ISODD(@)"
-    ],
-    "ISTEXT": [
-      "ISTEXT(@)"
-    ],
-    "LEFT": [
-      "LEFT(\"abc\",@)"
-    ],
-    "LEN": [
-      "LEN(@)"
-    ],
-    "LOOKUP": [
-      "LOOKUP(@,B1:B3)"
-    ],
-    "LOWER": [
-      "LOWER(@)"
-    ],
-    "MATCH": [
-      "MATCH(@,B1:B3,0)"
-    ],
-    "MAX": [
-      "MAX(@,1)"
-    ],
-    "MEDIAN": [
-      "MEDIAN(@,1)"
-    ],
-    "MID": [
-      "MID(\"abc\",@,1)",
-      "MID(\"abc\",1,@)"
-    ],
-    "MIN": [
-      "MIN(@,1)"
-    ],
-    "MINUTE": [
-      "MINUTE(@)"
-    ],
-    "MOD": [
-      "MOD(@,2)",
-      "MOD(5,@)"
-    ],
-    "MODE": [
-      "MODE(@,1,1)"
-    ],
-    "MONTH": [
-      "MONTH(@)"
-    ],
-    "N": [
-      "N(@)"
-    ],
-    "NA": [],
-    "NOT": [
-      "NOT(@)"
-    ],
-    "NOW": [],
-    "NPER": [
-      "NPER(@,-100,1000)",
-      "NPER(0.05,@,1000)"
-    ],
-    "NPV": [
-      "NPV(@,100,200)",
-      "NPV(0.1,@,200)"
-    ],
-    "OR": [
-      "OR(@)"
-    ],
-    "PERCENTILE": [
-      "PERCENTILE(B1:B3,@)"
-    ],
-    "PMT": [
-      "PMT(@,10,1000)",
-      "PMT(0.05,@,1000)",
-      "PMT(0.05,10,@)"
-    ],
-    "POWER": [
-      "POWER(@,2)",
-      "POWER(2,@)"
-    ],
-    "PPMT": [
-      "PPMT(0.05,1,10,@)"
-    ],
-    "PRODUCT": [
-      "PRODUCT(@,2)"
-    ],
-    "PROPER": [
-      "PROPER(@)"
-    ],
-    "PV": [
-      "PV(0.05,10,@)"
-    ],
-    "RANK": [
-      "RANK(@,B1:B3)"
-    ],
-    "RATE": [
-      "RATE(@,-100,1000)"
-    ],
-    "REPLACE": [
-      "REPLACE(\"abc\",@,1,\"z\")"
-    ],
-    "REPT": [
-      "REPT(\"a\",@)"
-    ],
-    "RIGHT": [
-      "RIGHT(\"abc\",@)"
-    ],
-    "ROUND": [
-      "ROUND(@,0)",
-      "ROUND(1.5,@)"
-    ],
-    "ROUNDDOWN": [
-      "ROUNDDOWN(@,0)"
-    ],
-    "ROUNDUP": [
-      "ROUNDUP(@,0)"
-    ],
-    "ROW": [
-      "ROW(@)"
-    ],
-    "ROWS": [
-      "ROWS(@)"
-    ],
-    "SEARCH": [
-      "SEARCH(\"a\",@)"
-    ],
-    "SECOND": [
-      "SECOND(@)"
-    ],
-    "SIGN": [
-      "SIGN(@)"
-    ],
-    "SQRT": [
-      "SQRT(@)"
-    ],
-    "STDEV": [
-      "STDEV(@,1)"
-    ],
-    "STDEVP": [
-      "STDEVP(@,1)"
-    ],
-    "SUBSTITUTE": [
-      "SUBSTITUTE(\"aa\",\"a\",\"b\",@)"
-    ],
-    "SUM": [
-      "SUM(@,1)"
-    ],
-    "SUMIF": [
-      "SUMIF(B1:B3,\">0\",@)"
-    ],
-    "SUMIFS": [
-      "SUMIFS(B1:B3,B1:B3,\">0\",@)"
-    ],
-    "SUMPRODUCT": [
-      "SUMPRODUCT(@,2)"
-    ],
-    "SWITCH": [
-      "SWITCH(@,1,\"a\",\"b\")"
-    ],
-    "T": [
-      "T(@)"
-    ],
-    "TEXT": [
-      "TEXT(@,\"0.00\")",
-      "TEXT(@,\"#,##0\")"
-    ],
-    "TEXTJOIN": [
-      "TEXTJOIN(\",\",@,\"a\")"
-    ],
-    "TIME": [
-      "TIME(@,0,0)",
-      "TIME(0,@,0)"
-    ],
-    "TODAY": [],
-    "TRIM": [
-      "TRIM(@)"
-    ],
-    "TRUE": [],
-    "TRUNC": [
-      "TRUNC(@)"
-    ],
-    "TYPE": [
-      "TYPE(@)"
-    ],
-    "UPPER": [
-      "UPPER(@)"
-    ],
-    "VALUE": [
-      "VALUE(@)"
-    ],
-    "VAR": [
-      "VAR(@,1)"
-    ],
-    "VARP": [
-      "VARP(@,1)"
-    ],
-    "VLOOKUP": [
-      "VLOOKUP(@,B1:C3,2,0)"
-    ],
-    "WEEKDAY": [
-      "WEEKDAY(@)",
-      "WEEKDAY(100,@)"
-    ],
-    "XLOOKUP": [
-      "XLOOKUP(@,B1:B3,C1:C3)"
-    ],
-    "XOR": [
-      "XOR(@,1)"
-    ],
-    "YEAR": [
-      "YEAR(@)"
-    ]
-  },
-  "rule": "unique names matching fname == \"NAME\" in sheet.eigs; repeated clauses and aliases explain 229 textual tests versus 115 reachable names"
+    "ABS": {
+      "call": "ABS(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "AND": {
+      "call": "AND(1)",
+      "arguments": [
+        "logical"
+      ]
+    },
+    "AVERAGE": {
+      "call": "AVERAGE(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "AVERAGEIF": {
+      "call": "AVERAGEIF(B1:B3,\">0\",B1:B3)",
+      "arguments": [
+        "range",
+        "criterion",
+        "range"
+      ]
+    },
+    "AVERAGEIFS": {
+      "call": "AVERAGEIFS(B1:B3,B1:B3,\">0\")",
+      "arguments": [
+        "range",
+        "range",
+        "criterion"
+      ]
+    },
+    "AVG": {
+      "call": "AVERAGE(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ],
+      "note": "AVG is the dispatcher alias; Calc validates its AVERAGE equivalent."
+    },
+    "CEILING": {
+      "call": "CEILING(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "CELL": {
+      "call": "CELL(\"row\",B1)",
+      "arguments": [
+        "text",
+        "range"
+      ],
+      "note": "sheet.eigs evaluates the second argument, but Calc signature requires a cell reference, so it is outside the numeric-position population."
+    },
+    "CHAR": {
+      "call": "CHAR(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "CODE": {
+      "call": "CODE(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "COLUMN": {
+      "call": "COLUMN(B1:B3)",
+      "arguments": [
+        "range"
+      ],
+      "note": "Calc signature requires a reference/array; not a numeric scalar position."
+    },
+    "COLUMNS": {
+      "call": "COLUMNS(B1:B3)",
+      "arguments": [
+        "range"
+      ],
+      "note": "Calc signature requires a reference/array; not a numeric scalar position."
+    },
+    "CONCATENATE": {
+      "call": "CONCATENATE(1,\"x\")",
+      "arguments": [
+        "number",
+        "text"
+      ]
+    },
+    "COUNT": {
+      "call": "COUNT(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "COUNTA": {
+      "call": "COUNTA(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "COUNTBLANK": {
+      "call": "COUNTBLANK(B1:B3)",
+      "arguments": [
+        "range"
+      ]
+    },
+    "COUNTIF": {
+      "call": "COUNTIF(B1:B3,1)",
+      "arguments": [
+        "range",
+        "number"
+      ]
+    },
+    "COUNTIFS": {
+      "call": "COUNTIFS(B1:B3,\">0\")",
+      "arguments": [
+        "range",
+        "criterion"
+      ]
+    },
+    "DATE": {
+      "call": "DATE(1,1,1)",
+      "arguments": [
+        "number",
+        "number",
+        "number"
+      ]
+    },
+    "DATEDIF": {
+      "call": "DATEDIF(1,100,\"d\")",
+      "arguments": [
+        "number",
+        "number",
+        "text"
+      ]
+    },
+    "DATEVALUE": {
+      "call": "DATEVALUE(\"2020-01-01\")",
+      "arguments": [
+        "text"
+      ]
+    },
+    "DAY": {
+      "call": "DAY(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "EDATE": {
+      "call": "EDATE(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "EOMONTH": {
+      "call": "EOMONTH(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "EXACT": {
+      "call": "EXACT(1,\"1\")",
+      "arguments": [
+        "number",
+        "text"
+      ]
+    },
+    "FALSE": {
+      "call": "FALSE()",
+      "arguments": []
+    },
+    "FIND": {
+      "call": "FIND(\"a\",\"abc\")",
+      "arguments": [
+        "text",
+        "text"
+      ]
+    },
+    "FLOOR": {
+      "call": "FLOOR(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "FV": {
+      "call": "FV(1,10,-100)",
+      "arguments": [
+        "number",
+        "number",
+        "number"
+      ]
+    },
+    "HLOOKUP": {
+      "call": "HLOOKUP(1,B1:C3,1,0)",
+      "arguments": [
+        "number",
+        "range",
+        "number",
+        "number"
+      ]
+    },
+    "HOUR": {
+      "call": "HOUR(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "IF": {
+      "call": "IF(1,1,2)",
+      "arguments": [
+        "logical",
+        "number",
+        "number"
+      ]
+    },
+    "IFERROR": {
+      "call": "IFERROR(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "IFNA": {
+      "call": "IFNA(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "IFS": {
+      "call": "IFS(1,1)",
+      "arguments": [
+        "logical",
+        "number"
+      ]
+    },
+    "INDEX": {
+      "call": "INDEX(B1:B3,1)",
+      "arguments": [
+        "range",
+        "number"
+      ]
+    },
+    "INT": {
+      "call": "INT(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "IPMT": {
+      "call": "IPMT(0.05,1,1,1000)",
+      "arguments": [
+        "number",
+        "number",
+        "number",
+        "number"
+      ]
+    },
+    "IRR": {
+      "call": "IRR(D1:D2)",
+      "arguments": [
+        "range"
+      ]
+    },
+    "ISBLANK": {
+      "call": "ISBLANK(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "ISERR": {
+      "call": "ISERR(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "ISERROR": {
+      "call": "ISERROR(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "ISEVEN": {
+      "call": "ISEVEN(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "ISLOGICAL": {
+      "call": "ISLOGICAL(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "ISNA": {
+      "call": "ISNA(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "ISNUMBER": {
+      "call": "ISNUMBER(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "ISODD": {
+      "call": "ISODD(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "ISTEXT": {
+      "call": "ISTEXT(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "LEFT": {
+      "call": "LEFT(\"abc\",1)",
+      "arguments": [
+        "text",
+        "number"
+      ]
+    },
+    "LEN": {
+      "call": "LEN(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "LOOKUP": {
+      "call": "LOOKUP(1,B1:B3)",
+      "arguments": [
+        "number",
+        "range"
+      ]
+    },
+    "LOWER": {
+      "call": "LOWER(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "MATCH": {
+      "call": "MATCH(1,B1:B3,0)",
+      "arguments": [
+        "number",
+        "range",
+        "number"
+      ]
+    },
+    "MAX": {
+      "call": "MAX(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "MEDIAN": {
+      "call": "MEDIAN(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "MID": {
+      "call": "MID(\"abc\",1,1)",
+      "arguments": [
+        "text",
+        "number",
+        "number"
+      ]
+    },
+    "MIN": {
+      "call": "MIN(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "MINUTE": {
+      "call": "MINUTE(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "MOD": {
+      "call": "MOD(1,2)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "MODE": {
+      "call": "MODE(1,1,1)",
+      "arguments": [
+        "number",
+        "number",
+        "number"
+      ]
+    },
+    "MONTH": {
+      "call": "MONTH(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "N": {
+      "call": "N(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "NA": {
+      "call": "NA()",
+      "arguments": [],
+      "note": "No numeric positions. NA intentionally constructs #N/A, so it is the sole validation exception."
+    },
+    "NOT": {
+      "call": "NOT(1)",
+      "arguments": [
+        "logical"
+      ]
+    },
+    "NOW": {
+      "call": "NOW()",
+      "arguments": []
+    },
+    "NPER": {
+      "call": "NPER(0.05,-100,1000)",
+      "arguments": [
+        "number",
+        "number",
+        "number"
+      ]
+    },
+    "NPV": {
+      "call": "NPV(1,100,200)",
+      "arguments": [
+        "number",
+        "number",
+        "number"
+      ]
+    },
+    "OR": {
+      "call": "OR(1)",
+      "arguments": [
+        "logical"
+      ]
+    },
+    "PERCENTILE": {
+      "call": "PERCENTILE(B1:B3,1)",
+      "arguments": [
+        "range",
+        "number"
+      ]
+    },
+    "PMT": {
+      "call": "PMT(1,10,1000)",
+      "arguments": [
+        "number",
+        "number",
+        "number"
+      ]
+    },
+    "POWER": {
+      "call": "POWER(1,2)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "PPMT": {
+      "call": "PPMT(0.05,1,10,1)",
+      "arguments": [
+        "number",
+        "number",
+        "number",
+        "number"
+      ]
+    },
+    "PRODUCT": {
+      "call": "PRODUCT(1,2)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "PROPER": {
+      "call": "PROPER(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "PV": {
+      "call": "PV(0.05,10,1)",
+      "arguments": [
+        "number",
+        "number",
+        "number"
+      ]
+    },
+    "RANK": {
+      "call": "RANK(1,B1:B3)",
+      "arguments": [
+        "number",
+        "range"
+      ]
+    },
+    "RATE": {
+      "call": "RATE(1,-100,1000)",
+      "arguments": [
+        "number",
+        "number",
+        "number"
+      ]
+    },
+    "REPLACE": {
+      "call": "REPLACE(\"abc\",1,1,\"z\")",
+      "arguments": [
+        "text",
+        "number",
+        "number",
+        "text"
+      ]
+    },
+    "REPT": {
+      "call": "REPT(\"a\",1)",
+      "arguments": [
+        "text",
+        "number"
+      ]
+    },
+    "RIGHT": {
+      "call": "RIGHT(\"abc\",1)",
+      "arguments": [
+        "text",
+        "number"
+      ]
+    },
+    "ROUND": {
+      "call": "ROUND(1,0)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "ROUNDDOWN": {
+      "call": "ROUNDDOWN(1,0)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "ROUNDUP": {
+      "call": "ROUNDUP(1,0)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "ROW": {
+      "call": "ROW(B1:B3)",
+      "arguments": [
+        "range"
+      ],
+      "note": "Calc signature requires a reference/array; not a numeric scalar position."
+    },
+    "ROWS": {
+      "call": "ROWS(B1:B3)",
+      "arguments": [
+        "range"
+      ],
+      "note": "Calc signature requires a reference/array; not a numeric scalar position."
+    },
+    "SEARCH": {
+      "call": "SEARCH(\"a\",\"abc\")",
+      "arguments": [
+        "text",
+        "text"
+      ]
+    },
+    "SECOND": {
+      "call": "SECOND(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "SIGN": {
+      "call": "SIGN(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "SQRT": {
+      "call": "SQRT(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "STDEV": {
+      "call": "STDEV(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "STDEVP": {
+      "call": "STDEVP(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "SUBSTITUTE": {
+      "call": "SUBSTITUTE(\"aa\",\"a\",\"b\",1)",
+      "arguments": [
+        "text",
+        "text",
+        "text",
+        "number"
+      ]
+    },
+    "SUM": {
+      "call": "SUM(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "SUMIF": {
+      "call": "SUMIF(B1:B3,\">0\",B1:B3)",
+      "arguments": [
+        "range",
+        "criterion",
+        "range"
+      ]
+    },
+    "SUMIFS": {
+      "call": "SUMIFS(B1:B3,B1:B3,\">0\")",
+      "arguments": [
+        "range",
+        "range",
+        "criterion"
+      ]
+    },
+    "SUMPRODUCT": {
+      "call": "SUMPRODUCT(1,2)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "SWITCH": {
+      "call": "SWITCH(1,1,\"a\",\"b\")",
+      "arguments": [
+        "number",
+        "number",
+        "text",
+        "text"
+      ]
+    },
+    "T": {
+      "call": "T(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "TEXT": {
+      "call": "TEXT(1,\"0.00\")",
+      "arguments": [
+        "number",
+        "text"
+      ]
+    },
+    "TEXTJOIN": {
+      "call": "TEXTJOIN(\",\",1,\"a\")",
+      "arguments": [
+        "text",
+        "number",
+        "text"
+      ]
+    },
+    "TIME": {
+      "call": "TIME(1,0,0)",
+      "arguments": [
+        "number",
+        "number",
+        "number"
+      ]
+    },
+    "TODAY": {
+      "call": "TODAY()",
+      "arguments": []
+    },
+    "TRIM": {
+      "call": "TRIM(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "TRUE": {
+      "call": "TRUE()",
+      "arguments": []
+    },
+    "TRUNC": {
+      "call": "TRUNC(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "TYPE": {
+      "call": "TYPE(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "UPPER": {
+      "call": "UPPER(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "VALUE": {
+      "call": "VALUE(\"1\")",
+      "arguments": [
+        "text"
+      ]
+    },
+    "VAR": {
+      "call": "VAR(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "VARP": {
+      "call": "VARP(1,1)",
+      "arguments": [
+        "number",
+        "number"
+      ]
+    },
+    "VLOOKUP": {
+      "call": "VLOOKUP(1,B1:C3,2,0)",
+      "arguments": [
+        "number",
+        "range",
+        "number",
+        "number"
+      ]
+    },
+    "WEEKDAY": {
+      "call": "WEEKDAY(1)",
+      "arguments": [
+        "number"
+      ]
+    },
+    "XLOOKUP": {
+      "call": "LOOKUP(1,B1:B3,C1:C3)",
+      "arguments": [
+        "number",
+        "range",
+        "range"
+      ],
+      "note": "Calc 24.2 lacks XLOOKUP; LOOKUP validates the same three argument kinds while the generated template uses dispatcher name XLOOKUP."
+    },
+    "XOR": {
+      "call": "XOR(1,1)",
+      "arguments": [
+        "logical",
+        "logical"
+      ]
+    },
+    "YEAR": {
+      "call": "YEAR(1)",
+      "arguments": [
+        "number"
+      ]
+    }
+  }
 }
