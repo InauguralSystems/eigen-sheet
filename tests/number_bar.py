@@ -2,13 +2,13 @@
 """#104 number-boundary bar.
 
 The population is rebuilt from sheet.eigs and templates.json on every run.  A
-grid is used first; a failed grid is isolated one cell per process.  LibreOffice
-Calc owns expected displays.  Numeric displays use diff_vs_calc.py's absolute
-1e-9 tolerance.  The per-cell catch has no observable signal, so formula sets
+grid is run in measured chunks; a failed or timed-out chunk is isolated one
+cell per process.  LibreOffice Calc owns expected display text and only exact
+text equality matches.  The per-cell catch has no observable signal, so formula sets
 honestly report ``net=unknown``; a counter incremented in recalc's catch and a
 read-only accessor would be the smallest hook which could make it countable.
 """
-import argparse, csv, glob, json, math, os, re, shutil, subprocess, sys, tempfile, time
+import argparse, csv, glob, json, os, re, shutil, subprocess, sys, tempfile, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "tests", "number_bar")
@@ -69,8 +69,8 @@ def population(tree):
  return out,d
 
 def q(x): return json.dumps(x)
-def runtime_grid(tree, binary, spec, only=None):
- fs=spec["f"] if only is None else {only:spec["f"][only]}; tmp=tempfile.mkdtemp()
+def runtime_grid(tree, binary, spec, cells=None, timeout=30):
+ fs=spec["f"] if cells is None else {a:spec["f"][a] for a in cells}; tmp=tempfile.mkdtemp()
  try:
   md=os.path.join(tmp,"eigs_modules","sheet"); os.makedirs(md)
   for n in ("sheet.eigs","pdf.eigs","eigs.json"): shutil.copy(os.path.join(tree,n),md)
@@ -79,8 +79,9 @@ def runtime_grid(tree, binary, spec, only=None):
   lines.append("sheet.recalc of s")
   for a in fs: lines.append('print of (%s + "\\t" + (sheet.display of [s,%s]))'%(q(a),q(a)))
   open(os.path.join(tmp,"app.eigs"),"w").write("\n".join(lines)+"\n")
-  r=subprocess.run([binary,"app.eigs"],cwd=tmp,text=True,capture_output=True,timeout=120)
-  if r.returncode: return None
+  try: r=subprocess.run([binary,"app.eigs"],cwd=tmp,text=True,capture_output=True,timeout=timeout)
+  except subprocess.TimeoutExpired: return "TIMEOUT"
+  if r.returncode: return "CRASH"
   return dict(x.split("\t",1) for x in r.stdout.splitlines() if "\t" in x)
  finally: shutil.rmtree(tmp)
 
@@ -125,13 +126,28 @@ def validate_templates(d, oracle=calc_grid):
   if v.startswith("#") or v.startswith("Err:"):
    name,t=owner[a]; raise ValueError("template is an error by itself in Calc: %s: %s -> %s"%(name,t,v))
 
-def equal(a,b):
- if a==b:return True
- try:return math.isfinite(float(a)) and math.isfinite(float(b)) and abs(float(a)-float(b))<=1e-9
- except ValueError:return False
+def equal(a,b): return a == b
+
+def is_error(v): return v in ("CRASH","TIMEOUT") or v.startswith("#") or v.startswith("Err:")
+def kind(a,b):
+ if a in ("CRASH","TIMEOUT"): return a
+ if is_error(a) and not is_error(b): return "error-for-value"
+ if not is_error(a) and is_error(b): return "value-for-error"
+ if is_error(a) and is_error(b): return "error-kind"
+ return "text"
+
+def run_chunks(tree,binary,spec,size=200):
+ out={}; cells=list(spec["f"])
+ for off in range(0,len(cells),size):
+  chunk=cells[off:off+size]; got=runtime_grid(tree,binary,spec,chunk)
+  if isinstance(got,dict) and len(got)==len(chunk): out.update(got); continue
+  for ad in chunk:
+   one=runtime_grid(tree,binary,spec,[ad],timeout=1)
+   out[ad]=one.get(ad,"CRASH") if isinstance(one,dict) else one
+ return out
 
 def selftest(tree):
- assert equal("1.0000000001","1") and not equal("12","13")
+ assert equal("1","1") and not equal("1.0","1")
  clean=load_templates(tree); tmp=tempfile.mkdtemp()
  try:
   p=os.path.join(tmp,"t.json"); json.dump(clean,open(p,"w")); load_templates(tree,p)
@@ -151,7 +167,7 @@ def selftest(tree):
  print("PASS: number-bar clean controls and four plants")
 
 def main():
- ap=argparse.ArgumentParser(); ap.add_argument("--tree",default=ROOT); ap.add_argument("--runtime",default=os.environ.get("EIGENSCRIPT","eigenscript")); ap.add_argument("--list",action="store_true"); ap.add_argument("--set"); ap.add_argument("--out"); ap.add_argument("--selftest",action="store_true"); ap.add_argument("--known-before")
+ ap=argparse.ArgumentParser(); ap.add_argument("--tree",default=ROOT); ap.add_argument("--runtime",default=os.environ.get("EIGENSCRIPT","eigenscript")); ap.add_argument("--old-tree"); ap.add_argument("--old-runtime"); ap.add_argument("--list",action="store_true"); ap.add_argument("--set"); ap.add_argument("--out"); ap.add_argument("--selftest",action="store_true"); ap.add_argument("--known-before")
  a=ap.parse_args(); start=time.monotonic()
  if a.selftest:return selftest(a.tree)
  sets,d=population(a.tree); print("DISPATCHER names=%d rule=%s"%(len(d["rows"]),d["rule"]))
@@ -162,24 +178,29 @@ def main():
   for n,s in sets.items():
    for ad,f in s["f"].items(): print("%s\t%s\t%s"%(n,ad,f))
   return
- validate_templates(d)
  records=[]; N=D=0; unknown=False
- known=set(json.load(open(a.known_before))) if a.known_before else set()
+ known_data={}
+ if a.known_before and os.path.exists(a.known_before):
+  known_data={x["key"]:x for x in json.load(open(a.known_before))}
  for name,spec in sets.items():
   if not spec.get("f"): raise SystemExit("SET %s examined=0 is invalid"%name)
-  lo=calc_grid(spec); mine=runtime_grid(a.tree,a.runtime,spec)
-  if mine is None:
-   mine={ad:(runtime_grid(a.tree,a.runtime,spec,ad) or {}).get(ad,"CRASH") for ad in spec["f"]}
-  diff=0
+  lo=calc_grid(spec); mine=run_chunks(a.tree,a.runtime,spec)
+  old=run_chunks(a.old_tree,a.old_runtime,spec) if a.old_tree and a.old_runtime else None
+  diff=0; before=0; kinds={}
   for ad,f in spec["f"].items():
-   verdict="match" if equal(mine.get(ad,"CRASH"),lo[ad]) else "differ"
+   ev=mine.get(ad,"CRASH"); verdict="match" if equal(ev,lo[ad]) else "differ"
    key=name+":"+ad
-   if verdict=="differ" and key in known: verdict="known-before"
-   if verdict=="differ": diff+=1
-   records.append({"set":name,"address":ad,"formula":f,"eigen":mine.get(ad,"CRASH"),"calc":lo[ad],"verdict":verdict})
+   if verdict=="differ":
+    diff+=1; k=kind(ev,lo[ad]); kinds[k]=kinds.get(k,0)+1
+    ov=old.get(ad,"CRASH") if old else known_data.get(key,{}).get("eigen")
+    if ov is not None and not equal(ov,lo[ad]) and equal(ov,ev):
+     verdict="known-before"; before+=1; known_data[key]={"key":key,"eigen":ev,"calc":lo[ad]}
+   records.append({"set":name,"address":ad,"formula":f,"eigen":ev,"calc":lo[ad],"verdict":verdict,"kind":None if verdict=="match" else kind(ev,lo[ad])})
   n=len(spec["f"]); N+=n; D+=diff; unknown=True
-  print("SET %s examined=%d match=%d differ=%d net=unknown"%(name,n,n-diff,diff))
+  print("SET %s examined=%d match=%d differ=%d known_before=%d new=%d kinds=%s net=unknown"%(name,n,n-diff,diff,before,diff-before,",".join("%s:%d"%x for x in sorted(kinds.items()))))
  if a.out: json.dump(records,open(a.out,"w"),indent=2)
- print("NUMBER-BAR examined=%d differ=%d net=unknown wall=%.1fs"%(N,D,time.monotonic()-start))
+ if a.known_before and a.old_tree: json.dump([known_data[k] for k in sorted(known_data)],open(a.known_before,"w"),indent=2)
+ kb=sum(1 for r in records if r["verdict"]=="known-before")
+ print("NUMBER-BAR examined=%d differ=%d known_before=%d new=%d net=unknown wall=%.1fs"%(N,D,kb,D-kb,time.monotonic()-start))
  return 1 if D or unknown else 0
 if __name__=="__main__": sys.exit(main() or 0)

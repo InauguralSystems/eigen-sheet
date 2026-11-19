@@ -1,0 +1,1 @@
+- Run the Calc-owned number-boundary bar in bounded runtime chunks and report exact-display divergence kinds and known-before counts (#104).
