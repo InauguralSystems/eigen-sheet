@@ -1,0 +1,12 @@
+import sheet
+s is sheet.new_sheet of null
+sheet.set_cell of [s,"B1","1"]
+sheet.set_cell of [s,"B2","2"]
+sheet.set_cell of [s,"C1","10"]
+sheet.set_cell of [s,"C2","20"]
+sheet.set_cell of [s,"D1","0"]
+sheet.set_cell of [s,"A1","=SUMIF(B1:B2,\">1\",C1:C2)"]
+sheet.set_cell of [s,"A2","=IFERROR(VLOOKUP(9,B1:C2,2,0)+C1+C2,0)"]
+sheet.set_cell of [s,"A3","=COUNTIF(B1:B2,B2)"]
+sheet.recalc of s
+print of ("A1=" + (sheet.display of [s,"A1"]) + "  A2=" + (sheet.display of [s,"A2"]) + "  A3=" + (sheet.display of [s,"A3"]))

@@ -1,0 +1,7 @@
+import sheet
+s is sheet.new_sheet of null
+sheet.set_cell of [s,"A1","9223372036854775807"]
+sheet.set_cell of [s,"A2","9223372036854775807"]
+sheet.recalc of s
+st is sheet.range_stats of [s,0,0,0,1]
+print of ("status sum=" + (str of st.sum) + " count=" + (str of st.count))

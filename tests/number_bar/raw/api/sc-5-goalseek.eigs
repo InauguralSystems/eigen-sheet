@@ -1,0 +1,9 @@
+import sheet
+s is sheet.new_sheet of null
+sheet.set_cell of [s,"B1","5000000000"]
+sheet.set_cell of [s,"A1","=B1*B1"]
+sheet.set_cell of [s,"A2","=1+1"]
+sheet.recalc of s
+print of ("before A1=" + (sheet.display of [s,"A1"]))
+x is sheet.goal_seek of [s,"A1",100000000000000000000.0,"B1"]
+print of ("goal x=" + (str of x) + " A1=" + (sheet.display of [s,"A1"]) + " B1=" + (sheet.display of [s,"B1"]) + " A2=" + (sheet.display of [s,"A2"]))

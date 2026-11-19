@@ -1,0 +1,12 @@
+import sheet
+s is sheet.new_sheet of null
+sheet.set_cell of [s,"A1","9007199254740993"]
+sheet.set_cell of [s,"A2","=A1"]
+sheet.set_cell of [s,"A3","=A1&\"\""]
+sheet.recalc of s
+c is sheet.to_csv of [s,0,0,0,2]
+print of ("csv1=" + c)
+t is sheet.new_sheet of null
+sheet.from_csv of [t, c, 0, 0]
+sheet.recalc of t
+print of ("csv2=" + (sheet.to_csv of [t,0,0,0,2]) + " A1=" + (sheet.display of [t,"A1"]))

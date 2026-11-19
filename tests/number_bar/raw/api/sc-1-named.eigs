@@ -1,0 +1,14 @@
+import sheet
+s is sheet.new_sheet of null
+sheet.set_cell of [s,"D1","9223372036854775807"]
+sheet.set_cell of [s,"D2","9223372036854775807"]
+sheet.define_name of [s,"big","D1:D2"]
+sheet.define_name of [s,"bn","9223372036854775807"]
+sheet.set_cell of [s,"A1","=SUM(big)"]
+sheet.set_cell of [s,"A2","=bn+bn"]
+sheet.set_cell of [s,"A3","=bn*2"]
+sheet.set_cell of [s,"A4","=MAX(big)*2"]
+sheet.set_cell of [s,"A5","=1+1"]
+sheet.recalc of s
+for a in ["A1","A2","A3","A4","A5"]:
+    print of (a + "=" + (sheet.display of [s,a]))
