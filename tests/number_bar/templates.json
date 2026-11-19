@@ -1,0 +1,366 @@
+{
+  "no_numeric_arguments": [
+    "FALSE",
+    "NA",
+    "NOW",
+    "TODAY",
+    "TRUE"
+  ],
+  "rows": {
+    "ABS": [
+      "ABS(@)"
+    ],
+    "AND": [
+      "AND(@)"
+    ],
+    "AVERAGE": [
+      "AVERAGE(@,1)"
+    ],
+    "AVERAGEIF": [
+      "AVERAGEIF(B1:B3,\">0\",@)"
+    ],
+    "AVERAGEIFS": [
+      "AVERAGEIFS(B1:B3,B1:B3,\">0\",@)"
+    ],
+    "AVG": [
+      "AVG(@,1)"
+    ],
+    "CEILING": [
+      "CEILING(@,1)",
+      "CEILING(5,@)"
+    ],
+    "CELL": [
+      "CELL(\"row\",@)"
+    ],
+    "CHAR": [
+      "CHAR(@)"
+    ],
+    "CODE": [
+      "CODE(@)"
+    ],
+    "COLUMN": [
+      "COLUMN(@)"
+    ],
+    "COLUMNS": [
+      "COLUMNS(@)"
+    ],
+    "CONCATENATE": [
+      "CONCATENATE(@,\"x\")"
+    ],
+    "COUNT": [
+      "COUNT(@,1)"
+    ],
+    "COUNTA": [
+      "COUNTA(@,1)"
+    ],
+    "COUNTBLANK": [
+      "COUNTBLANK(@)"
+    ],
+    "COUNTIF": [
+      "COUNTIF(B1:B3,@)"
+    ],
+    "COUNTIFS": [
+      "COUNTIFS(B1:B3,\">0\",@)"
+    ],
+    "DATE": [
+      "DATE(@,1,1)",
+      "DATE(2020,@,1)",
+      "DATE(2020,1,@)"
+    ],
+    "DATEDIF": [
+      "DATEDIF(@,100,\"d\")",
+      "DATEDIF(1,@,\"d\")"
+    ],
+    "DATEVALUE": [
+      "DATEVALUE(@)"
+    ],
+    "DAY": [
+      "DAY(@)"
+    ],
+    "EDATE": [
+      "EDATE(@,1)",
+      "EDATE(100,@)"
+    ],
+    "EOMONTH": [
+      "EOMONTH(@,1)",
+      "EOMONTH(100,@)"
+    ],
+    "EXACT": [
+      "EXACT(@,\"1\")"
+    ],
+    "FALSE": [],
+    "FIND": [
+      "FIND(\"a\",\"abc\",@)"
+    ],
+    "FLOOR": [
+      "FLOOR(@,1)",
+      "FLOOR(5,@)"
+    ],
+    "FV": [
+      "FV(@,10,-100)",
+      "FV(0.05,@,-100)"
+    ],
+    "HLOOKUP": [
+      "HLOOKUP(@,B1:C3,1,0)"
+    ],
+    "HOUR": [
+      "HOUR(@)"
+    ],
+    "IF": [
+      "IF(@,1,2)"
+    ],
+    "IFERROR": [
+      "IFERROR(@,1)"
+    ],
+    "IFNA": [
+      "IFNA(@,1)"
+    ],
+    "IFS": [
+      "IFS(@,1)"
+    ],
+    "INDEX": [
+      "INDEX(B1:B3,@)"
+    ],
+    "INT": [
+      "INT(@)"
+    ],
+    "IPMT": [
+      "IPMT(0.05,1,@,1000)"
+    ],
+    "IRR": [
+      "IRR(@)"
+    ],
+    "ISBLANK": [
+      "ISBLANK(@)"
+    ],
+    "ISERR": [
+      "ISERR(@)"
+    ],
+    "ISERROR": [
+      "ISERROR(@)"
+    ],
+    "ISEVEN": [
+      "ISEVEN(@)"
+    ],
+    "ISLOGICAL": [
+      "ISLOGICAL(@)"
+    ],
+    "ISNA": [
+      "ISNA(@)"
+    ],
+    "ISNUMBER": [
+      "ISNUMBER(@)"
+    ],
+    "ISODD": [
+      "ISODD(@)"
+    ],
+    "ISTEXT": [
+      "ISTEXT(@)"
+    ],
+    "LEFT": [
+      "LEFT(\"abc\",@)"
+    ],
+    "LEN": [
+      "LEN(@)"
+    ],
+    "LOOKUP": [
+      "LOOKUP(@,B1:B3)"
+    ],
+    "LOWER": [
+      "LOWER(@)"
+    ],
+    "MATCH": [
+      "MATCH(@,B1:B3,0)"
+    ],
+    "MAX": [
+      "MAX(@,1)"
+    ],
+    "MEDIAN": [
+      "MEDIAN(@,1)"
+    ],
+    "MID": [
+      "MID(\"abc\",@,1)",
+      "MID(\"abc\",1,@)"
+    ],
+    "MIN": [
+      "MIN(@,1)"
+    ],
+    "MINUTE": [
+      "MINUTE(@)"
+    ],
+    "MOD": [
+      "MOD(@,2)",
+      "MOD(5,@)"
+    ],
+    "MODE": [
+      "MODE(@,1,1)"
+    ],
+    "MONTH": [
+      "MONTH(@)"
+    ],
+    "N": [
+      "N(@)"
+    ],
+    "NA": [],
+    "NOT": [
+      "NOT(@)"
+    ],
+    "NOW": [],
+    "NPER": [
+      "NPER(@,-100,1000)",
+      "NPER(0.05,@,1000)"
+    ],
+    "NPV": [
+      "NPV(@,100,200)",
+      "NPV(0.1,@,200)"
+    ],
+    "OR": [
+      "OR(@)"
+    ],
+    "PERCENTILE": [
+      "PERCENTILE(B1:B3,@)"
+    ],
+    "PMT": [
+      "PMT(@,10,1000)",
+      "PMT(0.05,@,1000)",
+      "PMT(0.05,10,@)"
+    ],
+    "POWER": [
+      "POWER(@,2)",
+      "POWER(2,@)"
+    ],
+    "PPMT": [
+      "PPMT(0.05,1,10,@)"
+    ],
+    "PRODUCT": [
+      "PRODUCT(@,2)"
+    ],
+    "PROPER": [
+      "PROPER(@)"
+    ],
+    "PV": [
+      "PV(0.05,10,@)"
+    ],
+    "RANK": [
+      "RANK(@,B1:B3)"
+    ],
+    "RATE": [
+      "RATE(@,-100,1000)"
+    ],
+    "REPLACE": [
+      "REPLACE(\"abc\",@,1,\"z\")"
+    ],
+    "REPT": [
+      "REPT(\"a\",@)"
+    ],
+    "RIGHT": [
+      "RIGHT(\"abc\",@)"
+    ],
+    "ROUND": [
+      "ROUND(@,0)",
+      "ROUND(1.5,@)"
+    ],
+    "ROUNDDOWN": [
+      "ROUNDDOWN(@,0)"
+    ],
+    "ROUNDUP": [
+      "ROUNDUP(@,0)"
+    ],
+    "ROW": [
+      "ROW(@)"
+    ],
+    "ROWS": [
+      "ROWS(@)"
+    ],
+    "SEARCH": [
+      "SEARCH(\"a\",@)"
+    ],
+    "SECOND": [
+      "SECOND(@)"
+    ],
+    "SIGN": [
+      "SIGN(@)"
+    ],
+    "SQRT": [
+      "SQRT(@)"
+    ],
+    "STDEV": [
+      "STDEV(@,1)"
+    ],
+    "STDEVP": [
+      "STDEVP(@,1)"
+    ],
+    "SUBSTITUTE": [
+      "SUBSTITUTE(\"aa\",\"a\",\"b\",@)"
+    ],
+    "SUM": [
+      "SUM(@,1)"
+    ],
+    "SUMIF": [
+      "SUMIF(B1:B3,\">0\",@)"
+    ],
+    "SUMIFS": [
+      "SUMIFS(B1:B3,B1:B3,\">0\",@)"
+    ],
+    "SUMPRODUCT": [
+      "SUMPRODUCT(@,2)"
+    ],
+    "SWITCH": [
+      "SWITCH(@,1,\"a\",\"b\")"
+    ],
+    "T": [
+      "T(@)"
+    ],
+    "TEXT": [
+      "TEXT(@,\"0.00\")",
+      "TEXT(@,\"#,##0\")"
+    ],
+    "TEXTJOIN": [
+      "TEXTJOIN(\",\",@,\"a\")"
+    ],
+    "TIME": [
+      "TIME(@,0,0)",
+      "TIME(0,@,0)"
+    ],
+    "TODAY": [],
+    "TRIM": [
+      "TRIM(@)"
+    ],
+    "TRUE": [],
+    "TRUNC": [
+      "TRUNC(@)"
+    ],
+    "TYPE": [
+      "TYPE(@)"
+    ],
+    "UPPER": [
+      "UPPER(@)"
+    ],
+    "VALUE": [
+      "VALUE(@)"
+    ],
+    "VAR": [
+      "VAR(@,1)"
+    ],
+    "VARP": [
+      "VARP(@,1)"
+    ],
+    "VLOOKUP": [
+      "VLOOKUP(@,B1:C3,2,0)"
+    ],
+    "WEEKDAY": [
+      "WEEKDAY(@)",
+      "WEEKDAY(100,@)"
+    ],
+    "XLOOKUP": [
+      "XLOOKUP(@,B1:B3,C1:C3)"
+    ],
+    "XOR": [
+      "XOR(@,1)"
+    ],
+    "YEAR": [
+      "YEAR(@)"
+    ]
+  },
+  "rule": "unique names matching fname == \"NAME\" in sheet.eigs; repeated clauses and aliases explain 229 textual tests versus 115 reachable names"
+}

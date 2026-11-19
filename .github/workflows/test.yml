@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -87,6 +88,13 @@ jobs:
           # skip means the check silently didn't run — fail loudly instead.
           if [ $rc -eq 2 ]; then echo "external oracle skipped in CI — that's a gap"; exit 1; fi
           exit $rc
+
+      - name: Number-boundary bar plants
+        run: python3 tests/number_bar.py --selftest
+
+      - name: Full number-boundary bar (manual dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        run: python3 tests/number_bar.py --runtime "$EIGENSCRIPT" --out number-bar.json
 
       - name: Issue 72 documented standalone runtime regression
         run: python3 tests/issue_72_readme_standalone.py

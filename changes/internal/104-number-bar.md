@@ -1,0 +1,1 @@
+- Add a derived LibreOffice differential bar for spreadsheet number boundaries (#104).
