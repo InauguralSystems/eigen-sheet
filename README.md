@@ -18,7 +18,7 @@ edits in the same order reconstruct the same grid.
 ## Run it standalone
 
 ```sh
-git clone --depth 1 --branch phase2-consumers-1 https://github.com/InauguralSystems/EigenScript.git
+git clone --depth 1 --branch phase2-consumers-2 https://github.com/InauguralSystems/EigenScript.git
 make -C EigenScript zlib
 EigenScript/build/zlib/eigenscript main.eigs  # opens the grid (demo sheet); Escape quits
 ```
