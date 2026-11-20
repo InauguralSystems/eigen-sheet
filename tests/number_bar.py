@@ -59,6 +59,10 @@ with only the inputs the cell reads, because one input that aborts the old
 runtime's recalculation would otherwise make every cell a CRASH.  The
 api set has no before.
 
+`WHOLE-READERS` counts generated population cells, by dispatcher function and
+comparison operator, that read a stored large whole directly, in a mixed range,
+or only through arithmetic; range operands are inapplicable to comparisons.
+
 Every `differ` record has one `differ_kind`, decided only from that cell's
 Calc text and shape; spreadsheet kind, value, display and net flag; and formula
 with its set inputs. The first applicable rule wins, in this order:
@@ -118,10 +122,24 @@ BASE = {"B1":"1","B2":"2","B3":"3","C1":"10","C2":"20","C3":"30",
         "D1":"-1","D2":"2", "B10":"3037000500", "B11":"9223372036854775807",
         "B12":"-9223372036854775808"}
 GENERATED_EMPTY = []
+LARGE_CELLS = ("B10", "B11", "B12")
+COMPARISONS = ("=", "<>", "<", "<=", ">", ">=")
+
+def whole_reader_counts(readers):
+ """Return missing applicable reader forms; comparisons cannot contain ranges."""
+ return (sum(not v["bare"] for v in readers.values()),
+         sum(not v["range"] for n,v in readers.items() if n not in COMPARISONS))
 
 def dispatcher(tree):
  s=open(os.path.join(tree,"sheet.eigs"),encoding="utf-8").read()
  return sorted(set(re.findall(r'fname == "([A-Z][A-Z0-9_.]*)"',s)))
+
+def numeric_reader_functions(tree):
+ """Derive reducers that consume scalar-or-range numeric arguments."""
+ s=open(os.path.join(tree,"sheet.eigs"),encoding="utf-8").read()
+ aggregate=s[s.index("# Aggregate arguments may be ranges"):s.index("# Every scalar entering or leaving")]
+ criterion=s[s.index("# criterion & mixed-arg functions"):s.index("# text functions")]
+ return sorted(set(re.findall(r'fname == "([A-Z][A-Z0-9.]*)"',aggregate+criterion)))
 
 def load_templates(tree, path=None):
  p=path or os.path.join(DATA,"templates.json"); d=json.load(open(p)); got=set(dispatcher(tree)); rows=d["rows"]
@@ -213,10 +231,34 @@ def population(tree):
     else:
      ad=address(i); i+=1; by_formula[formula]=ad; fs[ad]=formula
      formula_paths[ad]=[path]; path_own[path]+=1
- out["arrivals-generated"]={"base":base,"empty":GENERATED_EMPTY,"f":fs,"paths":formula_paths,"reference":"calc"}
+ out["arrivals-generated"]={"base":base,"empty":GENERATED_EMPTY,"f":fs,"paths":formula_paths,"reference":"calc"}; arrival_generated_count=len(fs)
+ # Whole-number reader coverage is generated from the dispatch table.  Scalar
+ # numeric positions accept a bare cell; range positions accept a mixed range.
+ fs={}; i=0; readers={}; mixed=dict(BASE, B9="7")
+ numeric_readers=set(numeric_reader_functions(tree))
+ for name,row in sorted(d["rows"].items()):
+  if name not in numeric_readers: continue
+  args=split_call(row["call"]); forms={"bare":[],"range":[],"arithmetic":[]}
+  for pos,kind in enumerate(row["arguments"]):
+   if kind=="number":
+    for form,repl in (("bare","B11"),("range","B9:B11"),("arithmetic","B11+0")):
+     f="="+name+"("+",".join(args[:pos]+[repl]+args[pos+1:])+")"; fs[address(i)]=f; i+=1; forms[form].append(f)
+   if kind=="range":
+    for form,repl in (("bare","B11"),("range","B9:B11"),("arithmetic","B11+0")):
+     f="="+name+"("+",".join(args[:pos]+[repl]+args[pos+1:])+")"; fs[address(i)]=f; i+=1; forms[form].append(f)
+    ordinary="="+name+"("+",".join(args[:pos]+["C1:C3"]+args[pos+1:])+")"
+    if ordinary not in fs.values(): fs[address(i)]=ordinary; i+=1
+  if any(forms.values()): readers[name]=forms
+ for op in COMPARISONS:
+  forms={"bare":[],"range":[],"arithmetic":[]}
+  for form,lhs in (("bare","B11"),("arithmetic","B11+0")):
+   f="=("+lhs+")"+op+"0"; fs[address(i)]=f; i+=1; forms[form].append(f)
+  # Calc comparison grammar has no range-valued operand; this is inapplicable.
+  readers[op]=forms
+ out["whole-readers"]={"base":mixed,"empty":GENERATED_EMPTY,"f":fs,"readers":readers,"reference":"calc"}
  hand=json.load(open(os.path.join(DATA,"arrival_cases.json")))
  out.update(hand)
- out["_arrival_counts"]={"generated":len(fs),"hand":sum(len(x.get("f",{})) for x in hand.values()),
+ out["_arrival_counts"]={"generated":arrival_generated_count,"hand":sum(len(x.get("f",{})) for x in hand.values()),
                          "same_formula":len(same_formula),"subsumed":sorted(p for p,n in path_own.items() if not n)}
  out["api"]={"reference":"api","programs":json.load(open(os.path.join(DATA,"api","expectations.json")))["programs"]}
  return out,d
@@ -652,14 +694,15 @@ def isolated_answers(name, spec, tree, binary, grid):
  print("BEFORE-ISOLATED set=%s cells=%d groups=%d crash=%d timeout=%d"%(name,len(out),len(groups),crash,timeout))
  return out
 
-def write_before(path, sets, tree, binary, grid=runtime_grid, only=None):
+def write_before(path, sets, tree, binary, grid=runtime_grid, only=None, missing=False):
  """Write all sets, or replace `only` in an existing before.json."""
  check_formulas(sets)
  if only:
   if only not in sets or sets[only].get("reference")=="api": raise ToolError("unknown formula set "+only)
   if not os.path.exists(path): raise ToolError("--set needs existing before file "+path)
   doc=json.load(open(path)); names=[only]
-  prefix=only+"\t"; doc["cells"]={k:v for k,v in doc["cells"].items() if not k.startswith(prefix)}
+  if not missing:
+   prefix=only+"\t"; doc["cells"]={k:v for k,v in doc["cells"].items() if not k.startswith(prefix)}
  else:
   doc={"tree":tree,"runtime":binary,"inputs":{},"cells":{}}; names=[n for n,s in sets.items() if s.get("reference")!="api"]
  for name in names:
@@ -670,8 +713,7 @@ def write_before(path, sets, tree, binary, grid=runtime_grid, only=None):
   doc["inputs"][name]=spec.get("base",{})
   for ad,f in spec["f"].items():
    k=before_key(name,ad,f)
-   if k in doc["cells"]: raise ToolError("two cells share the before key "+repr(k))
-   doc["cells"][k]=mine[ad]
+   if k not in doc["cells"]: doc["cells"][k]=mine[ad]
  tmp=path+".tmp"
  with open(tmp,"w") as fh: json.dump(doc,fh,indent=1,sort_keys=True)
  os.replace(tmp,path)
@@ -934,14 +976,20 @@ def main(argv=None):
  ap.add_argument("--before",default=os.path.join(DATA,"before.json")); ap.add_argument("--sources",action="store_true")
  ap.add_argument("--write-before",action="store_true",help="write --before from --old-tree on --old-runtime (all formula sets, or replace --set)")
  ap.add_argument("--old-tree"); ap.add_argument("--old-runtime")
+ ap.add_argument("--missing",action="store_true",help="with --write-before --set, add only absent keys")
  a=ap.parse_args(argv); start=time.monotonic()
  if a.selftest: return selftest(a.tree)
  try:
   sets,d=population(a.tree); arrival=sets.pop("_arrival_counts")
   print("DISPATCHER names=%d rule=%s"%(len(d["rows"]),d["rule"]))
-  positions=sum(k!="range" for row in d["rows"].values() for k in row["arguments"])
-  left=sum(k=="range" for row in d["rows"].values() for k in row["arguments"])
+  positions=sum(len(row["arguments"]) for row in d["rows"].values())
+  left=0
   print("TEMPLATES functions=%d positions=%d left_out=%d"%(len(d["rows"]),positions,left))
+  readers=sets["whole-readers"]["readers"]
+  bare_missing,range_missing=whole_reader_counts(readers)
+  print("WHOLE-READERS functions=%d comparisons=6 bare_missing=%d range_missing=%d"%(len(readers)-6,bare_missing,range_missing))
+  print("WHOLE-READERS range_not_applicable=%s reason=no-range-position-or-comparison-grammar"%(",".join(n for n,v in readers.items() if not v["range"])))
+  for n,v in readers.items(): print("WHOLE-READER name=%s bare=%d range=%d arithmetic=%d"%(n,len(v["bare"]),len(v["range"]),len(v["arithmetic"])))
   print("ARRIVALS generated=%d hand=%d same_formula=%d"%(arrival["generated"],arrival["hand"],arrival["same_formula"]))
   print("ARRIVALS no_own_formula=%s"%(",".join(arrival["subsumed"]) or "none"))
   for line in check_formulas(sets): print(line)
@@ -957,7 +1005,8 @@ def main(argv=None):
    return 0
   if a.write_before:
    if not (a.old_tree and a.old_runtime): raise ToolError("--write-before needs --old-tree and --old-runtime")
-   n=write_before(a.before,sets,a.old_tree,a.old_runtime,only=a.set)
+   if a.missing and not a.set: raise ToolError("--missing needs --set")
+   n=write_before(a.before,sets,a.old_tree,a.old_runtime,only=a.set,missing=a.missing)
    print("BEFORE written=%d path=%s wall=%.1fs"%(n,a.before,time.monotonic()-start)); return 0
   if a.set:
    if a.set not in sets: raise ToolError("unknown set "+a.set)
@@ -1032,6 +1081,15 @@ def _one_set_before_case(m, tree, tmp):
  open(p,"w").write(json.dumps(doc,indent=1,sort_keys=True))
  m.write_before(p,sets,tree,"stub",grid=_stub_grid({"A1":N("1")}),only="a")
  return json.load(open(p))["cells"][key]
+
+def _missing_before_case(m, tree, tmp):
+ initial={"a":{"base":{},"f":{"A1":"=1"},"reference":"calc"}}
+ expanded={"a":{"base":{},"f":{"A1":"=1","A2":"=2"},"reference":"calc"}}
+ p=os.path.join(tmp,"missing.json")
+ m.write_before(p,initial,tree,"stub",grid=_stub_grid({"A1":N("1")}))
+ m.write_before(p,expanded,tree,"stub",grid=_stub_grid({"A1":N("99"),"A2":N("2")}),only="a",missing=True)
+ doc=json.load(open(p))["cells"]
+ return (doc[m.before_key("a","A1","=1")]["value"],doc[m.before_key("a","A2","=2")]["value"])
 
 def _api_case(m, tree, tmp):
  """A runtime that aborts before a stage: its items have no Calc oracle."""
@@ -1222,6 +1280,9 @@ PLANTS = [
   lambda m,t,x: _before_case(m,t,x), 'examined=2 differ=2 before=2 net=0 crash=0 status=1'),
 ]
 CONTROLS = [
+ ("one aggregate without a bare reader is missing", lambda m,t,x:m.whole_reader_counts({"SUM":{"bare":[],"range":["x"],"arithmetic":["x"]}})[0], 1),
+ ("adding the aggregate bare reader closes the gap", lambda m,t,x:m.whole_reader_counts({"SUM":{"bare":["x"],"range":["x"],"arithmetic":["x"]}})[0], 0),
+ ("missing before mode preserves an old answer and adds the absent one", _missing_before_case, ("1","2")),
  ("writing one before set preserves another set's keys", _one_set_before_case, N("77")),
  ("differ kind eval-failed", lambda m,t,x,k="eval-failed":_kind_case(m,t,x,k), "eval-failed"),
  ("differ kind net", lambda m,t,x,k="net":_kind_case(m,t,x,k), "net"),

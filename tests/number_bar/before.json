@@ -117035,6 +117035,851 @@
    "kind": "L",
    "value": "1"
   },
+  "whole-readers\t=(B11)<0": {
+   "display": "FALSE",
+   "kind": "L",
+   "value": "0"
+  },
+  "whole-readers\t=(B11)<=0": {
+   "display": "FALSE",
+   "kind": "L",
+   "value": "0"
+  },
+  "whole-readers\t=(B11)<>0": {
+   "display": "TRUE",
+   "kind": "L",
+   "value": "1"
+  },
+  "whole-readers\t=(B11)=0": {
+   "display": "FALSE",
+   "kind": "L",
+   "value": "0"
+  },
+  "whole-readers\t=(B11)>0": {
+   "display": "TRUE",
+   "kind": "L",
+   "value": "1"
+  },
+  "whole-readers\t=(B11)>=0": {
+   "display": "TRUE",
+   "kind": "L",
+   "value": "1"
+  },
+  "whole-readers\t=(B11+0)<0": {
+   "display": "FALSE",
+   "kind": "L",
+   "value": "0"
+  },
+  "whole-readers\t=(B11+0)<=0": {
+   "display": "FALSE",
+   "kind": "L",
+   "value": "0"
+  },
+  "whole-readers\t=(B11+0)<>0": {
+   "display": "TRUE",
+   "kind": "L",
+   "value": "1"
+  },
+  "whole-readers\t=(B11+0)=0": {
+   "display": "FALSE",
+   "kind": "L",
+   "value": "0"
+  },
+  "whole-readers\t=(B11+0)>0": {
+   "display": "TRUE",
+   "kind": "L",
+   "value": "1"
+  },
+  "whole-readers\t=(B11+0)>=0": {
+   "display": "TRUE",
+   "kind": "L",
+   "value": "1"
+  },
+  "whole-readers\t=AVERAGE(1,B11)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=AVERAGE(1,B11+0)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=AVERAGE(1,B9:B11)": {
+   "display": "2.305843009972944e+18",
+   "kind": "N",
+   "value": "2.305843009972944e+18"
+  },
+  "whole-readers\t=AVERAGE(B11+0,1)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=AVERAGE(B11,1)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=AVERAGE(B9:B11,1)": {
+   "display": "2.305843009972944e+18",
+   "kind": "N",
+   "value": "2.305843009972944e+18"
+  },
+  "whole-readers\t=AVERAGEIF(B11+0,\">0\",B1:B3)": {
+   "display": "#VALUE!",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=AVERAGEIF(B11,\">0\",B1:B3)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=AVERAGEIF(B1:B3,\">0\",B11)": {
+   "display": "3.0744573456182584e+18",
+   "kind": "N",
+   "value": "3.0744573456182584e+18"
+  },
+  "whole-readers\t=AVERAGEIF(B1:B3,\">0\",B11+0)": {
+   "display": "#VALUE!",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=AVERAGEIF(B1:B3,\">0\",B9:B11)": {
+   "display": "3.074457346630592e+18",
+   "kind": "N",
+   "value": "3.074457346630592e+18"
+  },
+  "whole-readers\t=AVERAGEIF(B1:B3,\">0\",C1:C3)": {
+   "display": "20",
+   "kind": "N",
+   "value": "20"
+  },
+  "whole-readers\t=AVERAGEIF(B9:B11,\">0\",B1:B3)": {
+   "display": "2",
+   "kind": "N",
+   "value": "2"
+  },
+  "whole-readers\t=AVERAGEIF(C1:C3,\">0\",B1:B3)": {
+   "display": "2",
+   "kind": "N",
+   "value": "2"
+  },
+  "whole-readers\t=AVERAGEIFS(B11+0,B1:B3,\">0\")": {
+   "display": "#VALUE!",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=AVERAGEIFS(B11,B1:B3,\">0\")": {
+   "display": "3.0744573456182584e+18",
+   "kind": "N",
+   "value": "3.0744573456182584e+18"
+  },
+  "whole-readers\t=AVERAGEIFS(B1:B3,B11+0,\">0\")": {
+   "display": "#VALUE!",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=AVERAGEIFS(B1:B3,B11,\">0\")": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=AVERAGEIFS(B1:B3,B9:B11,\">0\")": {
+   "display": "2",
+   "kind": "N",
+   "value": "2"
+  },
+  "whole-readers\t=AVERAGEIFS(B1:B3,C1:C3,\">0\")": {
+   "display": "2",
+   "kind": "N",
+   "value": "2"
+  },
+  "whole-readers\t=AVERAGEIFS(B9:B11,B1:B3,\">0\")": {
+   "display": "3.074457346630592e+18",
+   "kind": "N",
+   "value": "3.074457346630592e+18"
+  },
+  "whole-readers\t=AVERAGEIFS(C1:C3,B1:B3,\">0\")": {
+   "display": "20",
+   "kind": "N",
+   "value": "20"
+  },
+  "whole-readers\t=AVG(1,B11)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=AVG(1,B11+0)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=AVG(1,B9:B11)": {
+   "display": "2.305843009972944e+18",
+   "kind": "N",
+   "value": "2.305843009972944e+18"
+  },
+  "whole-readers\t=AVG(B11+0,1)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=AVG(B11,1)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=AVG(B9:B11,1)": {
+   "display": "2.305843009972944e+18",
+   "kind": "N",
+   "value": "2.305843009972944e+18"
+  },
+  "whole-readers\t=COUNT(1,B11)": {
+   "display": "2",
+   "kind": "N",
+   "value": "2"
+  },
+  "whole-readers\t=COUNT(1,B11+0)": {
+   "display": "2",
+   "kind": "N",
+   "value": "2"
+  },
+  "whole-readers\t=COUNT(1,B9:B11)": {
+   "display": "4",
+   "kind": "N",
+   "value": "4"
+  },
+  "whole-readers\t=COUNT(B11+0,1)": {
+   "display": "2",
+   "kind": "N",
+   "value": "2"
+  },
+  "whole-readers\t=COUNT(B11,1)": {
+   "display": "2",
+   "kind": "N",
+   "value": "2"
+  },
+  "whole-readers\t=COUNT(B9:B11,1)": {
+   "display": "4",
+   "kind": "N",
+   "value": "4"
+  },
+  "whole-readers\t=COUNTA(1,B11)": {
+   "display": "2",
+   "kind": "N",
+   "value": "2"
+  },
+  "whole-readers\t=COUNTA(1,B11+0)": {
+   "display": "2",
+   "kind": "N",
+   "value": "2"
+  },
+  "whole-readers\t=COUNTA(1,B9:B11)": {
+   "display": "4",
+   "kind": "N",
+   "value": "4"
+  },
+  "whole-readers\t=COUNTA(B11+0,1)": {
+   "display": "2",
+   "kind": "N",
+   "value": "2"
+  },
+  "whole-readers\t=COUNTA(B11,1)": {
+   "display": "2",
+   "kind": "N",
+   "value": "2"
+  },
+  "whole-readers\t=COUNTA(B9:B11,1)": {
+   "display": "4",
+   "kind": "N",
+   "value": "4"
+  },
+  "whole-readers\t=COUNTBLANK(B11)": {
+   "display": "0",
+   "kind": "N",
+   "value": "0"
+  },
+  "whole-readers\t=COUNTBLANK(B11+0)": {
+   "display": "0",
+   "kind": "N",
+   "value": "0"
+  },
+  "whole-readers\t=COUNTBLANK(B9:B11)": {
+   "display": "0",
+   "kind": "N",
+   "value": "0"
+  },
+  "whole-readers\t=COUNTBLANK(C1:C3)": {
+   "display": "0",
+   "kind": "N",
+   "value": "0"
+  },
+  "whole-readers\t=COUNTIF(B11+0,1)": {
+   "display": "#VALUE!",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=COUNTIF(B11,1)": {
+   "display": "0",
+   "kind": "N",
+   "value": "0"
+  },
+  "whole-readers\t=COUNTIF(B1:B3,B11)": {
+   "display": "0",
+   "kind": "N",
+   "value": "0"
+  },
+  "whole-readers\t=COUNTIF(B1:B3,B11+0)": {
+   "display": "0",
+   "kind": "N",
+   "value": "0"
+  },
+  "whole-readers\t=COUNTIF(B1:B3,B9:B11)": {
+   "display": "0",
+   "kind": "N",
+   "value": "0"
+  },
+  "whole-readers\t=COUNTIF(B9:B11,1)": {
+   "display": "0",
+   "kind": "N",
+   "value": "0"
+  },
+  "whole-readers\t=COUNTIF(C1:C3,1)": {
+   "display": "0",
+   "kind": "N",
+   "value": "0"
+  },
+  "whole-readers\t=COUNTIFS(B11+0,\">0\")": {
+   "display": "#VALUE!",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=COUNTIFS(B11,\">0\")": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=COUNTIFS(B9:B11,\">0\")": {
+   "display": "3",
+   "kind": "N",
+   "value": "3"
+  },
+  "whole-readers\t=COUNTIFS(C1:C3,\">0\")": {
+   "display": "3",
+   "kind": "N",
+   "value": "3"
+  },
+  "whole-readers\t=MAX(1,B11)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=MAX(1,B11+0)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=MAX(1,B9:B11)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=MAX(B11+0,1)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=MAX(B11,1)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=MAX(B9:B11,1)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=MEDIAN(1,B11)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=MEDIAN(1,B11+0)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=MEDIAN(1,B9:B11)": {
+   "display": "1518500253.5",
+   "kind": "N",
+   "value": "1518500253.5"
+  },
+  "whole-readers\t=MEDIAN(B11+0,1)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=MEDIAN(B11,1)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=MEDIAN(B9:B11,1)": {
+   "display": "1518500253.5",
+   "kind": "N",
+   "value": "1518500253.5"
+  },
+  "whole-readers\t=MIN(1,B11)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=MIN(1,B11+0)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=MIN(1,B9:B11)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=MIN(B11+0,1)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=MIN(B11,1)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=MIN(B9:B11,1)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=MODE(1,1,B11)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=MODE(1,1,B11+0)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=MODE(1,1,B9:B11)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=MODE(1,B11+0,1)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=MODE(1,B11,1)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=MODE(1,B9:B11,1)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=MODE(B11+0,1,1)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=MODE(B11,1,1)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=MODE(B9:B11,1,1)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=PERCENTILE(B11+0,1)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=PERCENTILE(B11,1)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=PERCENTILE(B1:B3,B11)": {
+   "display": "#NUM!",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=PERCENTILE(B1:B3,B11+0)": {
+   "display": "#NUM!",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=PERCENTILE(B1:B3,B9:B11)": {
+   "display": "#NUM!",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=PERCENTILE(B9:B11,1)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=PERCENTILE(C1:C3,1)": {
+   "display": "30",
+   "kind": "N",
+   "value": "30"
+  },
+  "whole-readers\t=PRODUCT(1,B11)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=PRODUCT(1,B11+0)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=PRODUCT(1,B9:B11)": {
+   "display": "1.960796984132978e+29",
+   "kind": "N",
+   "value": "1.960796984132978e+29"
+  },
+  "whole-readers\t=PRODUCT(B11+0,2)": {
+   "display": "1.8446744073709552e+19",
+   "kind": "N",
+   "value": "1.8446744073709552e+19"
+  },
+  "whole-readers\t=PRODUCT(B11,2)": {
+   "display": "1.8446744073709552e+19",
+   "kind": "N",
+   "value": "1.8446744073709552e+19"
+  },
+  "whole-readers\t=PRODUCT(B9:B11,2)": {
+   "display": "3.921593968265956e+29",
+   "kind": "N",
+   "value": "3.921593968265956e+29"
+  },
+  "whole-readers\t=RANK(1,B11+0,0)": {
+   "display": "#N/A",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=RANK(1,B11,0)": {
+   "display": "#N/A",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=RANK(1,B1:B3,B11)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=RANK(1,B1:B3,B11+0)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=RANK(1,B1:B3,B9:B11)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=RANK(1,B9:B11,0)": {
+   "display": "#N/A",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=RANK(1,C1:C3,0)": {
+   "display": "#N/A",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=RANK(B11+0,B1:B3,0)": {
+   "display": "#N/A",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=RANK(B11,B1:B3,0)": {
+   "display": "#N/A",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=RANK(B9:B11,B1:B3,0)": {
+   "display": "#N/A",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=STDEV(1,B11)": {
+   "display": "6.521908912666392e+18",
+   "kind": "N",
+   "value": "6.521908912666392e+18"
+  },
+  "whole-readers\t=STDEV(1,B11+0)": {
+   "display": "6.521908912666392e+18",
+   "kind": "N",
+   "value": "6.521908912666392e+18"
+  },
+  "whole-readers\t=STDEV(1,B9:B11)": {
+   "display": "4.611686017921221e+18",
+   "kind": "N",
+   "value": "4.611686017921221e+18"
+  },
+  "whole-readers\t=STDEV(B11+0,1)": {
+   "display": "6.521908912666392e+18",
+   "kind": "N",
+   "value": "6.521908912666392e+18"
+  },
+  "whole-readers\t=STDEV(B11,1)": {
+   "display": "6.521908912666392e+18",
+   "kind": "N",
+   "value": "6.521908912666392e+18"
+  },
+  "whole-readers\t=STDEV(B9:B11,1)": {
+   "display": "4.611686017921221e+18",
+   "kind": "N",
+   "value": "4.611686017921221e+18"
+  },
+  "whole-readers\t=STDEVP(1,B11)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=STDEVP(1,B11+0)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=STDEVP(1,B9:B11)": {
+   "display": "3.9938372457972756e+18",
+   "kind": "N",
+   "value": "3.9938372457972756e+18"
+  },
+  "whole-readers\t=STDEVP(B11+0,1)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=STDEVP(B11,1)": {
+   "display": "4.611686018427388e+18",
+   "kind": "N",
+   "value": "4.611686018427388e+18"
+  },
+  "whole-readers\t=STDEVP(B9:B11,1)": {
+   "display": "3.9938372457972756e+18",
+   "kind": "N",
+   "value": "3.9938372457972756e+18"
+  },
+  "whole-readers\t=SUM(1,B11)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=SUM(1,B11+0)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=SUM(1,B9:B11)": {
+   "display": "9.223372039891775e+18",
+   "kind": "N",
+   "value": "9.223372039891775e+18"
+  },
+  "whole-readers\t=SUM(B11+0,1)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=SUM(B11,1)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=SUM(B9:B11,1)": {
+   "display": "9.223372039891775e+18",
+   "kind": "N",
+   "value": "9.223372039891775e+18"
+  },
+  "whole-readers\t=SUMIF(B11+0,\">0\",B1:B3)": {
+   "display": "#VALUE!",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=SUMIF(B11,\">0\",B1:B3)": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=SUMIF(B1:B3,\">0\",B11)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=SUMIF(B1:B3,\">0\",B11+0)": {
+   "display": "#VALUE!",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=SUMIF(B1:B3,\">0\",B9:B11)": {
+   "display": "9.223372039891775e+18",
+   "kind": "N",
+   "value": "9.223372039891775e+18"
+  },
+  "whole-readers\t=SUMIF(B1:B3,\">0\",C1:C3)": {
+   "display": "60",
+   "kind": "N",
+   "value": "60"
+  },
+  "whole-readers\t=SUMIF(B9:B11,\">0\",B1:B3)": {
+   "display": "6",
+   "kind": "N",
+   "value": "6"
+  },
+  "whole-readers\t=SUMIF(C1:C3,\">0\",B1:B3)": {
+   "display": "6",
+   "kind": "N",
+   "value": "6"
+  },
+  "whole-readers\t=SUMIFS(B11+0,B1:B3,\">0\")": {
+   "display": "#VALUE!",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=SUMIFS(B11,B1:B3,\">0\")": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=SUMIFS(B1:B3,B11+0,\">0\")": {
+   "display": "#VALUE!",
+   "kind": "E",
+   "value": ""
+  },
+  "whole-readers\t=SUMIFS(B1:B3,B11,\">0\")": {
+   "display": "1",
+   "kind": "N",
+   "value": "1"
+  },
+  "whole-readers\t=SUMIFS(B1:B3,B9:B11,\">0\")": {
+   "display": "6",
+   "kind": "N",
+   "value": "6"
+  },
+  "whole-readers\t=SUMIFS(B1:B3,C1:C3,\">0\")": {
+   "display": "6",
+   "kind": "N",
+   "value": "6"
+  },
+  "whole-readers\t=SUMIFS(B9:B11,B1:B3,\">0\")": {
+   "display": "9.223372039891775e+18",
+   "kind": "N",
+   "value": "9.223372039891775e+18"
+  },
+  "whole-readers\t=SUMIFS(C1:C3,B1:B3,\">0\")": {
+   "display": "60",
+   "kind": "N",
+   "value": "60"
+  },
+  "whole-readers\t=SUMPRODUCT(1,B11)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=SUMPRODUCT(1,B11+0)": {
+   "display": "9.223372036854776e+18",
+   "kind": "N",
+   "value": "9.223372036854776e+18"
+  },
+  "whole-readers\t=SUMPRODUCT(1,B9:B11)": {
+   "display": "7",
+   "kind": "N",
+   "value": "7"
+  },
+  "whole-readers\t=SUMPRODUCT(B11+0,2)": {
+   "display": "1.8446744073709552e+19",
+   "kind": "N",
+   "value": "1.8446744073709552e+19"
+  },
+  "whole-readers\t=SUMPRODUCT(B11,2)": {
+   "display": "1.8446744073709552e+19",
+   "kind": "N",
+   "value": "1.8446744073709552e+19"
+  },
+  "whole-readers\t=SUMPRODUCT(B9:B11,2)": {
+   "display": "14",
+   "kind": "N",
+   "value": "14"
+  },
+  "whole-readers\t=VAR(1,B11)": {
+   "display": "4.253529586511731e+37",
+   "kind": "N",
+   "value": "4.253529586511731e+37"
+  },
+  "whole-readers\t=VAR(1,B11+0)": {
+   "display": "4.253529586511731e+37",
+   "kind": "N",
+   "value": "4.253529586511731e+37"
+  },
+  "whole-readers\t=VAR(1,B9:B11)": {
+   "display": "2.1267647927890092e+37",
+   "kind": "N",
+   "value": "2.1267647927890092e+37"
+  },
+  "whole-readers\t=VAR(B11+0,1)": {
+   "display": "4.253529586511731e+37",
+   "kind": "N",
+   "value": "4.253529586511731e+37"
+  },
+  "whole-readers\t=VAR(B11,1)": {
+   "display": "4.253529586511731e+37",
+   "kind": "N",
+   "value": "4.253529586511731e+37"
+  },
+  "whole-readers\t=VAR(B9:B11,1)": {
+   "display": "2.1267647927890092e+37",
+   "kind": "N",
+   "value": "2.1267647927890092e+37"
+  },
+  "whole-readers\t=VARP(1,B11)": {
+   "display": "2.1267647932558654e+37",
+   "kind": "N",
+   "value": "2.1267647932558654e+37"
+  },
+  "whole-readers\t=VARP(1,B11+0)": {
+   "display": "2.1267647932558654e+37",
+   "kind": "N",
+   "value": "2.1267647932558654e+37"
+  },
+  "whole-readers\t=VARP(1,B9:B11)": {
+   "display": "1.5950735945917568e+37",
+   "kind": "N",
+   "value": "1.5950735945917568e+37"
+  },
+  "whole-readers\t=VARP(B11+0,1)": {
+   "display": "2.1267647932558654e+37",
+   "kind": "N",
+   "value": "2.1267647932558654e+37"
+  },
+  "whole-readers\t=VARP(B11,1)": {
+   "display": "2.1267647932558654e+37",
+   "kind": "N",
+   "value": "2.1267647932558654e+37"
+  },
+  "whole-readers\t=VARP(B9:B11,1)": {
+   "display": "1.5950735945917568e+37",
+   "kind": "N",
+   "value": "1.5950735945917568e+37"
+  },
   "wrappers\t=\"x\"+1&\"x\"": {
    "display": "#VALUE!",
    "kind": "E",
@@ -119988,6 +120833,20 @@
    "D2": "2"
   },
   "number-text": {},
+  "whole-readers": {
+   "B1": "1",
+   "B10": "3037000500",
+   "B11": "9223372036854775807",
+   "B12": "-9223372036854775808",
+   "B2": "2",
+   "B3": "3",
+   "B9": "7",
+   "C1": "10",
+   "C2": "20",
+   "C3": "30",
+   "D1": "-1",
+   "D2": "2"
+  },
   "wrappers": {
    "B1": "1",
    "B10": "3037000500",

@@ -1,0 +1,1 @@
+- Measure and fill stored-large-whole reader and template-position coverage in the number-boundary bar (#104).

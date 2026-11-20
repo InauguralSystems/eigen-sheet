@@ -1,5 +1,5 @@
 {
-  "rule": "One Calc-valid fullest call per dispatcher function. arguments labels every position the implementation reads; all scalar positions are expanded, while reference-only range positions are counted left_out. Each row cites its fullest-call source.",
+  "rule": "One Calc-valid fullest call per dispatcher function. arguments labels every position the implementation reads; all argument positions are expanded, including reference-only range positions. Each row cites its fullest-call source.",
   "rows": {
     "ABS": {
       "call": "ABS(1)",
@@ -57,7 +57,7 @@
         "range"
       ],
       "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "inside-range"
@@ -81,7 +81,7 @@
         "criterion"
       ],
       "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "inside-range"
@@ -144,7 +144,7 @@
         "text",
         "range"
       ],
-      "note": "sheet.eigs evaluates the second argument, but Calc signature requires a cell reference, so it is outside the numeric-position population. Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "sheet.eigs evaluates the second argument, but Calc signature requires a cell reference, so it is outside the numeric-position population. Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "source": "sheet.eigs:1764, dispatcher branch containing the largest implemented argument count",
       "paths": [
         [
@@ -190,7 +190,7 @@
       "arguments": [
         "range"
       ],
-      "note": "Calc signature requires a reference/array; not a numeric scalar position. Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Calc signature requires a reference/array; not a numeric scalar position. Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
       "paths": [
         [
@@ -203,7 +203,7 @@
       "arguments": [
         "range"
       ],
-      "note": "Calc signature requires a reference/array; not a numeric scalar position. Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Calc signature requires a reference/array; not a numeric scalar position. Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
       "paths": [
         [
@@ -277,7 +277,7 @@
         "range"
       ],
       "source": "sheet.eigs:2315, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "inside-range"
@@ -291,7 +291,7 @@
         "number"
       ],
       "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "inside-range"
@@ -310,7 +310,7 @@
         "criterion"
       ],
       "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "inside-range"
@@ -562,7 +562,7 @@
         "number"
       ],
       "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "formula-reference",
@@ -693,7 +693,7 @@
         "number"
       ],
       "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "inside-range"
@@ -775,7 +775,7 @@
         "number"
       ],
       "source": "sheet.eigs:1558, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "inside-range"
@@ -954,7 +954,7 @@
         "range"
       ],
       "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "formula-reference",
@@ -989,7 +989,7 @@
         "number"
       ],
       "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "formula-reference",
@@ -1293,7 +1293,7 @@
         "number"
       ],
       "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "inside-range"
@@ -1487,7 +1487,7 @@
         "number"
       ],
       "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "formula-reference",
@@ -1685,7 +1685,7 @@
       "arguments": [
         "range"
       ],
-      "note": "Calc signature requires a reference/array; not a numeric scalar position. Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Calc signature requires a reference/array; not a numeric scalar position. Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
       "paths": [
         [
@@ -1698,7 +1698,7 @@
       "arguments": [
         "range"
       ],
-      "note": "Calc signature requires a reference/array; not a numeric scalar position. Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Calc signature requires a reference/array; not a numeric scalar position. Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
       "paths": [
         [
@@ -1874,7 +1874,7 @@
         "range"
       ],
       "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "inside-range"
@@ -1898,7 +1898,7 @@
         "criterion"
       ],
       "source": "sheet.eigs:1803, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "inside-range"
@@ -2189,7 +2189,7 @@
         "number"
       ],
       "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
-      "note": "Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "paths": [
         [
           "formula-reference",
@@ -2240,7 +2240,7 @@
         "range",
         "number"
       ],
-      "note": "Calc 24.2 lacks XLOOKUP; LOOKUP validates the same three argument kinds while the generated template uses dispatcher name XLOOKUP. Reference-only range position(s) are left out of scalar substitution; their bad-value path is generated inside the covered range.",
+      "note": "Calc 24.2 lacks XLOOKUP; LOOKUP validates the same three argument kinds while the generated template uses dispatcher name XLOOKUP. Reference-only range positions are varied with generated bare, mixed-range, and ordinary-range readers.",
       "source": "sheet.eigs:1411, dispatcher branch containing the largest implemented argument count",
       "paths": [
         [
