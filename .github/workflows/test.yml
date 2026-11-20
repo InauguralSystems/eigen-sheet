@@ -73,7 +73,7 @@ jobs:
       - name: Install LibreOffice Calc + openpyxl + zlib headers
         run: |
           sudo apt-get update
-          sudo apt-get install -y libreoffice-calc python3-openpyxl zlib1g-dev
+          sudo apt-get install -y libreoffice-calc python3-openpyxl python3-uno zlib1g-dev
       - name: Build EigenScript from source (with zlib for xlsx import inflate)
         run: |
           git clone --depth 1 --branch phase2-consumers-1 https://github.com/InauguralSystems/EigenScript.git "$RUNNER_TEMP/eigs"

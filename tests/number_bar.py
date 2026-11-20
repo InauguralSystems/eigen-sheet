@@ -68,6 +68,16 @@ expected text in Calc's spelling and are counted apart as rule_examined and
 rule_differ.  A program that aborts counts each of its items as differing and
 adds one to crash.
 
+For a declared operation stage Calc receives the dump from immediately before
+the operation, not the result dump: sort_range arguments are sheet, two
+0-based corners, the 0-based key column within the range, and descending;
+copy_block arguments are sheet and two 0-based corners, while paste_block is
+sheet, that clip, and its 0-based target.  The declarations are checked against
+the program lines.  Calc performs the sort or copy/paste through UNO.  Both the
+cell content and value are judged; content normalisation changes CRLF/CR to LF,
+strips surrounding whitespace, and Decimal-canonicalises finite numeric
+constants, identically on both sides (formula text is otherwise unchanged).
+
 Exit 0 only when differ, net, crash and rule_differ are all 0 and every set
 ran; 1 when any is not; 2 for the tool's own errors.
 """
@@ -583,12 +593,40 @@ def range_cells(rng):
 
 def api_calc(program, item, stages, tmp):
  """Calc's answer for every calc item of a program that ran: {id: (C, shape)}."""
- got={}; csvs={}
+ got=CalcResult(); csvs={}; contents={}
+ ops=item.get("operations",{})
+ source=open(os.path.join(API,program),encoding="utf-8").read()
+ for stage,op in ops.items():
+  if stage not in stages: raise ToolError("%s: operation stage %s was not printed"%(program,stage))
+  if op["kind"]=="sort_range":
+   needle="sheet.sort_range of [s,"+",".join(str(x) for x in op["args"])+"]"
+   if needle not in source: raise ToolError("%s: declared sort is not in program"%program)
+  elif op["kind"]=="paste_block":
+   copy="sheet.copy_block of [s,"+",".join(str(x) for x in op["copy_args"])+"]"
+   paste="sheet.paste_block of [s,cp,"+",".join(str(x) for x in op["paste_args"])+"]"
+   if copy not in source or paste not in source: raise ToolError("%s: declared copy/paste is not in program"%program)
+  else: raise ToolError("%s: unknown declared operation"%program)
  for stage,dump in stages.items():
   its=[it for it in item["items"] if it["id"].split(":")[0]==stage and "calc" in it]
   if not its: continue
   opt=item.get("stages",{}).get(stage,{}); start=None; names=dump["names"]
   judged=[it["id"].split(":",1)[1] for it in its if it["calc"]=="cell"]
+  if stage in ops:
+   op=ops[stage]
+   if op["kind"]=="sort_range":
+    cells=dict(re.findall(r'sheet\.set_cell of \[s,"([A-Z]+\d+)","([^"]*)"\]',source))
+   else:
+    prior=list(stages).index(stage)-1
+    if prior < 0: raise ToolError("%s: paste has no preceding dump"%program)
+    cells=stages[list(stages)[prior]]["cells"]
+   q={"cells":cells,"operation":op,"judged":judged}
+   helper=os.path.join(ROOT,"tests","number_bar_uno.py")
+   r=subprocess.run(["/usr/bin/python3",helper],input=json.dumps(q),text=True,capture_output=True,timeout=120)
+   if r.returncode: raise ToolError("Calc operation failed: "+r.stderr)
+   answer=json.loads(r.stdout)
+   for a in judged:
+    got[stage+":"+a]=(answer[a]["value"],None); contents[stage+":"+a]=answer[a]["content"]
+   continue
   if "start" in opt:
    kind,src=opt["start"].split(":",1)
    text=open(os.path.join(API,src)).read() if kind=="csv" else csvs[src]
@@ -617,6 +655,7 @@ def api_calc(program, item, stages, tmp):
     w=io.StringIO(); csv.writer(w,lineterminator="\n").writerows([[c for c,_ in row] for row in fields])
     csvs[it["id"]]=w.getvalue(); got[it["id"]]=(fields,None)
    else: got[it["id"]]=cells[spare[it["id"]]]
+ got.contents=contents
  return got
 
 MISSING={"kind":"CRASH","value":"","display":"<missing>"}
@@ -638,8 +677,12 @@ def api_grid(tree, binary, spec):
    lo=api_calc(program,item,stages,tmp) if ran else {}
    for it in item["items"]:
     mine=vals.get(it["id"],MISSING) if ran else MISSING
+    if ran and ":" in it["id"]:
+     st,ad=it["id"].split(":",1)
+     if st in stages and ad in stages[st]["cells"]: mine=dict(mine,content=stages[st]["cells"][ad])
     c,shape=(it["expect"],None) if "rule" in it else lo.get(it["id"],(None,None))
-    out.append((program,it,c,shape,mine))
+    content=getattr(lo,"contents",{}).get(it["id"])
+    out.append((program,it,c,shape,mine,content))
   finally: shutil.rmtree(tmp)
  return out,crashed
 
@@ -647,6 +690,13 @@ def api_verdict(it, c, shape, mine):
  if mine["kind"] in ("CRASH","TIMEOUT") or c is None: return False
  if it.get("calc")=="csv-out": return csv_matches(c,mine)
  return matches(c,shape,mine)
+
+def normal_content(s):
+ s=str(s).replace("\r\n","\n").replace("\r","\n").strip()
+ try:
+  if not s.startswith("=") and Decimal(s).is_finite(): return str(Decimal(s).normalize())
+ except InvalidOperation: pass
+ return s
 
 # ---- the run ----------------------------------------------------------------
 def run_bar(sets, tree, binary, before_doc, out=None, calc=calc_grid, grid=runtime_grid, api=api_grid, log=print):
@@ -659,18 +709,24 @@ def run_bar(sets, tree, binary, before_doc, out=None, calc=calc_grid, grid=runti
  if not rewritten: shutil.rmtree(reraised); raise ToolError("no reachable catch was rewritten")
  before=None
  if before_doc is not None: check_before(before_doc,sets); before=before_doc["cells"]
- T={"examined":0,"differ":0,"before":0,"net":0,"net_own":0,"net_only_behaviour":0,"net_only_own":0,"crash":0,"rule_examined":0,"rule_differ":0}; records=[]
+ T={"examined":0,"differ":0,"before":0,"net":0,"net_own":0,"net_only_behaviour":0,"net_only_own":0,"crash":0,"rule_examined":0,"rule_differ":0,"ops":0,"content_examined":0,"content_differ":0}; records=[]
  try:
   for name,spec in sets.items():
    if spec.get("reference")=="api":
-    got,crashed=api(tree,binary,spec); n={"examined":0,"differ":0,"rule_examined":0,"rule_differ":0}
-    for program,it,c,shape,m in got:
-     ok=api_verdict(it,c,shape,m); pre="rule_" if "rule" in it else ""
+    got,crashed=api(tree,binary,spec); n={"examined":0,"differ":0,"rule_examined":0,"rule_differ":0,"ops":0,"content_examined":0,"content_differ":0}
+    op_seen=set()
+    for program,it,c,shape,m,content in got:
+     value_ok=api_verdict(it,c,shape,m); pre="rule_" if "rule" in it else ""
+     content_bad=content is not None and normal_content(content)!=normal_content(m.get("content",""))
+     ok=value_ok and not content_bad
      n[pre+"examined"]+=1; n[pre+"differ"]+=not ok
-     records.append({"set":name,"program":program,"id":it["id"],"reference":"rule" if pre else "calc","calc":c,"calc_shape":shape,"kind":m["kind"],"value":m["value"],"display":m["display"],"verdict":"match" if ok else "differ"})
+     if content is not None:
+      op_seen.add((program,it["id"].split(":",1)[0])); n["content_examined"]+=1; n["content_differ"]+=content_bad
+     records.append({"set":name,"program":program,"id":it["id"],"reference":"rule" if pre else "calc","calc":c,"calc_shape":shape,"calc_content":content,"content":m.get("content"),"kind":m["kind"],"value":m["value"],"display":m["display"],"verdict":"match" if ok else "differ"})
+    n["ops"]=len(op_seen)
     for k in n: T[k]+=n[k]
     T["crash"]+=crashed
-    log("SET %s examined=%d match=%d differ=%d crash=%d rule_examined=%d rule_differ=%d"%(name,n["examined"],n["examined"]-n["differ"],n["differ"],crashed,n["rule_examined"],n["rule_differ"]))
+    log("SET %s examined=%d match=%d differ=%d crash=%d rule_examined=%d rule_differ=%d ops=%d content_examined=%d content_differ=%d"%(name,n["examined"],n["examined"]-n["differ"],n["differ"],crashed,n["rule_examined"],n["rule_differ"],n["ops"],n["content_examined"],n["content_differ"]))
     continue
    lo=calc(spec); mine,own,input_chunks=run_chunks(tree,binary,spec,grid=grid)
    without,_,_=run_chunks(reraised,binary,spec,net=False,grid=grid)
@@ -793,6 +849,14 @@ def _api_case(m, tree, tmp):
   if type(e).__name__=="ToolError": return "TOOL-ERROR"
   raise
 
+def _api_content_case(m, tree, tmp):
+ sets={"api":{"reference":"api","programs":{"stub.eigs":{"items":[{"id":"sorted:A1","calc":"cell"}]}}}}
+ def api(*unused):
+  mine={"kind":"N","value":"1","display":"1","content":"=B1"}
+  return [("stub.eigs",sets["api"]["programs"]["stub.eigs"]["items"][0],"1.00000000000000E+00",None,mine,"=A1")],0
+ T,status=m.run_bar(sets,tree,"stub",None,api=api,log=lambda *x:None)
+ return "differ=%d content_differ=%d status=%d"%(T["differ"],T["content_differ"],status)
+
 def _csv_case(m, tree, tmp):
  """Calc's CSV loses its second row: the reader must refuse it."""
  p=os.path.join(tmp,"short.csv"); open(p,"w").write("1,@row1\n")
@@ -851,6 +915,9 @@ def _input_readback_case(m, tree, tmp):
 
 ONE = 'return abs(a - b) <= Decimal(1).scaleb(m.adjusted() - 14)'
 PLANTS = [
+ ("Calc operation is given the spreadsheet's result content again",
+  'content_bad=content is not None and normal_content(content)!=normal_content(m.get("content",""))',
+  'content_bad=False', lambda m,t,x:_api_content_case(m,t,x), "differ=1 content_differ=1 status=1"),
  ("behavioural net replaced by identical second-run answers", 'caught={ad for ad in spec["f"] if mine[ad] != without[ad]}', 'caught=set()',
   lambda m,t,x: _bar(m,t,caught={"A1"},**_one("#NUM!",E("#NUM!"))), 'examined=1 differ=1 before=0 net=1 crash=0 status=1'),
  ("Calc input read-back skipped while workbook input is overwritten", 'calc_runtime = c is not None and r is not None and matches(c[0],c[1],r)', 'calc_runtime = True',

@@ -1,15 +1,5 @@
 # Number-boundary bar baseline for #104
 
-Formula cells occupy `AA1` onward; declared inputs remain at their original addresses.
-
-## Provenance
-
-NEW was EigenScript tag `phase2-consumers-1`, commit `b9881574b20503c5cfbdb6d80a5e6008e7501e15`, built with `make -s zlib` as the `calc-oracle` workflow builds it. The spreadsheet and tool tree was based on commit `d9963a12642311941a165b5f46e5adff5e9e8966`; the tool is the version in the commit containing this file. The full run had tool wall `756.3s`.
-
-## Full NEW run
-
-Command: `python3 tests/number_bar.py --runtime /tmp/eigs-bar8/build/zlib/eigenscript`
-
 ```text
 DISPATCHER names=115 rule=One Calc-valid fullest call per dispatcher function. arguments labels every position the implementation reads; all scalar positions are expanded, while reference-only range positions are counted left_out. Each row cites its fullest-call source.
 TEMPLATES functions=115 positions=208 left_out=26
@@ -53,15 +43,9 @@ SET c6 examined=18 match=15 differ=3 before=3 net=0 net_own=0 net_only_behaviour
 SET c7 examined=12 match=9 differ=3 before=1 net=2 net_own=2 net_only_behaviour=0 net_only_own=0 crash=0
 SET c8 examined=6 match=5 differ=1 before=0 net=1 net_own=1 net_only_behaviour=0 net_only_own=0 crash=0
 SET c9 examined=6 match=6 differ=0 before=0 net=0 net_own=0 net_only_behaviour=0 net_only_own=0 crash=0
-SET api examined=47 match=31 differ=16 crash=3 rule_examined=2 rule_differ=0
+SET api examined=47 match=28 differ=19 crash=3 rule_examined=2 rule_differ=0 ops=2 content_examined=9 content_differ=3
 INPUTS sets=18 cells=131 chunks=133 same=1841
-NUMBER-BAR examined=24014 differ=5394 before=2232 net=293 net_own=293 net_only_behaviour=0 net_only_own=0 crash=3 rule_examined=2 rule_differ=0 wall=756.3s
+NUMBER-BAR examined=24014 differ=5397 before=2232 net=293 net_own=293 net_only_behaviour=0 net_only_own=0 crash=3 rule_examined=2 rule_differ=0 wall=469.9s
 ```
 
-## Movement from the prior bar
-
-Behavioural `net` remains 293 and `differ` remains 5,394 because every clean-tree behavioural catch agrees with the spreadsheet account; unlike the prior bar, those counts no longer trust that account.
-
-## Movement from the prior 7,430 differences
-
-`class` moved 4,945 -> 3,886; `arrivals-generated` moved 2,027 -> 1,050. Every other set was unchanged: `wrappers` 232, `number-text` 121, `c-sumif` 0, `c1` 0, `c10` 5, `c20` 48, `c22` 8, `c23` 9, `c24` 5, `c25` 2, `c4` 4, `c5` 1, `c6` 3, `c7` 3, `c8` 1, `c9` 0, and `api` 16. Total `differ` moved 7,430 -> 5,394.
+`differ` moved from 5394 to 5397 because Calc independently sorted the block and exposed three clean content/value differences that the old re-evaluation could not detect.

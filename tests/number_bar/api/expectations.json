@@ -1,5 +1,5 @@
 {
-  "rule": "Each item is one answer a program prints with bar_api.eigs. calc=cell: LibreOffice Calc evaluates the same cell of the same sheet (the stage's raw contents and names as the program printed them, or Calc's own read of a CSV when the stage has a start). calc=<formula>: Calc evaluates that formula over the stage's cells. calc=csv-out: Calc writes the range as CSV (contents as shown) and each field is compared by the bar's rule. rule=<text>: no Calc operation answers it; expect is written in Calc's spelling from the stated rule and counted apart (rule_examined, rule_differ).",
+  "rule": "Each item is one answer a program prints with bar_api.eigs. calc=cell normally evaluates the same cell of the dumped sheet. For a declared operation, Calc instead receives the sheet immediately before it and performs it through UNO; both normalized content and value are compared. calc=<formula>: Calc evaluates that formula over the stage's cells. calc=csv-out: Calc writes the range as CSV (contents as shown) and each field is compared by the bar's rule. rule=<text>: no Calc operation answers it; expect is written in Calc's spelling from the stated rule and counted apart (rule_examined, rule_differ).",
   "programs": {
     "sc-1-named.eigs": {"items": [
       {"id": "named:A1", "calc": "cell"}, {"id": "named:A2", "calc": "cell"}, {"id": "named:A3", "calc": "cell"},
@@ -11,7 +11,10 @@
       {"id": "pivot:O2", "calc": "=AVERAGE(L2:L2)", "note": "the AVERAGE row of key a (L2)"},
       {"id": "pivot:O3", "calc": "=AVERAGE(L3:L4)", "note": "the AVERAGE row of key b (L3 and L4)"},
       {"id": "pivot:O4", "calc": "=AVERAGE(L2:L4)", "note": "the grand total"}]},
-    "sc-4-sort-fill.eigs": {"items": [
+    "sc-4-sort-fill.eigs": {"operations": {
+      "sorted": {"kind": "sort_range", "args": [0, 0, 1, 2, 0, 0]},
+      "filled": {"kind": "paste_block", "copy_args": [1, 0, 1, 2], "paste_args": [2, 0]}
+    }, "items": [
       {"id": "sorted:A1", "calc": "cell"}, {"id": "sorted:A2", "calc": "cell"}, {"id": "sorted:A3", "calc": "cell"},
       {"id": "sorted:B1", "calc": "cell"}, {"id": "sorted:B2", "calc": "cell"}, {"id": "sorted:B3", "calc": "cell"},
       {"id": "filled:C1", "calc": "cell"}, {"id": "filled:C2", "calc": "cell"}, {"id": "filled:C3", "calc": "cell"},
