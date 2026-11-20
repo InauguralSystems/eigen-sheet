@@ -36,6 +36,8 @@ SET c8 examined=6 match=5 differ=1 left_out=0 before=0 net=1 net_own=1 net_only_
 KINDS issue=1 eval-failed=0 net=1 error-vs-value=0 large-whole-reader=0 | not-issue=0 missing-function=0 error-vs-error=0 number-differs=0 text-or-shape=0 other=0
 SET c9 examined=6 match=6 differ=0 left_out=0 before=0 net=0 net_own=0 net_only_behaviour=0 net_only_own=0 crash=0
 KINDS issue=0 eval-failed=0 net=0 error-vs-value=0 large-whole-reader=0 | not-issue=0 missing-function=0 error-vs-error=0 number-differs=0 text-or-shape=0 other=0
+SET other-kinds examined=1 match=0 differ=1 left_out=0 before=1 net=0 net_own=0 net_only_behaviour=0 net_only_own=0 crash=1
+KINDS issue=1 eval-failed=1 net=0 error-vs-value=0 large-whole-reader=0 | not-issue=0 missing-function=0 error-vs-error=0 number-differs=0 text-or-shape=0 other=0
 API-NOT-ASKED sc-2-pivot.eigs:pivot:O2 reason=program-aborted-before-stage
 API-NOT-ASKED sc-2-pivot.eigs:pivot:O3 reason=program-aborted-before-stage
 API-NOT-ASKED sc-3-pivot-avg.eigs:pivot:O2 reason=program-aborted-before-stage
@@ -43,6 +45,6 @@ API-NOT-ASKED sc-3-pivot-avg.eigs:pivot:O3 reason=program-aborted-before-stage
 API-NOT-ASKED sc-3-pivot-avg.eigs:pivot:O4 reason=program-aborted-before-stage
 SET api examined=42 match=28 differ=14 no_oracle=5 crash=3 rule_examined=2 rule_differ=0 ops=2 content_examined=9 content_differ=3 api_calc_asked=42 api_calc_not_asked=5
 KINDS issue=7 eval-failed=4 net=0 error-vs-value=3 large-whole-reader=0 | not-issue=7 missing-function=0 error-vs-error=0 number-differs=2 text-or-shape=3 other=2
-KINDS issue=4046 eval-failed=2819 net=301 error-vs-value=735 large-whole-reader=191 | not-issue=1363 missing-function=61 error-vs-error=304 number-differs=284 text-or-shape=669 other=45
-INPUTS sets=19 cells=143 chunks=134 same=1853
-NUMBER-BAR examined=24174 differ=5409 no_oracle=5 left_out=calc-lacks-form:2,calc-approximate-equality:2 shape_changed=0 before=3067 net=301 net_own=301 net_only_behaviour=0 net_only_own=0 crash=3 rule_examined=2 rule_differ=0 api_calc_asked=42 api_calc_not_asked=5 wall=549.3s
+KINDS issue=4047 eval-failed=2820 net=301 error-vs-value=735 large-whole-reader=191 | not-issue=1363 missing-function=61 error-vs-error=304 number-differs=284 text-or-shape=669 other=45
+INPUTS sets=20 cells=143 chunks=134 same=1853
+NUMBER-BAR examined=24175 differ=5410 no_oracle=5 left_out=calc-lacks-form:2,calc-approximate-equality:2 shape_changed=0 before=3068 net=301 net_own=301 net_only_behaviour=0 net_only_own=0 crash=4 rule_examined=2 rule_differ=0 api_calc_asked=42 api_calc_not_asked=5 wall=498.5s

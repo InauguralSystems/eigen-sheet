@@ -1,0 +1,1 @@
+- Investigate whether spreadsheet formula evaluation can raise runtime error kinds other than `value` for the number bar (#104).
