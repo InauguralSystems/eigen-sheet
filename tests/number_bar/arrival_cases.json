@@ -8,6 +8,7 @@
    "C2": "20",
    "C3": "30"
   },
+  "empty": [],
   "f": {
    "A1": "=SUMIF(B1:B3,\">1\",C1:C3)",
    "A2": "=SUMIF(B1:B3,\">1\")",
@@ -20,6 +21,7 @@
   "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c1": {
+  "empty": [],
   "f": {
    "A1": "=TEXT(1E300*1E10,\"0.00\")",
    "A10": "=1E300*1E10",
@@ -49,6 +51,7 @@
    "C4": "40",
    "C5": "50"
   },
+  "empty": [],
   "f": {
    "A1": "=SUM(B1:B5)",
    "A10": "=B5&\"x\"",
@@ -92,6 +95,7 @@
    "I2": "20",
    "I3": "30"
   },
+  "empty": [],
   "f": {
    "A1": "=SUM(D1:D2)",
    "A10": "=VARP(D1:D2)",
@@ -223,6 +227,7 @@
    "H2": "20",
    "H3": "30"
   },
+  "empty": [],
   "f": {
    "A1": "=B1",
    "A10": "=B3&\"\"",
@@ -292,6 +297,7 @@
    "C2": "20",
    "C3": "30"
   },
+  "empty": [],
   "f": {
    "A1": "=ROUND(1.5,309)",
    "A10": "=LEN(REPT(\"a\",32768))",
@@ -326,6 +332,7 @@
    "C3": "z",
    "C4": "w"
   },
+  "empty": [],
   "f": {
    "A1": "=COUNTIF(B1:B3,B1)",
    "A10": "=VLOOKUP(B4,B1:C4,2,0)",
@@ -354,6 +361,7 @@
    "C2": "20",
    "D1": "0"
   },
+  "empty": [],
   "f": {
    "A1": "=SUMIF(B1:B2,\">1\",C1:C2)",
    "A2": "=IFERROR(VLOOKUP(9,B1:C2,2,0)+C1+C2,0)",
@@ -376,6 +384,7 @@
    "C2": "20",
    "C3": "30"
   },
+  "empty": [],
   "f": {
    "A1": "=B4/1",
    "A10": "=IFERROR(B4+B1/B2,\"e\")",
@@ -433,6 +442,7 @@
    "B3": "1E300",
    "B4": "2E300"
   },
+  "empty": [],
   "f": {
    "A1": "=STDEV(B1:B2)",
    "A10": "=SQRT(SUMPRODUCT(B1:B2,B1:B2))",
@@ -460,6 +470,7 @@
    "C2": "20",
    "C3": "30"
   },
+  "empty": [],
   "f": {
    "A1": "=IFERROR(SUM(1/0,1),7101)",
    "A10": "=POWER(10,400)>0",
@@ -488,6 +499,7 @@
    "B2": "1",
    "B3": "123456789012345678"
   },
+  "empty": [],
   "f": {
    "A1": "=123456789012345678*100",
    "A10": "=B3*B3",
@@ -509,6 +521,7 @@
    "B1": "5000000000",
    "B2": "100000"
   },
+  "empty": [],
   "f": {
    "A1": "=B1*B1",
    "A2": "=PRODUCT(B2,B2,B2,B2)",
@@ -520,6 +533,7 @@
   "purpose": "Hand regression corpus for compound or cross-cell behavior not emitted as one generated argument-arrival cell."
  },
  "c9": {
+  "empty": [],
   "f": {
    "A1": "=-1E-300*1E-300",
    "A2": "=(-1E-300*1E-300)&\"\"",
