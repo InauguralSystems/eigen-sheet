@@ -382,7 +382,13 @@ define _formula_number(st, v) as:
 # computing with an error placeholder.
 define _to_num(st, v) as:
     if st.err != "":
-        return v
+        # The cell already has its error, and its value will not be used. A
+        # number goes on as it is; anything else answers 0, so that the
+        # arithmetic or the `floor` after this call never meets a text (the
+        # runtime's argument guards raise on one).
+        if (type of v) == "num":
+            return v
+        return 0
     if (type of v) == "num":
         return _formula_number of [st, v]
     if (_is_bool of v) == 1:
