@@ -1,0 +1,1 @@
+Spreadsheet formula values now cross one binary64 boundary at literals, cells, ranges, conversions and function results; runtime failures are contained per cell, non-finite results are catchable, and negative zero displays as `0` (#101).

@@ -53,6 +53,12 @@ CELLS = {
     "A19": '=IF("apple"<"banana","1st","2nd")',  # 1st
     "A20": '=IF(B1="HI","match","no")', # match (case-insensitive vs cell)
     "A21": '=UPPER(LEFT("hello",3))',   # HEL (nested)
+    # Runtime-independent numeric text: integral doubles lose only their .0.
+    "A22": '=(0.1+0.2)*10',              # grid/display rounding -> 3
+    "A24": '=10/2&"x"',                  # implicit numeric text -> 5x
+    "A25": '=LEN(4/2)',                   # implicit numeric text has length 1
+    "A26": '=LEFT(10/2,1)',               # every text-taking function shares it
+    "A27": '=TEXT(10/2,"0")',            # explicit TEXT agrees too
     # ---- text library extend (#5) ----
     "C1": '=FIND("l","hello")',            # 3   (1-based, case-sensitive)
     "C2": '=SEARCH("L","hello")',          # 3   (case-insensitive)
