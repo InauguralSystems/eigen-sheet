@@ -56,6 +56,19 @@ answers, keyed by set, formula text and the set's input cells, and is written
 whole by --write-before; a key no present cell has is the tool's error.  The
 api set has no before.
 
+Every `differ` record has one `differ_kind`, decided only from that cell's
+Calc text and shape; spreadsheet kind, value, display and net flag; and formula
+with its set inputs. The first applicable rule wins, in this order:
+- `eval-failed`: the spreadsheet answer is CRASH, TIMEOUT, or an error displayed as #ERROR.
+- `net`: the cell is caught by the behavioural net.
+- `missing-function`: the spreadsheet display is #NAME? and Calc is not an error.
+- `error-vs-value`: exactly one answer is an error.
+- `error-vs-error`: both answers are errors.
+- `large-whole-reader`: both answers are numbers differing by THE RULE and the formula reads, literally or through a referenced set input (ranges included), a whole number whose magnitude is at least 2^53.
+- `number-differs`: both answers are numbers differing by THE RULE without such a large whole number.
+- `text-or-shape`: the answers agree as numbers by THE RULE, or are both text or logical, and spelling or shape makes the verdict differ.
+- `other`: none of those rules applies.
+
 The api set (api/expectations.json) checks the paths outside recalc.  Each
 program prints, with api/bar_api.eigs, every cell's raw content and the
 defined names at each stage, and its judged answers.  Every expected item is
@@ -257,6 +270,45 @@ def matches(c, shape, mine):
   if c.startswith("Err:"): return disp in SEVEN
   return disp == c
  return k != "E" and disp == c
+
+
+DIFFER_KINDS = ("eval-failed", "net", "missing-function", "error-vs-value", "error-vs-error", "large-whole-reader", "number-differs", "text-or-shape", "other")
+ISSUE_KINDS = ("eval-failed", "net", "error-vs-value", "large-whole-reader")
+
+def _large_whole_reader(formula, base):
+ refs=set(re.findall(r"\b[A-Z]+\d+\b",formula.upper()))
+ for a,b in re.findall(r"\b([A-Z]+\d+):([A-Z]+\d+)\b",formula.upper()):
+  (c0,r0),(c1,r1)=col_number(a),col_number(b)
+  for ad in base:
+   ca,ra=col_number(ad)
+   if min(c0,c1)<=ca<=max(c0,c1) and min(r0,r1)<=ra<=max(r0,r1): refs.add(ad)
+ values=[base[a].lstrip("=") for a in refs if a in base]
+ values+=re.findall(r"(?<![A-Z0-9_.])-?(?:\d+(?:\.\d*)?|\.\d+)(?:E[+-]?\d+)?(?![A-Z0-9_.])",re.sub(r"\b[A-Z]+\d+(?::[A-Z]+\d+)?\b","",formula.upper()))
+ return any((lambda d:d is not None and d==d.to_integral_value() and abs(d)>=Decimal(2)**53)(decimal(v)) for v in values)
+
+def differ_kind(c, shape, mine, net, formula, base):
+ """Classify one differing cell from only that cell's answers, formula and inputs."""
+ k=mine["kind"]; ck=("text" if shape=="TEXT" else calc_class(c)) if isinstance(c,str) else "other"
+ me=k in ("E","CRASH","TIMEOUT"); ce=ck=="error"
+ if k in ("CRASH","TIMEOUT") or (k=="E" and mine["display"]=="#ERROR"): return "eval-failed"
+ if net: return "net"
+ if mine["display"]=="#NAME?" and not ce: return "missing-function"
+ if me != ce: return "error-vs-value"
+ if me and ce: return "error-vs-error"
+ if ck=="number" and k=="N" and not agree(decimal(c,CALC_NUMBER),decimal(mine["value"])):
+  return "large-whole-reader" if _large_whole_reader(formula,base) else "number-differs"
+ numeric_agree=ck=="number" and k in ("N","L") and agree(decimal(c,CALC_NUMBER),decimal(mine["value"]))
+ if numeric_agree or (ck=="text" and k=="S") or (shape in ("TRUE","FALSE") and k=="L"): return "text-or-shape"
+ return "other"
+
+def kind_counts(records):
+ d={k:sum(r.get("differ_kind")==k for r in records) for k in DIFFER_KINDS}
+ d["issue"]=sum(d[k] for k in ISSUE_KINDS); d["not-issue"]=sum(d[k] for k in DIFFER_KINDS if k not in ISSUE_KINDS)
+ return d
+
+def kinds_line(d):
+ ks=("issue","eval-failed","net","error-vs-value","large-whole-reader","not-issue","missing-function","error-vs-error","number-differs","text-or-shape","other")
+ return ("KINDS issue=%d eval-failed=%d net=%d error-vs-value=%d large-whole-reader=%d | not-issue=%d missing-function=%d error-vs-error=%d number-differs=%d text-or-shape=%d other=%d")%tuple(d[k] for k in ks)
 
 def same_answer(old, new):
  """The before comparison: the same number by agree(), the same error name,
@@ -611,7 +663,8 @@ def compare_set(tree, name, spec, mine, caught, own, calc, before):
    n["differ"]+=1
    old=before.get(before_key(name,ad,f)) if before is not None else None
    if old is not None and same_answer(old,m): b=True; n["before"]+=1
-  recs.append({"set":name,"address":ad,"formula":f,"paths":spec.get("paths",{}).get(ad,[]),"calc":c,"calc_shape":shape,"kind":m["kind"],
+  dk=differ_kind(c,shape,m,net,f,spec.get("base",{})) if not ok and not rule else None
+  recs.append({"differ_kind":dk,"set":name,"address":ad,"formula":f,"paths":spec.get("paths",{}).get(ad,[]),"calc":c,"calc_shape":shape,"kind":m["kind"],
                "value":m["value"],"display":m["display"],"net":net,"net_own":is_own,"verdict":("left_out" if rule else ("match" if ok else "differ")),"left_out_rule":rule,"before":b})
  return recs,n
 
@@ -786,11 +839,15 @@ def run_bar(sets, tree, binary, before_doc, out=None, calc=calc_grid, grid=runti
      else: n[pre+"examined"]+=1; n[pre+"differ"]+=not ok
      if content is not None:
       op_seen.add((program,it["id"].split(":",1)[0])); n["content_examined"]+=1; n["content_differ"]+=content_bad
-     records.append({"set":name,"program":program,"id":it["id"],"reference":"rule" if pre else "calc","calc":c,"calc_shape":shape,"calc_content":content,"content":m.get("content"),"kind":m["kind"],"value":m["value"],"display":m["display"],"verdict":"no_oracle" if no_oracle else ("match" if ok else "differ"),"no_oracle_reason":"program aborted before stage" if no_oracle else None})
+     verdict="no_oracle" if no_oracle else ("match" if ok else "differ")
+     dk=differ_kind(c,shape,m,False,m.get("content","") or "",{}) if verdict=="differ" else None
+     records.append({"differ_kind":dk,"set":name,"program":program,"id":it["id"],"reference":"rule" if pre else "calc","calc":c,"calc_shape":shape,"calc_content":content,"content":m.get("content"),"kind":m["kind"],"value":m["value"],"display":m["display"],"verdict":verdict,"no_oracle_reason":"program aborted before stage" if no_oracle else None})
     n["ops"]=len(op_seen)
     for k in n: T[k]+=n[k]
     T["crash"]+=crashed
     log("SET %s examined=%d match=%d differ=%d no_oracle=%d crash=%d rule_examined=%d rule_differ=%d ops=%d content_examined=%d content_differ=%d api_calc_asked=%d api_calc_not_asked=%d"%(name,n["examined"],n["examined"]-n["differ"],n["differ"],n["no_oracle"],crashed,n["rule_examined"],n["rule_differ"],n["ops"],n["content_examined"],n["content_differ"],asked,not_asked))
+    kc=kind_counts([r for r in records if r["set"]==name]); log(kinds_line(kc))
+    if kc["issue"]+kc["not-issue"]!=n["differ"]: raise ToolError("set %s kind counts do not equal differ"%name)
     continue
    lo=calc(spec); mine,own,input_chunks=run_chunks(tree,binary,spec,grid=grid)
    changed=getattr(lo,"shape_changed",[]); T.setdefault("shape_changed",0); T["shape_changed"]+=len(changed)
@@ -811,9 +868,14 @@ def run_bar(sets, tree, binary, before_doc, out=None, calc=calc_grid, grid=runti
    recs,n=compare_set(tree,name,spec,mine,caught,own,lo,before); records+=recs
    for k in n: T[k]+=n[k]
    log("SET %s examined=%d match=%d differ=%d left_out=%d before=%d net=%d net_own=%d net_only_behaviour=%d net_only_own=%d crash=%d"%(name,n["examined"],n["examined"]-n["differ"],n["differ"],n["left_out"],n["before"],n["net"],n["net_own"],n["net_only_behaviour"],n["net_only_own"],n["crash"]))
+   kc=kind_counts(recs); log(kinds_line(kc))
+   if kc["issue"]+kc["not-issue"]!=n["differ"]: raise ToolError("set %s kind counts do not equal differ"%name)
  finally: shutil.rmtree(reraised)
+ T["kinds"]=kind_counts(records)
+ if T["kinds"]["issue"]+T["kinds"]["not-issue"]!=T["differ"]: raise ToolError("total kind counts do not equal differ")
+ log(kinds_line(T["kinds"]))
  if out:
-  with open(out,"w") as fh: json.dump({"records":records,"shape_changed_cells":T["shape_changed_cells"]},fh,indent=1)
+  with open(out,"w") as fh: json.dump({"records":records,"shape_changed_cells":T["shape_changed_cells"],"summary":{"kinds":T["kinds"]}},fh,indent=1)
  T["left_out_rules"]={r:sum(x.get("left_out_rule")==r for x in records) for r in ("calc-lacks-form","calc-approximate-equality")}
  bad=T["differ"] or T["net"] or T["crash"] or T["rule_differ"]
  return T, (1 if bad else 0)
@@ -1016,8 +1078,30 @@ def _approx_boundary_case(m, tree, tmp):
  outside=m.left_out_rule(tree,{"base":{"B1":"1","B2":"1.000000000000007105427357601002"}},"=B1-B2","0.00000000000000E+00")
  return inside,outside
 
+def _kind_case(m, tree, tmp, wanted):
+ cases={
+  "eval-failed":("#NUM!",None,E("#ERROR"),True,"=1",{}),
+  "net":("#NUM!",None,E("#NUM!"),True,"=1",{}),
+  "missing-function":("1.00000000000000E+00",None,E("#NAME?"),False,"=NOPE()",{}),
+  "error-vs-value":("1.00000000000000E+00",None,E("#DIV/0!"),False,"=1/0",{}),
+  "error-vs-error":("#DIV/0!",None,E("#NUM!"),False,"=1/0",{}),
+  "large-whole-reader":("1.00000000000000E+00",None,N("2"),False,"=B1+1",{"B1":"9007199254740992"}),
+  "number-differs":("1.00000000000000E+00",None,N("2"),False,"=1+1",{}),
+  "text-or-shape":("1.00000000000000E+00",None,N("1","1.0"),False,"=1",{}),
+  "other":("hello",None,N("1"),False,"=1",{}),
+ }
+ c,shape,mine,net,formula,base=cases[wanted]
+ return m.differ_kind(c,shape,mine,net,formula,base)
+
+def _kind_overlap_case(m, tree, tmp):
+ return m.differ_kind("#NUM!",None,E("#ERROR"),True,"=1",{})
+
+def _all_kind_cases(m, tree, tmp):
+ return ",".join(_kind_case(m,tree,tmp,k) for k in m.DIFFER_KINDS)
+
 ONE = 'return abs(a - b) <= Decimal(1).scaleb(m.adjusted() - 14)'
 PLANTS = [
+ ("differ-kind classifier returns other for everything", ' k=mine["kind"]; ck=("text" if shape=="TEXT" else calc_class(c)) if isinstance(c,str) else "other"', ' return "other"\n k=mine["kind"]; ck=("text" if shape=="TEXT" else calc_class(c)) if isinstance(c,str) else "other"', _all_kind_cases, ",".join(DIFFER_KINDS)),
  ("Calc operation is given the spreadsheet's result content again",
   'content_bad=content is not None and normal_content(content)!=normal_content(m.get("content",""))',
   'content_bad=False', lambda m,t,x:_api_content_case(m,t,x), "differ=1 content_differ=1 status=1"),
@@ -1070,6 +1154,16 @@ PLANTS = [
   lambda m,t,x: _before_case(m,t,x), 'examined=2 differ=2 before=2 net=0 crash=0 status=1'),
 ]
 CONTROLS = [
+ ("differ kind eval-failed", lambda m,t,x,k="eval-failed":_kind_case(m,t,x,k), "eval-failed"),
+ ("differ kind net", lambda m,t,x,k="net":_kind_case(m,t,x,k), "net"),
+ ("differ kind missing-function", lambda m,t,x,k="missing-function":_kind_case(m,t,x,k), "missing-function"),
+ ("differ kind error-vs-value", lambda m,t,x,k="error-vs-value":_kind_case(m,t,x,k), "error-vs-value"),
+ ("differ kind error-vs-error", lambda m,t,x,k="error-vs-error":_kind_case(m,t,x,k), "error-vs-error"),
+ ("differ kind large-whole-reader", lambda m,t,x,k="large-whole-reader":_kind_case(m,t,x,k), "large-whole-reader"),
+ ("differ kind number-differs", lambda m,t,x,k="number-differs":_kind_case(m,t,x,k), "number-differs"),
+ ("differ kind text-or-shape", lambda m,t,x,k="text-or-shape":_kind_case(m,t,x,k), "text-or-shape"),
+ ("differ kind other", lambda m,t,x,k="other":_kind_case(m,t,x,k), "other"),
+ ("differ kind order puts eval-failed before net", _kind_overlap_case, "eval-failed"),
  ("three-digit exponents remain numbers", _exponent_shape_case,
   [(f,c,p,True,False) for f,c,p,v in EXPONENT_CASES]),
  ("old and new shape rules can differ", _shape_change_case, ("TEXT",None,1)),

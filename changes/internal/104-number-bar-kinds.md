@@ -1,0 +1,1 @@
+- Report per-cell reason kinds and issue/not-issue totals in the number-boundary bar (#104).
