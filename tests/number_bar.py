@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """#104 number-boundary bar.
 
-The population is rebuilt from sheet.eigs and templates.json on every run.  A
+The population is rebuilt from sheet.eigs and templates.json on every run.
+Formula cells occupy AA1 onward; inputs retain their declared addresses, so the
+two regions are disjoint.  A
 grid is run in chunks of 200 cells, one runtime process per chunk; a chunk that
 crashes, times out (120 s) or does not print exactly its cells is run again one
 cell per process, and a cell whose own process fails is CRASH, or TIMEOUT after
@@ -132,7 +134,7 @@ def arrival_templates(row, name):
  return out
 
 def address(i):
- col=""; n=i//500+1
+ col=""; n=i//500+27
  while n: n,r=divmod(n-1,26); col=chr(65+r)+col
  return col+str(i%500+1)
 
@@ -187,6 +189,13 @@ def population(tree):
  out["_arrival_counts"]={"generated":len(fs),"hand":sum(len(x.get("f",{})) for x in hand.values()),
                          "same_formula":len(same_formula),"subsumed":sorted(p for p,n in path_own.items() if not n)}
  out["api"]={"reference":"api","programs":json.load(open(os.path.join(DATA,"api","expectations.json")))["programs"]}
+ for spec in out.values():
+  if not isinstance(spec,dict) or "f" not in spec: continue
+  refs=set()
+  for formula in spec["f"].values():
+   for a,b in re.findall(r"\b([A-Z]+\d+)(?::([A-Z]+\d+))?",formula):
+    refs.update(sum(range_cells(a+":"+b),[])) if b else refs.add(a)
+  spec["empty"]=sorted(refs-set(spec.get("base",{}))-set(spec["f"]))
  return out,d
 
 class ToolError(Exception):
@@ -277,7 +286,7 @@ def runtime_grid(tree, binary, spec, cells, timeout=120, net=True):
   for a,v in list(spec.get("base",{}).items())+[(a,spec["f"][a]) for a in cells]:
    lines.append("sheet.set_cell of [s,%s,%s]"%(q(a),q(v)))
   lines.append("sheet.recalc of s")
-  for a in cells: lines.append('print of (%s + (json_encode of (bar_answer of [s, %s])))'%(q(a+"\t"),q(a)))
+  for a in list(spec.get("base",{}))+cells: lines.append('print of (%s + (json_encode of (bar_answer of [s, %s])))'%(q(a+"\t"),q(a)))
   if net: lines.append('print of ("NET\\t" + (json_encode of (sheet.net_caught of s)))')
   open(os.path.join(tmp,"app.eigs"),"w").write("\n".join(lines)+"\n")
   try: r=subprocess.run([binary,"app.eigs"],cwd=tmp,text=True,capture_output=True,timeout=timeout)
@@ -290,21 +299,21 @@ def runtime_grid(tree, binary, spec, cells, timeout=120, net=True):
    if a=="NET": caught=json.loads(j); continue
    k,v,d=json.loads(j); out[a]={"kind":k,"value":v,"display":d}
   if net and caught is None: return "CRASH"
-  return {"cells":out,"net":caught or []}
+  return {"cells":{a:out[a] for a in cells if a in out},"inputs":{a:out[a] for a in spec.get("base",{}) if a in out},"net":caught or []}
  finally: shutil.rmtree(tmp)
 
 def run_chunks(tree, binary, spec, net=True, grid=runtime_grid, size=200):
  """Every cell of the set, and the set of cells the net caught."""
- out={}; caught=set(); cells=list(spec["f"])
+ out={}; caught=set(); inputs=[]; cells=list(spec["f"])
  for off in range(0,len(cells),size):
   chunk=cells[off:off+size]; got=grid(tree,binary,spec,chunk,net=net)
   if isinstance(got,dict) and set(got["cells"])==set(chunk):
-   out.update(got["cells"]); caught.update(got["net"]); continue
+   out.update(got["cells"]); inputs.append(got.get("inputs",{})); caught.update(got["net"]); continue
   for ad in chunk:
    one=grid(tree,binary,spec,[ad],timeout=10,net=net)
    if isinstance(one,dict) and ad in one["cells"]: out[ad]=one["cells"][ad]; caught.update(one["net"])
    else: out[ad]={"kind":one if one in ("CRASH","TIMEOUT") else "CRASH","value":"","display":""}
- return out,caught
+ return out,caught,inputs
 
 # ---- LibreOffice Calc -------------------------------------------------------
 def col_number(a):
@@ -368,7 +377,7 @@ def calc_sheet(spec, start=None):
    w=openpyxl.load_workbook(start) if start else openpyxl.Workbook(); s=w.active
    for a,v in list(spec.get("base",{}).items())+list(spec["f"].items()):
     if v is not None: calc_put(s,a,v)
-    if fmt and a in spec["f"]: s[a].number_format=fmt
+    if fmt: s[a].number_format=fmt
    shape=(s.max_row,s.max_column+1)
    for r in range(1,shape[0]+1): s[col_letters(shape[1])+str(r)]="@row%d"%r
    for nm,ref in spec.get("names",{}).items(): w.defined_names[nm]=DefinedName(nm,attr_text=calc_name(ref))
@@ -398,8 +407,13 @@ def calc_cells(grids, addrs):
   out[a]=(text,shape)
  return out
 
+class CalcResult(dict): pass
+
 def calc_grid(spec):
- return calc_cells(calc_sheet(spec),spec["f"])
+ grids=calc_sheet(spec)
+ out=CalcResult(calc_cells(grids,spec["f"]))
+ out.inputs=calc_cells(grids,spec.get("base",{}))
+ return out
 
 CSV_READ = "CSV:44,34,76,1,,0,false,true,false,false,false,-1,true"
 
@@ -430,18 +444,29 @@ def before_key(set_name, address, formula):
  return set_name+"\t"+formula
 
 def check_formulas(sets):
- """Reject duplicate formula keys in every set before any oracle or runtime work."""
+ """Reject overlapping cells, formula references, and duplicate keys before evaluation."""
  lines=[]
  for name,spec in sets.items():
   if spec.get("reference")=="api": continue
   seen={}; duplicates=[]
   for ad,formula in spec.get("f",{}).items():
+   if ad in spec.get("base",{}): raise ToolError("set %s formula cell %s is also an input"%(name,ad))
    if formula in seen: duplicates.append((formula,seen[formula],ad))
    else: seen[formula]=ad
   lines.append("FORMULAS set=%s examined=%d duplicates=%d"%(name,len(seen),len(duplicates)))
   if duplicates:
    formula,_,_=duplicates[0]
    raise ToolError("two cells share the before key "+repr(before_key(name,"",formula)))
+  formula_cells=set(spec.get("f",{})); allowed=set(spec.get("base",{}))|set(spec.get("empty",[]))
+  for ad,formula in spec.get("f",{}).items():
+   refs=set()
+   for a,b in re.findall(r"\b([A-Z]+\d+)(?::([A-Z]+\d+))?",formula):
+    if b: refs.update(sum(range_cells(a+":"+b),[]))
+    else: refs.add(a)
+   bad=sorted(refs & formula_cells)
+   if bad: raise ToolError("set %s formula %s refers to formula cell %s"%(name,ad,bad[0]))
+   undeclared=sorted(refs-formula_cells-allowed)
+   if undeclared: raise ToolError("set %s formula %s refers to undeclared cell %s"%(name,ad,undeclared[0]))
  generated=set(sets.get("arrivals-generated",{}).get("f",{}).values())
  hand=[formula for name,spec in sets.items() if name not in ("class","wrappers","number-text","arrivals-generated","api")
        for formula in spec.get("f",{}).values() if formula in generated]
@@ -458,7 +483,7 @@ def write_before(path, sets, tree, binary, grid=runtime_grid):
  for name,spec in sets.items():
   if spec.get("reference")=="api": continue
   if not spec.get("f"): raise ToolError("SET %s examined=0 is invalid"%name)
-  mine,_=run_chunks(tree,binary,spec,net=False,grid=grid)
+  mine,_,_=run_chunks(tree,binary,spec,net=False,grid=grid)
   doc["inputs"][name]=spec.get("base",{})
   for ad,f in spec["f"].items():
    k=before_key(name,ad,f)
@@ -624,7 +649,19 @@ def run_bar(sets, tree, binary, before_doc, out=None, calc=calc_grid, grid=runti
    T["crash"]+=crashed
    log("SET %s examined=%d match=%d differ=%d crash=%d rule_examined=%d rule_differ=%d"%(name,n["examined"],n["examined"]-n["differ"],n["differ"],crashed,n["rule_examined"],n["rule_differ"]))
    continue
-  lo=calc(spec); mine,caught=run_chunks(tree,binary,spec,grid=grid)
+  lo=calc(spec); mine,caught,input_chunks=run_chunks(tree,binary,spec,grid=grid)
+  calc_inputs=getattr(lo,"inputs",{}); same=0
+  for chunk in input_chunks:
+   for ad,want in spec.get("base",{}).items():
+    c=calc_inputs.get(ad); r=chunk.get(ad)
+    declared={"kind":"N" if decimal(want) is not None else "S","value":want,"display":want}
+    calc_runtime = c is not None and r is not None and matches(c[0],c[1],r)
+    declared_ok = want.startswith("=") or (matches(c[0],c[1],declared) and same_answer(declared,r))
+    if not calc_runtime or not declared_ok:
+     raise ToolError("set %s input %s declared=%r Calc=%r runtime=%r"%(name,ad,want,c,r))
+    same+=1
+  T.setdefault("input_sets",0); T.setdefault("input_cells",0); T.setdefault("input_chunks",0); T.setdefault("input_same",0)
+  T["input_sets"]+=1; T["input_cells"]+=len(spec.get("base",{})); T["input_chunks"]+=len(input_chunks); T["input_same"]+=same
   recs,n=compare_set(name,spec,mine,caught,lo,before); records+=recs
   for k in n: T[k]+=n[k]
   log("SET %s examined=%d match=%d differ=%d before=%d net=%d crash=%d"%(name,n["examined"],n["examined"]-n["differ"],n["differ"],n["before"],n["net"],n["crash"]))
@@ -652,7 +689,7 @@ def main(argv=None):
   for line in check_formulas(sets): print(line)
   if a.sources:
    spec={"base":BASE,"f":{address(i):"="+x for i,x in enumerate(SOURCES.values())}}
-   lo=calc_grid(spec); mine,_=run_chunks(a.tree,a.runtime,spec)
+   lo=calc_grid(spec); mine,_,_=run_chunks(a.tree,a.runtime,spec)
    for i,(name,formula) in enumerate(SOURCES.items()):
     ad=address(i); print("SOURCE %s formula=%s calc=%s sheet=%s"%(name,formula,lo[ad][0],mine[ad]["display"]))
    print("SOURCES kinds=%d"%len(SOURCES)); return 0
@@ -676,6 +713,7 @@ def main(argv=None):
   T,status=run_bar(sets,a.tree,a.runtime,doc,a.out)
  except ToolError as e:
   print("NUMBER-BAR TOOL-ERROR %s"%e); return 2
+ print("INPUTS sets=%d cells=%d chunks=%d same=%d"%(T.get("input_sets",0),T.get("input_cells",0),T.get("input_chunks",0),T.get("input_same",0)))
  print("NUMBER-BAR examined=%d differ=%d before=%d net=%d crash=%d rule_examined=%d rule_differ=%d wall=%.1fs"%(
   T["examined"],T["differ"],T["before"],T["net"],T["crash"],T["rule_examined"],T["rule_differ"],time.monotonic()-start))
  return status
@@ -687,7 +725,7 @@ def _stub_calc(table):
 def _stub_grid(answers, crash=(), caught=()):
  def grid(tree, binary, spec, cells, timeout=0, net=True):
   if any(a in crash for a in cells): return "CRASH"
-  return {"cells":{a:dict(answers[a]) for a in cells},"net":[a for a in cells if a in caught]}
+  return {"cells":{a:dict(answers[a]) for a in cells},"inputs":{},"net":[a for a in cells if a in caught]}
  return grid
 
 def N(v, d=None): return {"kind":"N","value":v,"display":v if d is None else d}
@@ -748,8 +786,40 @@ def _arrival_duplicate_case(m, tree, tmp):
  except Exception as e:
   return str(e) if type(e).__name__=="ToolError" else "BROKEN: %r"%e
 
+def _layout_case(m, tree, tmp):
+ calls=[]
+ try:
+  sets,_=m.population(tree); sets.pop("_arrival_counts")
+  m.check_formulas(sets)
+  return "accepted evaluations=%d"%len(calls)
+ except Exception as e: return "%s evaluations=%d"%("TOOL-ERROR" if type(e).__name__=="ToolError" else "BROKEN",len(calls))
+
+def _reference_case(m, tree, tmp):
+ calls=[]; sets={"t":{"base":{},"empty":[],"f":{"AA1":"=1","AA2":"=AA1"},"reference":"calc"}}
+ try:
+  m.check_formulas(sets)
+  return "accepted evaluations=%d"%len(calls)
+ except Exception as e: return "%s evaluations=%d"%("TOOL-ERROR" if type(e).__name__=="ToolError" else "BROKEN",len(calls))
+
+def _input_readback_case(m, tree, tmp):
+ sets={"t":{"base":{"B1":"=1"},"empty":[],"f":{"AA1":"=1"},"reference":"calc"}}
+ def calc(s):
+  out=m.CalcResult({"AA1":("1.00000000000000E+00",None)}); out.inputs={"B1":("2.00000000000000E+00",None)}; return out
+ def grid(tree,binary,spec,cells,timeout=0,net=True):
+  return {"cells":{"AA1":N("1")},"inputs":{"B1":N("1")},"net":[]}
+ try:
+  T,status=m.run_bar(sets,tree,"stub",None,calc=calc,grid=grid,log=lambda *x:None)
+  return "examined=%d status=%d"%(T["examined"],status)
+ except Exception as e: return "TOOL-ERROR" if type(e).__name__=="ToolError" else "BROKEN"
+
 ONE = 'return abs(a - b) <= Decimal(1).scaleb(m.adjusted() - 14)'
 PLANTS = [
+ ("Calc input read-back skipped while workbook input is overwritten", 'calc_runtime = c is not None and r is not None and matches(c[0],c[1],r)', 'calc_runtime = True',
+  lambda m,t,x: _input_readback_case(m,t,x), "TOOL-ERROR"),
+ ("formula region moved over inputs", " col=\"\"; n=i//500+27", " col=\"\"; n=i//500+1",
+  lambda m,t,x: _layout_case(m,t,x), "accepted evaluations=0"),
+ ("a formula refers to another formula cell", 'if bad: raise ToolError("set %s formula %s refers to formula cell %s"%(name,ad,bad[0]))', 'if False: raise ToolError("set %s formula %s refers to formula cell %s"%(name,ad,bad[0]))',
+  lambda m,t,x: _reference_case(m,t,x), "TOOL-ERROR evaluations=0"),
  ("generated arrivals not de-duplicated", "    if formula in by_formula:", "    if False:",
   lambda m,t,x: _arrival_duplicate_case(m,t,x), "unique"),
  ("duplicate check delayed until after evaluation", " check_formulas(sets)\n net=has_net(tree)",
