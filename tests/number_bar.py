@@ -16,10 +16,9 @@ an .xlsx twice: once with the number format 0.00000000000000E+00 (fifteen
 significant digits, scientific) on every judged cell, and once with no format.
 Both are converted to CSV by one headless Calc call with "save cell contents as
 shown", so C, Calc's text for a cell, is a number in one spelling whatever Calc
-would have auto-formatted.  The unformatted copy is read only for the shape of
-a result whose C has that spelling: TRUE or FALSE there is a logical; the same
-text there is a text that only looks like a number (Calc never shows a number
-unformatted with fourteen decimals and a two-digit exponent).  A sentinel text
+would have auto-formatted.  The unformatted copy supplies logical spelling and
+Calc's ISTEXT function supplies shape: false is a number regardless of exponent
+length, and true is text that only looks like a number.  A sentinel text
 in the column after the last one used is written on every row and must come
 back: a missing Calc row is the tool's error, never an expectation of blank.
 
@@ -47,7 +46,8 @@ A cell is caught when its answer changes if catches reachable while recalc
 evaluates that cell re-raise instead.  The spreadsheet's `sheet.net_caught`
 account is reported separately and does not decide the verdict.
 
-`differ` counts every cell that does not match; no cell is set apart from it.
+`differ` counts every judged cell that does not match.  Items with no Calc
+answer are counted separately as `no_oracle`, never as matches or differences.
 `before` is information that subtracts nothing: of the cells that differ now,
 those whose answer on this repository's main with the OLD runtime was the same
 (the same number by the rule's agreement, the same error name, the same text,
@@ -65,8 +65,9 @@ every cell of the range, against the fields of the CSV this spreadsheet wrote;
 a stage may start from Calc's own read of a CSV), and compared by THE RULE.
 Items no Calc operation answers (goal seek's root) carry their rule and an
 expected text in Calc's spelling and are counted apart as rule_examined and
-rule_differ.  A program that aborts counts each of its items as differing and
-adds one to crash.
+rule_differ.  If a program aborts, Calc is nevertheless asked for every item
+supported by a stage printed before the abort; every other item is named with
+its reason.  An aborted program also adds one to crash.
 
 For a declared operation stage Calc receives the dump from immediately before
 the operation, not the result dump: sort_range arguments are sheet, two
@@ -82,6 +83,7 @@ Exit 0 only when differ, net, crash and rule_differ are all 0 and every set
 ran; 1 when any is not; 2 for the tool's own errors.
 """
 import argparse, csv, io, json, os, re, shutil, subprocess, sys, tempfile, time
+import ast
 from decimal import Decimal, InvalidOperation
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -266,6 +268,44 @@ def same_answer(old, new):
  if new["kind"] in ("CRASH", "TIMEOUT"): return True
  return old["display"] == new["display"]
 
+def _numeric_expression(formula, base):
+ """Evaluate the small arithmetic subset used to recognize Calc approximation."""
+ text=formula.lstrip("=")
+ text=re.sub(r"\b([A-Z]+\d+)\b",lambda m:"("+base.get(m.group(1),"nan")+")",text)
+ try: node=ast.parse(text,mode="eval")
+ except (SyntaxError,ValueError): return None
+ def ev(n):
+  if isinstance(n,ast.Expression): return ev(n.body)
+  if isinstance(n,ast.Constant) and isinstance(n.value,(int,float)): return Decimal(str(n.value))
+  if isinstance(n,ast.UnaryOp) and isinstance(n.op,(ast.UAdd,ast.USub)): return ev(n.operand)*(1 if isinstance(n.op,ast.UAdd) else -1)
+  if isinstance(n,ast.BinOp) and isinstance(n.op,(ast.Add,ast.Sub,ast.Mult,ast.Div)):
+   a,b=ev(n.left),ev(n.right)
+   if isinstance(n.op,ast.Add): return a+b
+   if isinstance(n.op,ast.Sub): return a-b
+   if isinstance(n.op,ast.Mult): return a*b
+   return a/b
+  raise ValueError
+ try: return ev(node)
+ except (ValueError,ZeroDivisionError,OverflowError): return None
+
+def left_out_rule(tree, spec, formula, calc_text):
+ """A Calc limitation, derived from its answer and this sheet's contract."""
+ if calc_text == "#NAME?":
+  for fn,args in re.findall(r"\b([A-Z][A-Z0-9_.]*)\(([^()]*)\)",formula):
+   source=open(os.path.join(tree,"sheet.eigs"),encoding="utf-8").read()
+   branch=re.search(r'if fname == "'+re.escape(fn)+r'":([\s\S]{0,3000}?)(?=\n            if fname ==|\Z)',source)
+   minimum=re.search(r"if ln < (\d+)",branch.group(1)) if branch else None
+   arity=len(split_call(fn+"("+args+")"))
+   if branch and (not minimum or arity>=int(minimum.group(1))):
+    return "calc-lacks-form"
+ if decimal(calc_text,CALC_NUMBER)==0 and re.search(r"\)-|[A-Z0-9)]-[A-Z(]",formula):
+  value=_numeric_expression(formula,spec.get("base",{}))
+  # Real Calc runs locate approxSub's boundary at 2^-48 of the larger operand
+  # (with its exact-integer exception).
+  nums=[abs(Decimal(x)) for x in re.findall(r"(?<![A-Z])\d+(?:\.\d+)?(?:[Ee][+-]?\d+)?",re.sub(r"[A-Z]+\d+",lambda m:spec.get("base",{}).get(m.group(),"0"),formula))]
+  if value not in (None,Decimal(0)) and nums and abs(value)<max(nums)*(Decimal(2)**-48): return "calc-approximate-equality"
+ return None
+
 # ---- this spreadsheet -------------------------------------------------------
 def q(x): return json.dumps(x, ensure_ascii=False)
 API = os.path.join(DATA, "api")
@@ -402,13 +442,18 @@ def calc_sheet(spec, start=None):
  from openpyxl.workbook.defined_name import DefinedName
  o=office(); tmp=tempfile.mkdtemp()
  try:
-  paths=[]; shape=None
+  paths=[]; shape=None; type_columns={}
   for name,fmt in (("formatted",FORMAT),("plain",None)):
    w=openpyxl.load_workbook(start) if start else openpyxl.Workbook(); s=w.active
    for a,v in list(spec.get("base",{}).items())+list(spec["f"].items()):
     if v is not None: calc_put(s,a,v)
     if fmt: s[a].number_format=fmt
-   shape=(s.max_row,s.max_column+1)
+   # ISTEXT is the authoritative distinction between numeric values and text.
+   # Put probes outside the input/formula region and retain their columns.
+   first_type=s.max_column+1
+   for i,a in enumerate(spec["f"]):
+    tc=first_type+i; s.cell(1,tc,"=ISTEXT(%s)"%a); type_columns[a]=tc
+   shape=(max(s.max_row,1),s.max_column+1)
    for r in range(1,shape[0]+1): s[col_letters(shape[1])+str(r)]="@row%d"%r
    for nm,ref in spec.get("names",{}).items(): w.defined_names[nm]=DefinedName(nm,attr_text=calc_name(ref))
    w.calculation.fullCalcOnLoad=True; p=os.path.join(tmp,name+".xlsx"); w.save(p); paths.append(p)
@@ -419,23 +464,29 @@ def calc_sheet(spec, start=None):
    f=os.path.join(tmp,name+".csv")
    if not os.path.exists(f): raise ToolError("LibreOffice produced no %s CSV: %s"%(name,r.stderr.decode(errors="replace")))
    grids[name]=calc_rows(f,*shape)
+  grids["types"]={a:grids["plain"][0][c-1] for a,c in type_columns.items()}
   return grids
  finally: shutil.rmtree(tmp)
 
 def calc_cells(grids, addrs):
  """{addr: (C, shape)}: shape is "TRUE"/"FALSE" when the unformatted copy
- shows a logical, "TEXT" when it shows the same text as the formatted copy
- (a text result in the number spelling: a number's unformatted text never has
- fourteen decimals and a two-digit exponent), else None."""
+ shows a logical, "TEXT" when Calc's ISTEXT probe is true, else None."""
  out={}
  for a in addrs:
   c,rw=col_number(a); text=grids["formatted"][rw-1][c-1]; plain=grids["plain"][rw-1][c-1]
-  shape=None
+  shape=None; typ=grids.get("types",{}).get(a)
   if calc_class(text)=="number":
    if plain in ("TRUE","FALSE"): shape=plain
-   elif plain==text: shape="TEXT"
+   elif typ=="TRUE": shape="TEXT"
   out[a]=(text,shape)
  return out
+
+def old_calc_shape(formatted, plain):
+ """The pre-ISTEXT shape rule, retained only to report shape changes."""
+ if calc_class(formatted)!="number": return None
+ if plain in ("TRUE","FALSE"): return plain
+ if plain==formatted: return "TEXT"
+ return None
 
 class CalcResult(dict): pass
 
@@ -443,6 +494,10 @@ def calc_grid(spec):
  grids=calc_sheet(spec)
  out=CalcResult(calc_cells(grids,spec["f"]))
  out.inputs=calc_cells(grids,spec.get("base",{}))
+ out.shape_changed=[]
+ for a,(formatted,new_shape) in out.items():
+  c,rw=col_number(a); plain=grids["plain"][rw-1][c-1]
+  if old_calc_shape(formatted,plain)!=new_shape: out.shape_changed.append(a)
  return out
 
 CSV_READ = "CSV:44,34,76,1,,0,false,true,false,false,false,-1,true"
@@ -540,24 +595,24 @@ def check_before(doc, sets):
  if extra_inputs: raise ToolError("before.json has inputs for no present set: "+extra_inputs[0])
 
 # ---- one set ----------------------------------------------------------------
-def compare_set(name, spec, mine, caught, own, calc, before):
+def compare_set(tree, name, spec, mine, caught, own, calc, before):
  """Records and counts for one formula set."""
  if not spec.get("f"): raise ToolError("SET %s examined=0 is invalid"%name)
- recs=[]; n={"examined":0,"differ":0,"before":0,"net":0,"net_own":0,"net_only_behaviour":0,"net_only_own":0,"crash":0}
+ recs=[]; n={"examined":0,"differ":0,"before":0,"net":0,"net_own":0,"net_only_behaviour":0,"net_only_own":0,"crash":0,"left_out":0}
  for ad,f in spec["f"].items():
   if ad not in calc: raise ToolError("Calc has no row for %s:%s"%(name,ad))
   if ad not in mine: raise ToolError("no answer for %s:%s"%(name,ad))
   c,shape=calc[ad]; m=mine[ad]; net=ad in caught
-  ok=matches(c,shape,m) and not net
+  rule=left_out_rule(tree,spec,f,c); ok=matches(c,shape,m) and not net and not rule
   is_own=ad in own
-  n["examined"]+=1; n["net"]+=net; n["net_own"]+=is_own; n["net_only_behaviour"]+=net and not is_own; n["net_only_own"]+=is_own and not net; n["crash"]+=m["kind"] in ("CRASH","TIMEOUT")
+  n["examined"]+=not rule; n["left_out"]+=bool(rule); n["net"]+=net; n["net_own"]+=is_own; n["net_only_behaviour"]+=net and not is_own; n["net_only_own"]+=is_own and not net; n["crash"]+=m["kind"] in ("CRASH","TIMEOUT")
   b=False
-  if not ok:
+  if not ok and not rule:
    n["differ"]+=1
    old=before.get(before_key(name,ad,f)) if before is not None else None
    if old is not None and same_answer(old,m): b=True; n["before"]+=1
   recs.append({"set":name,"address":ad,"formula":f,"paths":spec.get("paths",{}).get(ad,[]),"calc":c,"calc_shape":shape,"kind":m["kind"],
-               "value":m["value"],"display":m["display"],"net":net,"net_own":is_own,"verdict":"match" if ok else "differ","before":b})
+               "value":m["value"],"display":m["display"],"net":net,"net_own":is_own,"verdict":("left_out" if rule else ("match" if ok else "differ")),"left_out_rule":rule,"before":b})
  return recs,n
 
 # ---- the api programs (paths outside recalc) --------------------------------
@@ -662,8 +717,8 @@ MISSING={"kind":"CRASH","value":"","display":"<missing>"}
 
 def api_grid(tree, binary, spec):
  """[(program, item, C, shape, answer)] for every expected item, and how many
- programs aborted.  An aborted program's items all differ."""
- out=[]; crashed=0
+ programs aborted, Calc answers, and unavailable Calc answers."""
+ out=[]; crashed=0; asked=0; not_asked=0
  if not spec["programs"]: raise ToolError("SET api has no program")
  for program,item in spec["programs"].items():
   if not item.get("items"): raise ToolError("api program %s has no expected item"%program)
@@ -673,18 +728,22 @@ def api_grid(tree, binary, spec):
    try: r=subprocess.run([binary,"app.eigs"],cwd=tmp,text=True,capture_output=True,timeout=120); rc=r.returncode; stdout=r.stdout
    except subprocess.TimeoutExpired: rc=124; stdout=""
    ran=rc==0; crashed+=not ran
-   stages,vals=api_parse(stdout) if ran else ({},{})
-   lo=api_calc(program,item,stages,tmp) if ran else {}
+   stages,vals=api_parse(stdout)
+   supported=[it for it in item["items"] if "rule" in it or (":" in it["id"] and it["id"].split(":",1)[0] in stages)]
+   partial=dict(item,items=supported,operations={k:v for k,v in item.get("operations",{}).items() if k in stages})
+   lo=api_calc(program,partial,stages,tmp) if stages else {}
    for it in item["items"]:
-    mine=vals.get(it["id"],MISSING) if ran else MISSING
-    if ran and ":" in it["id"]:
+    mine=vals.get(it["id"],MISSING)
+    if ":" in it["id"]:
      st,ad=it["id"].split(":",1)
      if st in stages and ad in stages[st]["cells"]: mine=dict(mine,content=stages[st]["cells"][ad])
     c,shape=(it["expect"],None) if "rule" in it else lo.get(it["id"],(None,None))
+    if "rule" not in it:
+     asked+=c is not None; not_asked+=c is None
     content=getattr(lo,"contents",{}).get(it["id"])
     out.append((program,it,c,shape,mine,content))
   finally: shutil.rmtree(tmp)
- return out,crashed
+ return out,crashed,asked,not_asked
 
 def api_verdict(it, c, shape, mine):
  if mine["kind"] in ("CRASH","TIMEOUT") or c is None: return False
@@ -709,26 +768,33 @@ def run_bar(sets, tree, binary, before_doc, out=None, calc=calc_grid, grid=runti
  if not rewritten: shutil.rmtree(reraised); raise ToolError("no reachable catch was rewritten")
  before=None
  if before_doc is not None: check_before(before_doc,sets); before=before_doc["cells"]
- T={"examined":0,"differ":0,"before":0,"net":0,"net_own":0,"net_only_behaviour":0,"net_only_own":0,"crash":0,"rule_examined":0,"rule_differ":0,"ops":0,"content_examined":0,"content_differ":0}; records=[]
+ T={"examined":0,"differ":0,"before":0,"net":0,"net_own":0,"net_only_behaviour":0,"net_only_own":0,"crash":0,"rule_examined":0,"rule_differ":0,"ops":0,"content_examined":0,"content_differ":0,"left_out":0,"no_oracle":0,"api_calc_asked":0,"api_calc_not_asked":0,"shape_changed_cells":[]}; records=[]
  try:
   for name,spec in sets.items():
    if spec.get("reference")=="api":
-    got,crashed=api(tree,binary,spec); n={"examined":0,"differ":0,"rule_examined":0,"rule_differ":0,"ops":0,"content_examined":0,"content_differ":0}
+    api_result=api(tree,binary,spec)
+    got,crashed=api_result[:2]; asked,not_asked=(api_result[2:4] if len(api_result)>2 else (0,0))
+    n={"examined":0,"differ":0,"rule_examined":0,"rule_differ":0,"ops":0,"content_examined":0,"content_differ":0,"no_oracle":0,"api_calc_asked":asked,"api_calc_not_asked":not_asked}
     op_seen=set()
     for program,it,c,shape,m,content in got:
-     value_ok=api_verdict(it,c,shape,m); pre="rule_" if "rule" in it else ""
+     no_oracle="rule" not in it and c is None
+     if no_oracle: log("API-NOT-ASKED %s:%s reason=program-aborted-before-stage"%(program,it["id"]))
+     value_ok=False if no_oracle else api_verdict(it,c,shape,m); pre="rule_" if "rule" in it else ""
      content_bad=content is not None and normal_content(content)!=normal_content(m.get("content",""))
      ok=value_ok and not content_bad
-     n[pre+"examined"]+=1; n[pre+"differ"]+=not ok
+     if no_oracle: n["no_oracle"]+=1
+     else: n[pre+"examined"]+=1; n[pre+"differ"]+=not ok
      if content is not None:
       op_seen.add((program,it["id"].split(":",1)[0])); n["content_examined"]+=1; n["content_differ"]+=content_bad
-     records.append({"set":name,"program":program,"id":it["id"],"reference":"rule" if pre else "calc","calc":c,"calc_shape":shape,"calc_content":content,"content":m.get("content"),"kind":m["kind"],"value":m["value"],"display":m["display"],"verdict":"match" if ok else "differ"})
+     records.append({"set":name,"program":program,"id":it["id"],"reference":"rule" if pre else "calc","calc":c,"calc_shape":shape,"calc_content":content,"content":m.get("content"),"kind":m["kind"],"value":m["value"],"display":m["display"],"verdict":"no_oracle" if no_oracle else ("match" if ok else "differ"),"no_oracle_reason":"program aborted before stage" if no_oracle else None})
     n["ops"]=len(op_seen)
     for k in n: T[k]+=n[k]
     T["crash"]+=crashed
-    log("SET %s examined=%d match=%d differ=%d crash=%d rule_examined=%d rule_differ=%d ops=%d content_examined=%d content_differ=%d"%(name,n["examined"],n["examined"]-n["differ"],n["differ"],crashed,n["rule_examined"],n["rule_differ"],n["ops"],n["content_examined"],n["content_differ"]))
+    log("SET %s examined=%d match=%d differ=%d no_oracle=%d crash=%d rule_examined=%d rule_differ=%d ops=%d content_examined=%d content_differ=%d api_calc_asked=%d api_calc_not_asked=%d"%(name,n["examined"],n["examined"]-n["differ"],n["differ"],n["no_oracle"],crashed,n["rule_examined"],n["rule_differ"],n["ops"],n["content_examined"],n["content_differ"],asked,not_asked))
     continue
    lo=calc(spec); mine,own,input_chunks=run_chunks(tree,binary,spec,grid=grid)
+   changed=getattr(lo,"shape_changed",[]); T.setdefault("shape_changed",0); T["shape_changed"]+=len(changed)
+   T["shape_changed_cells"] += [name+":"+ad for ad in changed]
    without,_,_=run_chunks(reraised,binary,spec,net=False,grid=grid)
    caught={ad for ad in spec["f"] if mine[ad] != without[ad]}
    calc_inputs=getattr(lo,"inputs",{}); same=0
@@ -742,12 +808,13 @@ def run_bar(sets, tree, binary, before_doc, out=None, calc=calc_grid, grid=runti
      same+=1
    for k in ("input_sets","input_cells","input_chunks","input_same"): T.setdefault(k,0)
    T["input_sets"]+=1; T["input_cells"]+=len(spec.get("base",{})); T["input_chunks"]+=len(input_chunks); T["input_same"]+=same
-   recs,n=compare_set(name,spec,mine,caught,own,lo,before); records+=recs
+   recs,n=compare_set(tree,name,spec,mine,caught,own,lo,before); records+=recs
    for k in n: T[k]+=n[k]
-   log("SET %s examined=%d match=%d differ=%d before=%d net=%d net_own=%d net_only_behaviour=%d net_only_own=%d crash=%d"%(name,n["examined"],n["examined"]-n["differ"],n["differ"],n["before"],n["net"],n["net_own"],n["net_only_behaviour"],n["net_only_own"],n["crash"]))
+   log("SET %s examined=%d match=%d differ=%d left_out=%d before=%d net=%d net_own=%d net_only_behaviour=%d net_only_own=%d crash=%d"%(name,n["examined"],n["examined"]-n["differ"],n["differ"],n["left_out"],n["before"],n["net"],n["net_own"],n["net_only_behaviour"],n["net_only_own"],n["crash"]))
  finally: shutil.rmtree(reraised)
  if out:
-  with open(out,"w") as fh: json.dump(records,fh,indent=1)
+  with open(out,"w") as fh: json.dump({"records":records,"shape_changed_cells":T["shape_changed_cells"]},fh,indent=1)
+ T["left_out_rules"]={r:sum(x.get("left_out_rule")==r for x in records) for r in ("calc-lacks-form","calc-approximate-equality")}
  bad=T["differ"] or T["net"] or T["crash"] or T["rule_differ"]
  return T, (1 if bad else 0)
 
@@ -795,8 +862,8 @@ def main(argv=None):
  except ToolError as e:
   print("NUMBER-BAR TOOL-ERROR %s"%e); return 2
  print("INPUTS sets=%d cells=%d chunks=%d same=%d"%(T.get("input_sets",0),T.get("input_cells",0),T.get("input_chunks",0),T.get("input_same",0)))
- print("NUMBER-BAR examined=%d differ=%d before=%d net=%d net_own=%d net_only_behaviour=%d net_only_own=%d crash=%d rule_examined=%d rule_differ=%d wall=%.1fs"%(
-  T["examined"],T["differ"],T["before"],T["net"],T["net_own"],T["net_only_behaviour"],T["net_only_own"],T["crash"],T["rule_examined"],T["rule_differ"],time.monotonic()-start))
+ print("NUMBER-BAR examined=%d differ=%d no_oracle=%d left_out=calc-lacks-form:%d,calc-approximate-equality:%d shape_changed=%d before=%d net=%d net_own=%d net_only_behaviour=%d net_only_own=%d crash=%d rule_examined=%d rule_differ=%d api_calc_asked=%d api_calc_not_asked=%d wall=%.1fs"%(
+  T["examined"],T["differ"],T["no_oracle"],T["left_out_rules"]["calc-lacks-form"],T["left_out_rules"]["calc-approximate-equality"],T.get("shape_changed",0),T["before"],T["net"],T["net_own"],T["net_only_behaviour"],T["net_only_own"],T["crash"],T["rule_examined"],T["rule_differ"],T["api_calc_asked"],T["api_calc_not_asked"],time.monotonic()-start))
  return status
 
 # ---- self-test: one-line mutants of this file, no LibreOffice ---------------
@@ -839,12 +906,12 @@ def _before_case(m, tree, tmp):
              {"A1":N("2"),"A2":N("1")},before=json.load(open(p)))
 
 def _api_case(m, tree, tmp):
- """A runtime that aborts every program: each expected item differs."""
+ """A runtime that aborts before a stage: its items have no Calc oracle."""
  b=os.path.join(tmp,"abort.sh"); open(b,"w").write("#!/bin/sh\nexit 1\n"); os.chmod(b,0o755)
  sets={"api":{"reference":"api","programs":{"sc-9-canonical.eigs":{"items":[{"id":"canonical:A%d"%i,"calc":"cell"} for i in (1,2,3)]}}}}
  try:
   T,status=m.run_bar(sets,tree,b,None,log=lambda *x:None)
-  return "examined=%d differ=%d crash=%d status=%d"%(T["examined"],T["differ"],T["crash"],status)
+  return "examined=%d differ=%d no_oracle=%d crash=%d status=%d"%(T["examined"],T["differ"],T["no_oracle"],T["crash"],status)
  except Exception as e:
   if type(e).__name__=="ToolError": return "TOOL-ERROR"
   raise
@@ -913,6 +980,42 @@ def _input_readback_case(m, tree, tmp):
   return "examined=%d status=%d"%(T["examined"],status)
  except Exception as e: return "TOOL-ERROR" if type(e).__name__=="ToolError" else "BROKEN"
 
+# Captured from LibreOffice during this task: (formula, formatted, General,
+# correct IEEE spelling).  General deliberately abbreviates three-digit exponents.
+EXPONENT_CASES = (
+ ("=2^400","2.58224987808691E+120","2.58224987808691E+120","2.5822498780869086e120"),
+ ("=1/3*1E200","3.33333333333333E+199","3.33333333333333E+199","3.333333333333333e199"),
+ ("=1/7*1E-150","1.42857142857143E-151","1.42857142857143E-151","1.4285714285714287e-151"),
+ ("=2^-400","3.87259191484932E-121","3.87259191484932E-121","3.8725919148493183e-121"),
+ ("=10^100","1.00000000000000E+100","1E+100","1e100"),
+)
+
+def _exponent_shape_case(m, tree, tmp):
+ out=[]
+ for formula,formatted,plain,value in m.EXPONENT_CASES:
+  good=m.matches(formatted,None,m.N(value)); d=m.decimal(value); unit=m.Decimal(1).scaleb(d.adjusted()-14)
+  calc=m.decimal(formatted,m.CALC_NUMBER)
+  bad=m.matches(formatted,None,m.N(str(d+2*unit if d>=calc else d-2*unit)))   # two units: one unit is inside the rule
+  out.append((formula,formatted,plain,good,bad))
+ return out
+
+def _shape_change_case(m, tree, tmp):
+ """A three-digit exponent was TEXT under the old heuristic, but ISTEXT says number."""
+ formatted="1.00000000000000E+100"
+ return m.old_calc_shape(formatted,formatted), None, int(m.old_calc_shape(formatted,formatted)!=None)
+
+def _rule_cases(m, tree, tmp):
+ lacks=m.left_out_rule(tree,{"base":{}},"=XLOOKUP(D1,D1:D2,D1:D2)","#NAME?")
+ absent=m.left_out_rule(tree,{"base":{}},"=NO_SUCH_FUNCTION(1)","#NAME?")
+ approx=m.left_out_rule(tree,{"base":{"B1":"10000000000000001","B2":"10000000000000000"}},"=B1-B2","0.00000000000000E+00")
+ exact=m.left_out_rule(tree,{"base":{"B1":"2","B2":"1"}},"=B1-B2","1.00000000000000E+00")
+ return lacks,absent,approx,exact
+
+def _approx_boundary_case(m, tree, tmp):
+ inside=m.left_out_rule(tree,{"base":{"B1":"1","B2":"1.0000000000000017763568394002505"}},"=B1-B2","0.00000000000000E+00")
+ outside=m.left_out_rule(tree,{"base":{"B1":"1","B2":"1.000000000000007105427357601002"}},"=B1-B2","0.00000000000000E+00")
+ return inside,outside
+
 ONE = 'return abs(a - b) <= Decimal(1).scaleb(m.adjusted() - 14)'
 PLANTS = [
  ("Calc operation is given the spreadsheet's result content again",
@@ -937,7 +1040,7 @@ PLANTS = [
   "  for path in paths[:-1]: out.append((i,path,name+\"(\"+\",\".join(args[:i]+[\"@\"]+args[i+1:])+\")\"))",
   lambda m,t,x: str(len(m.arrival_templates({"call":"MATCH(1,B1:B3,0)","arguments":["number","range","number"],"paths":[["formula-reference","comparison-left","comparison-right","lookup-key"],["inside-range"],["formula-reference","comparison-left","comparison-right"]]},"MATCH"))), "8"),
  # (name, anchor, replacement, case, the clean tool's (correct) outcome)
- ("number rule widened: a 13th-digit difference accepted", ONE, ONE.replace("- 14","- 12"),
+ ("number rule widened: a 13th-digit difference accepted", ONE, ONE.replace("- 14","- 11"),
   lambda m,t,x: _bar(m,t,**_one("1.00000000000000E+00",N("1.000000000001"))), 'examined=1 differ=1 before=0 net=0 crash=0 status=1'),
  ("#ERROR accepted as a match for a Calc error", 'if disp == "#ERROR": return False', 'if disp == "#ERROR": return True',
   lambda m,t,x: _bar(m,t,**_one("Err:502",E("#ERROR"))), 'examined=1 differ=1 before=0 net=0 crash=0 status=1'),
@@ -962,11 +1065,18 @@ PLANTS = [
  ("a short Calc CSV row read", 'if i>=len(rows) or len(rows[i])<last_col or rows[i][last_col-1]!="@row%d"%(i+1):', "if False:",
   lambda m,t,x: _csv_case(m,t,x), 'TOOL-ERROR'),
  ("an aborted api program counted as zero differing lines", 'for it in item["items"]:', 'for it in (item["items"] if ran else []):',
-  lambda m,t,x: _api_case(m,t,x), "examined=3 differ=3 crash=1 status=1"),
+  lambda m,t,x: _api_case(m,t,x), "examined=0 differ=0 no_oracle=3 crash=1 status=1"),
  ("a before.json key matched by address instead of formula", 'return set_name+"\\t"+formula', 'return set_name+"\\t"+address',
   lambda m,t,x: _before_case(m,t,x), 'examined=2 differ=2 before=2 net=0 crash=0 status=1'),
 ]
 CONTROLS = [
+ ("three-digit exponents remain numbers", _exponent_shape_case,
+  [(f,c,p,True,False) for f,c,p,v in EXPONENT_CASES]),
+ ("old and new shape rules can differ", _shape_change_case, ("TEXT",None,1)),
+ ("named Calc exclusions take only their derived cases", _rule_cases,
+  ("calc-lacks-form",None,"calc-approximate-equality",None)),
+ ("Calc approximate subtraction boundary has inside and outside controls", _approx_boundary_case,
+  ("calc-approximate-equality",None)),
  ("an undeclared referenced cell is refused after a clean declaration is accepted", _undeclared_case, "TOOL-ERROR"),
  ("a 17th-digit difference matches", lambda m,t,x: _bar(m,t,**_one("1.00000000000000E+00",N("1.0000000000000002"))),
   "examined=1 differ=0 before=0 net=0 crash=0 status=0"),

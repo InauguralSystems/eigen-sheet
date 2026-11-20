@@ -1,0 +1,1 @@
+- Record Calc's measured approximate-subtraction boundary and exact shape changes in the number-boundary bar (#104).
