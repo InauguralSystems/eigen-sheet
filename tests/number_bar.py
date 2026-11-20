@@ -52,8 +52,11 @@ answer are counted separately as `no_oracle`, never as matches or differences.
 those whose answer on this repository's main with the OLD runtime was the same
 (the same number by the rule's agreement, the same error name, the same text,
 or the same CRASH or TIMEOUT).  tests/number_bar/before.json holds that run's
-answers, keyed by set, formula text and the set's input cells, and is written
-whole by --write-before; a key no present cell has is the tool's error.  The
+answers, keyed by set, formula text and the set's input cells.  `--write-before
+--set NAME` replaces just that set in the existing file (and whole-file mode
+replaces all sets).  For arrivals-generated, a cell's old answer is derived
+with only the inputs the cell reads, because one input that aborts the old
+runtime's recalculation would otherwise make every cell a CRASH.  The
 api set has no before.
 
 Every `differ` record has one `differ_kind`, decided only from that cell's
@@ -613,20 +616,65 @@ def check_formulas(sets):
  if hand: raise ToolError("hand and generated arrivals share formula "+repr(hand[0]))
  return lines
 
-def write_before(path, sets, tree, binary, grid=runtime_grid):
- """The answers of `tree` on `binary` for every formula set, written whole."""
+def formula_inputs(formula, base):
+ """Declared inputs reachable from formula, following input formulas."""
+ found=set(); pending=[formula]
+ while pending:
+  text=pending.pop()
+  refs=set()
+  for a,b in re.findall(r"\b([A-Z]+\d+)(?::([A-Z]+\d+))?",text):
+   refs.update(sum(range_cells(a+":"+b),[]) if b else [a])
+  for ad in refs & set(base):
+   if ad not in found:
+    found.add(ad)
+    if isinstance(base[ad],str) and base[ad].startswith("="): pending.append(base[ad])
+ return frozenset(found)
+
+def isolated_answers(name, spec, tree, binary, grid):
+ groups={}
+ for ad,formula in spec["f"].items():
+  groups.setdefault(formula_inputs(formula,spec.get("base",{})),[]).append(ad)
+ out={}; crash=timeout=0
+ for inputs,cells in groups.items():
+  one=dict(spec); one["base"]={a:spec["base"][a] for a in inputs}
+  one["f"]={a:spec["f"][a] for a in cells}
+  # Establish whether the inputs alone abort recalc.  This avoids retrying
+  # thousands of formulas one by one when the shared input is the abort.
+  probe=dict(one); probe["f"]={cells[0]:"=1"}
+  pre=grid(tree,binary,probe,[cells[0]],timeout=10,net=False)
+  if pre in ("CRASH","TIMEOUT"):
+   got={a:{"kind":pre,"value":"","display":""} for a in cells}
+  else:
+   got,_,_=run_chunks(tree,binary,one,net=False,grid=grid)
+  out.update(got)
+  crash+=sum(v["kind"]=="CRASH" for v in got.values())
+  timeout+=sum(v["kind"]=="TIMEOUT" for v in got.values())
+ print("BEFORE-ISOLATED set=%s cells=%d groups=%d crash=%d timeout=%d"%(name,len(out),len(groups),crash,timeout))
+ return out
+
+def write_before(path, sets, tree, binary, grid=runtime_grid, only=None):
+ """Write all sets, or replace `only` in an existing before.json."""
  check_formulas(sets)
- doc={"tree":tree,"runtime":binary,"inputs":{},"cells":{}}
- for name,spec in sets.items():
-  if spec.get("reference")=="api": continue
+ if only:
+  if only not in sets or sets[only].get("reference")=="api": raise ToolError("unknown formula set "+only)
+  if not os.path.exists(path): raise ToolError("--set needs existing before file "+path)
+  doc=json.load(open(path)); names=[only]
+  prefix=only+"\t"; doc["cells"]={k:v for k,v in doc["cells"].items() if not k.startswith(prefix)}
+ else:
+  doc={"tree":tree,"runtime":binary,"inputs":{},"cells":{}}; names=[n for n,s in sets.items() if s.get("reference")!="api"]
+ for name in names:
+  spec=sets[name]
   if not spec.get("f"): raise ToolError("SET %s examined=0 is invalid"%name)
-  mine,_,_=run_chunks(tree,binary,spec,net=False,grid=grid)
+  if name=="arrivals-generated": mine=isolated_answers(name,spec,tree,binary,grid)
+  else: mine,_,_=run_chunks(tree,binary,spec,net=False,grid=grid)
   doc["inputs"][name]=spec.get("base",{})
   for ad,f in spec["f"].items():
    k=before_key(name,ad,f)
    if k in doc["cells"]: raise ToolError("two cells share the before key "+repr(k))
    doc["cells"][k]=mine[ad]
- with open(path,"w") as fh: json.dump(doc,fh,indent=1,sort_keys=True)
+ tmp=path+".tmp"
+ with open(tmp,"w") as fh: json.dump(doc,fh,indent=1,sort_keys=True)
+ os.replace(tmp,path)
  return len(doc["cells"])
 
 def check_before(doc, sets):
@@ -884,7 +932,7 @@ def main(argv=None):
  ap=argparse.ArgumentParser(); ap.add_argument("--tree",default=ROOT); ap.add_argument("--runtime",default=os.environ.get("EIGENSCRIPT","eigenscript"))
  ap.add_argument("--list",action="store_true"); ap.add_argument("--set"); ap.add_argument("--out"); ap.add_argument("--selftest",action="store_true")
  ap.add_argument("--before",default=os.path.join(DATA,"before.json")); ap.add_argument("--sources",action="store_true")
- ap.add_argument("--write-before",action="store_true",help="write --before from --old-tree on --old-runtime (all formula sets)")
+ ap.add_argument("--write-before",action="store_true",help="write --before from --old-tree on --old-runtime (all formula sets, or replace --set)")
  ap.add_argument("--old-tree"); ap.add_argument("--old-runtime")
  a=ap.parse_args(argv); start=time.monotonic()
  if a.selftest: return selftest(a.tree)
@@ -908,9 +956,8 @@ def main(argv=None):
     for ad,f in s.get("f",{}).items(): print("%s\t%s\t%s"%(n,ad,f))
    return 0
   if a.write_before:
-   if a.set: raise ToolError("--write-before writes the whole file: no --set")
    if not (a.old_tree and a.old_runtime): raise ToolError("--write-before needs --old-tree and --old-runtime")
-   n=write_before(a.before,sets,a.old_tree,a.old_runtime)
+   n=write_before(a.before,sets,a.old_tree,a.old_runtime,only=a.set)
    print("BEFORE written=%d path=%s wall=%.1fs"%(n,a.before,time.monotonic()-start)); return 0
   if a.set:
    if a.set not in sets: raise ToolError("unknown set "+a.set)
@@ -966,6 +1013,25 @@ def _before_case(m, tree, tmp):
  m.write_before(p,old,tree,"stub",grid=_stub_grid({"A1":N("1"),"A2":N("2")}))
  return _bar(m,tree,{"A1":"=Y","A2":"=X"},{"A1":("9.00000000000000E+00",None),"A2":("9.00000000000000E+00",None)},
              {"A1":N("2"),"A2":N("1")},before=json.load(open(p)))
+
+def _isolated_before_case(m, tree, tmp):
+ sets={"arrivals-generated":{"base":{"B1":"1","ZZ4":"=POWER(-1,0.5)"},
+        "f":{"AA1":"=B1+1","AA2":"=ZZ4"},"reference":"calc"}}
+ def grid(tree,binary,spec,cells,timeout=0,net=True):
+  if "ZZ4" in spec["base"]: return "CRASH"
+  return {"cells":{a:N("2") for a in cells},"inputs":{},"net":[]}
+ p=os.path.join(tmp,"isolated.json"); m.write_before(p,sets,tree,"stub",grid=grid)
+ kinds=[json.load(open(p))["cells"][m.before_key("arrivals-generated",a,sets["arrivals-generated"]["f"][a])]["kind"] for a in ("AA1","AA2")]
+ return ",".join(kinds)
+
+def _one_set_before_case(m, tree, tmp):
+ sets={"a":{"base":{},"f":{"A1":"=1"},"reference":"calc"},
+       "b":{"base":{},"f":{"A1":"=2"},"reference":"calc"}}
+ p=os.path.join(tmp,"partial.json"); m.write_before(p,sets,tree,"stub",grid=_stub_grid({"A1":N("1")}))
+ doc=json.load(open(p)); key=m.before_key("b","A1","=2"); doc["cells"][key]=N("77")
+ open(p,"w").write(json.dumps(doc,indent=1,sort_keys=True))
+ m.write_before(p,sets,tree,"stub",grid=_stub_grid({"A1":N("1")}),only="a")
+ return json.load(open(p))["cells"][key]
 
 def _api_case(m, tree, tmp):
  """A runtime that aborts before a stage: its items have no Calc oracle."""
@@ -1101,6 +1167,8 @@ def _all_kind_cases(m, tree, tmp):
 
 ONE = 'return abs(a - b) <= Decimal(1).scaleb(m.adjusted() - 14)'
 PLANTS = [
+ ("every input given to every isolated cell", 'groups.setdefault(formula_inputs(formula,spec.get("base",{})),[]).append(ad)',
+  'groups.setdefault(frozenset(spec.get("base",{})),[]).append(ad)', _isolated_before_case, "N,CRASH"),
  ("differ-kind classifier returns other for everything", ' k=mine["kind"]; ck=("text" if shape=="TEXT" else calc_class(c)) if isinstance(c,str) else "other"', ' return "other"\n k=mine["kind"]; ck=("text" if shape=="TEXT" else calc_class(c)) if isinstance(c,str) else "other"', _all_kind_cases, ",".join(DIFFER_KINDS)),
  ("Calc operation is given the spreadsheet's result content again",
   'content_bad=content is not None and normal_content(content)!=normal_content(m.get("content",""))',
@@ -1154,6 +1222,7 @@ PLANTS = [
   lambda m,t,x: _before_case(m,t,x), 'examined=2 differ=2 before=2 net=0 crash=0 status=1'),
 ]
 CONTROLS = [
+ ("writing one before set preserves another set's keys", _one_set_before_case, N("77")),
  ("differ kind eval-failed", lambda m,t,x,k="eval-failed":_kind_case(m,t,x,k), "eval-failed"),
  ("differ kind net", lambda m,t,x,k="net":_kind_case(m,t,x,k), "net"),
  ("differ kind missing-function", lambda m,t,x,k="missing-function":_kind_case(m,t,x,k), "missing-function"),

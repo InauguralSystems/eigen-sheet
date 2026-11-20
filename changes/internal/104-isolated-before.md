@@ -1,0 +1,1 @@
+- Derive number-bar arrival history with only each cell's referenced inputs and allow replacing one recorded set (#104).
